@@ -1,5 +1,5 @@
 # ==========================================
-# Stage 1: Build the React Application
+# Stage 1: Build the React Application with Vite
 # ==========================================
 FROM node:18-alpine AS builder
 
@@ -8,14 +8,13 @@ WORKDIR /app
 # Copy dependency manifests
 COPY package*.json ./
 
-# Install dependencies (use npm ci if package-lock is present, else npm install)
-RUN npm install --legacy-peer-deps
+# Install dependencies fast and cleanly
+RUN npm install
 
 # Copy application source code
 COPY . .
 
-# Set production environment and build React bundle
-ENV NODE_ENV=production
+# Build production distribution bundle
 RUN npm run build
 
 # ==========================================
@@ -26,8 +25,8 @@ FROM nginx:1.25-alpine
 # Remove default nginx html files
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy build output from Stage 1
-COPY --from=builder /app/build /usr/share/nginx/html
+# Copy build output from Stage 1 (Vite outputs to dist/)
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

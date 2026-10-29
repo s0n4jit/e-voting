@@ -65,6 +65,8 @@ backend/logs/
 node_modules/
 frontend/node_modules/
 frontend/build/
+frontend/dist/
+dist/
 frontend/.pnp
 frontend/.pnp.js
 npm-debug.log*

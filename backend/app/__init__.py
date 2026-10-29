@@ -80,6 +80,12 @@ def create_app(config_object=None) -> Flask:
     # ── Error handlers ────────────────────────────────────────────────────────
     _register_error_handlers(app)
 
+    # ── Health check ──────────────────────────────────────────────────────────
+    @app.route("/api/health")
+    @app.route("/health")
+    def health():
+        return jsonify({"status": "healthy", "service": "campus-evoting-api"}), 200
+
     # ── Database tables ───────────────────────────────────────────────────────
     with app.app_context():
         # Import models so SQLAlchemy knows about them before create_all()
