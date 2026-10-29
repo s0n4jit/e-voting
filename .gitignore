@@ -1,0 +1,80 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Excluded Personal & Reference Documentation
+docs/Architecture.pdf
+docs/Software_Engineering_Minor_Projects.pdf
+docs/PHASES.md
+docs/INSTRUCTIONS.md
+PHASES.md
+INSTRUCTIONS.md
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+htmlcov/
+
+# Databases & Local Storage
+*.sqlite
+*.sqlite3
+*.db
+backend/instance/
+backend/logs/
+*.log
+
+# Node & React
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/.pnp
+frontend/.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE & Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db

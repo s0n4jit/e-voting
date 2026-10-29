@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: evoting_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evoting_db
+      POSTGRES_USER: evoting_user
+      POSTGRES_PASSWORD: evoting_secure_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evoting_user -d evoting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: evoting_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_ENV: production
+      SECRET_KEY: campus-evoting-super-secret-key-production-2026
+      JWT_SECRET_KEY: campus-evoting-jwt-secret-key-production-2026
+      DATABASE_URL: postgresql://evoting_user:evoting_secure_password_2026@db:5432/evoting_db
+      CORS_ORIGINS: http://localhost:3000,http://localhost
+      OTP_VALIDITY_SECONDS: 300
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: evoting_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
