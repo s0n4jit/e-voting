@@ -5,7 +5,7 @@ Written for [Overleaf](https://www.overleaf.com); no local TeX installation is n
 ## Use on Overleaf
 
 1. Overleaf → **New Project → Upload Project** → upload a ZIP of this `docs/report` folder.
-2. Open `preamble.tex` and fill in the details at the top (your name, roll number, programme, guide, academic year).
+2. Open `preamble.tex` (it is only included by the other files; never compile it) and fill in the details at the top (your name, roll number, programme, guide, academic year).
 3. Set **Menu → Main document** to one of the files below and press **Recompile**. Use *pdfLaTeX* (default).
 
 | Main document | Output |
