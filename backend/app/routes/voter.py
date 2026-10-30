@@ -50,21 +50,38 @@ def get_election_ballot(election_id):
 
     candidates = Candidate.query.filter_by(election_id=election.id).order_by(Candidate.id.asc()).all()
 
-    # Group candidates by office / position
+    # Group candidates by office / position in standard student union protocol order
+    order_priority = {
+        "Vice President": 1,
+        "General Secretary": 2,
+        "Assistant General Secretary": 3,
+        "Cultural Secretary": 4,
+        "Magazine Secretary": 5,
+        "Boys Common Room Secretary": 6,
+        "Girls Common Room Secretary": 7,
+        "Major Games Secretary": 8,
+        "Minor Games Secretary": 9,
+    }
+
     positions_map = {}
     for cand in candidates:
-        pos = cand.position or "President"
+        pos = cand.position or "General Secretary"
         if pos not in positions_map:
             positions_map[pos] = []
         positions_map[pos].append(cand.to_dict())
 
+    sorted_positions = sorted(
+        positions_map.keys(),
+        key=lambda p: (order_priority.get(p, 99), p)
+    )
+
     positions_list = [
         {
             "position": pos,
-            "candidates": cand_list,
+            "candidates": positions_map[pos],
             "allow_nota": True,
         }
-        for pos, cand_list in positions_map.items()
+        for pos in sorted_positions
     ]
 
     return (

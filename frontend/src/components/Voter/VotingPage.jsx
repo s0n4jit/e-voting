@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { voterApi } from '../../api/voterApi';
 import LoadingSpinner from '../common/LoadingSpinner';
-import Modal from '../common/Modal';
 import { toast } from 'react-hot-toast';
 import {
   ShieldCheckIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon,
+  ExclamationCircleIcon,
   UserIcon,
   ArrowLeftIcon,
+  ArrowRightIcon,
   FingerPrintIcon,
   AcademicCapIcon,
   BuildingOfficeIcon,
+  LockClosedIcon,
+  NoSymbolIcon,
+  CheckBadgeIcon,
+  DocumentCheckIcon,
+  PencilSquareIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 export const VotingPage = () => {
@@ -20,17 +26,17 @@ export const VotingPage = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [candidates, setCandidates] = useState([]);
   const [electionInfo, setElectionInfo] = useState(null);
-  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [positionsData, setPositionsData] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selections, setSelections] = useState({});
   const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false);
-  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [voteReceipt, setVoteReceipt] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
-    const loadElectionAndCandidates = async () => {
+    const loadElectionAndBallot = async () => {
       try {
         setLoading(true);
         setErrorMessage(null);
@@ -45,139 +51,180 @@ export const VotingPage = () => {
           console.warn('Could not verify voter status ahead of time', e);
         }
 
-        // Fetch candidate list
-        const res = await voterApi.getElectionCandidates(electionId);
-        const candidateList = Array.isArray(res) ? res : (res.candidates || []);
-        setCandidates(candidateList);
+        // Fetch structured ballot
+        const data = await voterApi.getElectionBallot(electionId);
 
-        if (res.election) {
-          setElectionInfo(res.election);
+        let positions = [];
+        let elec = data.election || { id: electionId, title: data.title || 'General Election' };
+
+        if (data.positions && Array.isArray(data.positions) && data.positions.length > 0) {
+          positions = data.positions;
+        } else if (data.candidates && Array.isArray(data.candidates)) {
+          const map = {};
+          data.candidates.forEach((c) => {
+            const p = (c.position || 'Executive Member').trim();
+            if (!map[p]) map[p] = [];
+            map[p].push(c);
+          });
+          positions = Object.keys(map).map((p) => ({
+            position: p,
+            candidates: map[p],
+            allow_nota: true,
+          }));
+        }
+
+        if (positions.length === 0) {
+          setErrorMessage('No candidates or portfolios registered for this election.');
         } else {
-          // If election info is not nested, try getting it from active elections
-          try {
-            const activeRes = await voterApi.getActiveElections();
-            const list = Array.isArray(activeRes) ? activeRes : (activeRes.elections || []);
-            const found = list.find((e) => String(e.id) === String(electionId));
-            if (found) setElectionInfo(found);
-          } catch (e) {
-            // Non-critical
-          }
+          setPositionsData(positions);
+          setElectionInfo(elec);
         }
       } catch (err) {
         console.error('Failed to load ballot data:', err);
-        setErrorMessage('Unable to load ballot or candidate list. Please verify the election is active.');
+        setErrorMessage(
+          err?.response?.data?.message ||
+            'Unable to load ballot or candidate list. Please verify the election is active.'
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    loadElectionAndCandidates();
+    loadElectionAndBallot();
   }, [electionId]);
 
-  const handleCastVote = async () => {
-    if (!selectedCandidateId) {
-      toast.error('Please select a candidate before proceeding.');
+  const totalPositions = positionsData.length;
+  const isReviewStep = currentStep === totalPositions;
+  const currentPositionObj = !isReviewStep ? positionsData[currentStep] : null;
+  const currentPositionName = currentPositionObj?.position || '';
+
+  const completedCount = useMemo(() => {
+    return positionsData.filter((p) => Boolean(selections[p.position])).length;
+  }, [positionsData, selections]);
+
+  const activeSelection = currentPositionName ? selections[currentPositionName] : null;
+
+  const handleSelectCandidate = (candidate) => {
+    if (!currentPositionName) return;
+    setSelections((prev) => ({
+      ...prev,
+      [currentPositionName]: {
+        candidateId: candidate.id,
+        candidateName: candidate.name,
+        party: candidate.party || 'Independent',
+        department: candidate.department || '',
+        photoUrl: candidate.photo_url,
+        isNota: false,
+      },
+    }));
+  };
+
+  const handleSelectNota = () => {
+    if (!currentPositionName) return;
+    setSelections((prev) => ({
+      ...prev,
+      [currentPositionName]: {
+        candidateId: null,
+        candidateName: 'None of the Above (NOTA)',
+        party: 'Neutral Abstention',
+        department: 'Campus Electoral Option',
+        photoUrl: null,
+        isNota: true,
+      },
+    }));
+  };
+
+  const handleNext = () => {
+    if (!activeSelection) {
+      toast.error(`Please select a candidate or NOTA for ${currentPositionName} to proceed.`);
+      return;
+    }
+    if (currentStep < totalPositions) {
+      setCurrentStep((prev) => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleJumpToStep = (index) => {
+    if (index >= 0 && index <= totalPositions) {
+      setCurrentStep(index);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleSubmitBallot = async () => {
+    const missing = positionsData.filter((p) => !selections[p.position]);
+    if (missing.length > 0) {
+      toast.error(`Missing choices for: ${missing.map((m) => m.position).join(', ')}`);
+      const firstMissingIndex = positionsData.findIndex((p) => !selections[p.position]);
+      if (firstMissingIndex !== -1) setCurrentStep(firstMissingIndex);
       return;
     }
 
     setSubmitting(true);
+    setErrorMessage(null);
+
+    const formattedSelections = positionsData.map((p) => {
+      const sel = selections[p.position];
+      return {
+        position: p.position,
+        candidate_id: sel.isNota ? null : sel.candidateId,
+        is_nota: Boolean(sel.isNota),
+      };
+    });
+
     try {
-      const response = await voterApi.castVote(electionId, selectedCandidateId);
-      setConfirmModalOpen(false);
+      const response = await voterApi.castMultiPositionBallot(electionId, formattedSelections);
       setVoteReceipt(response);
-      toast.success('Your vote was cast successfully!');
+      setHasAlreadyVoted(true);
+      toast.success('Your secret ballot has been cast successfully!');
     } catch (err) {
       console.error('Failed to cast ballot:', err);
-      const detail = err.response?.data?.message || err.response?.data?.error || 'Failed to submit ballot. You may have already voted.';
+      const detail =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to submit ballot. You may have already voted.';
+      setErrorMessage(detail);
       toast.error(detail);
-      setConfirmModalOpen(false);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectedCandidate = candidates.find((c) => c.id === selectedCandidateId);
-
-  // Success view with receipt
-  if (voteReceipt) {
+  if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 animate-fade-in">
-        <div className="card text-center p-8 border-emerald-200 bg-white shadow-xl">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center mb-4">
-            <CheckCircleIcon className="w-10 h-10" />
-          </div>
-
-          <h2 className="text-2xl font-bold text-gray-900">Ballot Cast Successfully!</h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Your vote has been cryptographically recorded in the anonymous ballot box.
-          </p>
-
-          <div className="mt-8 p-4 rounded-xl bg-slate-50 border border-slate-200 text-left font-mono text-xs">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 font-sans font-semibold text-gray-700">
-              <span className="flex items-center gap-1.5">
-                <FingerPrintIcon className="w-4 h-4 text-primary-600" />
-                Blind Cryptographic Receipt
-              </span>
-              <span className="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                Verified
-              </span>
-            </div>
-
-            <div className="space-y-1.5 break-all text-slate-700">
-              <div>
-                <span className="text-slate-400">Election ID: </span>
-                <span className="text-slate-900 font-bold">{electionId}</span>
-              </div>
-              {voteReceipt.token_hash && (
-                <div>
-                  <span className="text-slate-400">Token Hash: </span>
-                  <span className="text-indigo-600 font-semibold">{voteReceipt.token_hash}</span>
-                </div>
-              )}
-              {voteReceipt.receipt_id && (
-                <div>
-                  <span className="text-slate-400">Receipt ID: </span>
-                  <span className="text-slate-900">{voteReceipt.receipt_id}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-slate-400">Timestamp: </span>
-                <span>{new Date().toISOString()}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-indigo-50/60 rounded-lg text-xs text-indigo-800 text-left">
-            <strong>Privacy Note:</strong> This receipt proves your vote was accepted into the tally. Because your ballot is blinded, this hash cannot reveal which candidate you voted for.
-          </div>
-
-          <div className="mt-8 flex justify-center gap-4">
-            <Link to="/voter/dashboard" className="btn btn-primary px-6">
-              Return to Voter Dashboard
-            </Link>
-          </div>
-        </div>
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
+        <LoadingSpinner size="lg" text="Loading official Student Union ballot..." />
       </div>
     );
   }
 
-  // Already voted guard
-  if (hasAlreadyVoted) {
+  // Already Voted View
+  if (hasAlreadyVoted && !voteReceipt) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16 text-center animate-fade-in">
-        <div className="card p-8 border-amber-200">
-          <ExclamationTriangleIcon className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-gray-900">Ballot Already Cast</h2>
-          <p className="text-sm text-gray-600 mt-2">
-            You have already participated in this election. Under campus election rules, only one secret ballot per eligible voter is permitted.
+      <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
+        <div className="card p-8 text-center border-emerald-200 bg-emerald-50/50 shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+            <CheckCircleIcon className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Ballot Already Cast</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            You have already recorded your vote in <strong>{electionInfo?.title || 'this election'}</strong>.
+            Under single-vote secret ballot rules, multiple submissions are forbidden.
           </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <Link to="/voter/dashboard" className="btn btn-secondary btn-sm gap-2">
-              <ArrowLeftIcon className="w-4 h-4" />
+          <div className="flex justify-center gap-4">
+            <Link to="/voter/dashboard" className="btn btn-secondary btn-sm">
               Back to Dashboard
             </Link>
             <Link to={`/voter/results/${electionId}`} className="btn btn-primary btn-sm">
-              View Results Status
+              View Election Results
             </Link>
           </div>
         </div>
@@ -185,218 +232,391 @@ export const VotingPage = () => {
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Navigation & Header */}
-      <div className="mb-6">
-        <Link
-          to="/voter/dashboard"
-          className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 font-medium mb-3 transition-colors"
-        >
-          <ArrowLeftIcon className="w-3.5 h-3.5" />
-          Back to Dashboard
-        </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              {electionInfo?.title || 'Official Ballot Paper'}
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {electionInfo?.description || 'Select one verified candidate to cast your official secret ballot.'}
-            </p>
+  // Vote Success Receipt View
+  if (voteReceipt) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
+        <div className="card p-8 text-center border-emerald-300 bg-white shadow-xl rounded-2xl relative overflow-hidden">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-4">
+            <ShieldCheckIcon className="w-10 h-10" />
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-            <ShieldCheckIcon className="w-4 h-4" />
-            <span>Cryptographic Session Active</span>
+
+          <h2 className="text-2xl font-extrabold text-gray-900 mb-1">
+            Secret Ballot Recorded Successfully!
+          </h2>
+          <p className="text-sm text-emerald-600 font-semibold mb-6">
+            {electionInfo?.title || 'General Election of the Student Union 2026–27'}
+          </p>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-left mb-6 space-y-3">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+              <FingerPrintIcon className="w-5 h-5 text-primary-600" />
+              <span>Cryptographic Receipt Proof</span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your ballot choices have been sealed with untraceable cryptographic blind tokens.
+              Your student voter ID has been burned from the eligible voter whitelist.
+            </p>
+
+            {voteReceipt?.receipts && voteReceipt.receipts.length > 0 && (
+              <div className="pt-3 border-t border-slate-200">
+                <span className="text-[11px] font-mono text-slate-400 block mb-1 uppercase tracking-wider">
+                  Confirmed Portfolios ({voteReceipt.receipts.length}):
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {voteReceipt.receipts.map((r, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono bg-white border border-slate-300 px-2 py-0.5 rounded text-emerald-700"
+                    >
+                      <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
+                      {r.position}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-center gap-4">
+            <Link to="/voter/dashboard" className="btn btn-primary">
+              Return to Dashboard
+            </Link>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {loading ? (
-        <div className="card py-16">
-          <LoadingSpinner text="Preparing candidate slate..." />
-        </div>
-      ) : errorMessage ? (
-        <div className="card p-8 text-center bg-rose-50/50 border-rose-200">
-          <ExclamationTriangleIcon className="w-10 h-10 text-rose-500 mx-auto mb-2" />
-          <h3 className="text-base font-semibold text-rose-900">{errorMessage}</h3>
-          <Link to="/voter/dashboard" className="mt-4 inline-block btn btn-secondary btn-sm">
-            Return to Dashboard
+  // ── MAIN GUIDED VOTING WIZARD (VOTER VIEW) ──────────────────────────────────
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-200 mb-6">
+        <div>
+          <Link
+            to="/voter/dashboard"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 mb-2"
+          >
+            <ArrowLeftIcon className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
           </Link>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {electionInfo?.title || 'General Election of the Student Union 2026–27'}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Single-Choice Secret Ballot • 9 Executive Portfolios • NOTA Enabled
+          </p>
         </div>
-      ) : candidates.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="text-gray-500">No registered candidates found for this election.</p>
-          <Link to="/voter/dashboard" className="mt-4 inline-block btn btn-secondary btn-sm">
-            Back to Dashboard
-          </Link>
+
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full text-xs text-emerald-800 self-start sm:self-auto">
+          <span className="font-semibold">Decided:</span>
+          <span className="font-bold text-emerald-700">
+            {completedCount} / {totalPositions}
+          </span>
+          <span>Portfolios</span>
         </div>
-      ) : (
+      </div>
+
+      {/* Stepper Navigation Pills */}
+      <div className="mb-6 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex items-center gap-1.5 min-w-max">
+          {positionsData.map((p, idx) => {
+            const isSelected = Boolean(selections[p.position]);
+            const isCurrent = idx === currentStep;
+
+            return (
+              <button
+                key={idx}
+                onClick={() => handleJumpToStep(idx)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  isCurrent
+                    ? 'bg-primary-600 text-white shadow-sm ring-2 ring-primary-500/30'
+                    : isSelected
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {isSelected ? (
+                  <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <span className="w-3.5 h-3.5 rounded-full bg-gray-200 text-[10px] flex items-center justify-center text-gray-600">
+                    {idx + 1}
+                  </span>
+                )}
+                <span>{p.position}</span>
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => handleJumpToStep(totalPositions)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              isReviewStep
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/30'
+                : completedCount === totalPositions
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100'
+                : 'bg-gray-100 text-gray-400 border border-gray-200'
+            }`}
+          >
+            <DocumentCheckIcon className="w-3.5 h-3.5" />
+            <span>Review</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-2">
+          <ExclamationCircleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Wizard Body */}
+      {!isReviewStep ? (
         <div className="space-y-6">
-          <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 flex items-start gap-2.5">
-            <ExclamationTriangleIcon className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <span>
-              <strong>Careful:</strong> Your selection is final upon submission. You will be asked to confirm your choice before the blind cryptographic hash is registered.
-            </span>
+          {/* Active Position Info Card */}
+          <div className="card p-6 border-primary-200 bg-gradient-to-r from-primary-50/50 to-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-primary-100 pb-3 mb-3">
+              <div>
+                <span className="text-xs font-bold text-primary-700 uppercase tracking-widest block">
+                  Portfolio {currentStep + 1} of {totalPositions}
+                </span>
+                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+                  {currentPositionName}
+                </h2>
+              </div>
+              <div>
+                {activeSelection ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                    <CheckCircleIcon className="w-3.5 h-3.5" />
+                    Choice Selected
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full font-medium">
+                    Choice Pending
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600">
+              Select one candidate for {currentPositionName}, or select NOTA to register an abstention.
+            </p>
           </div>
 
-          {/* Candidate slate cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {candidates.map((cand) => {
-              const isSelected = selectedCandidateId === cand.id;
+          {/* Candidate Cards Grid */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+              Nominated Candidates
+            </h3>
 
-              return (
-                <div
-                  key={cand.id}
-                  onClick={() => setSelectedCandidateId(cand.id)}
-                  className={`cursor-pointer rounded-xl border-2 p-5 transition-all duration-150 relative flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-primary-600 bg-primary-50/30 shadow-md ring-2 ring-primary-500/20'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-xs'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base transition-colors ${
-                            isSelected
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {cand.name ? cand.name.charAt(0).toUpperCase() : <UserIcon className="w-6 h-6" />}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900 text-base leading-tight">
-                            {cand.name}
-                          </h3>
-                          <p className="text-xs font-semibold text-primary-700 flex items-center gap-1 mt-0.5">
-                            <AcademicCapIcon className="w-3.5 h-3.5" />
-                            {cand.position || 'Candidate'}
-                          </p>
-                        </div>
-                      </div>
+            <div className="grid grid-cols-1 gap-3">
+              {currentPositionObj?.candidates?.map((candidate) => {
+                const isSelected = activeSelection?.candidateId === candidate.id && !activeSelection?.isNota;
 
-                      {/* Custom Radio checkmark indicator */}
+                return (
+                  <div
+                    key={candidate.id}
+                    onClick={() => handleSelectCandidate(candidate)}
+                    className={`card p-4 sm:p-5 cursor-pointer transition-all flex items-start gap-4 ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-50/40 ring-2 ring-primary-500/30 shadow-md'
+                        : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50/60'
+                    }`}
+                  >
+                    <div className="mt-1">
                       <div
-                        className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                           isSelected
                             ? 'border-primary-600 bg-primary-600 text-white'
                             : 'border-gray-300 bg-white'
                         }`}
                       >
-                        {isSelected && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
+                        {isSelected && <CheckBadgeIcon className="w-5 h-5 text-white" />}
                       </div>
                     </div>
 
-                    {cand.party && (
-                      <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                        <BuildingOfficeIcon className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{cand.party}</span>
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                      {candidate.photo_url ? (
+                        <img
+                          src={candidate.photo_url}
+                          alt={candidate.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="w-full h-full flex items-center justify-center text-gray-500 font-bold"
+                        style={{ display: candidate.photo_url ? 'none' : 'flex' }}
+                      >
+                        {candidate.name.charAt(0)}
                       </div>
-                    )}
+                    </div>
 
-                    {cand.bio && (
-                      <p className="mt-3 text-xs text-gray-600 line-clamp-3 leading-relaxed border-t border-gray-100 pt-3">
-                        {cand.bio}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                        <h4 className="text-base font-bold text-gray-900">{candidate.name}</h4>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-fit">
+                          {candidate.party || 'Independent'}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-primary-700 mb-1 flex items-center gap-1.5">
+                        <AcademicCapIcon className="w-3.5 h-3.5" />
+                        <span>{candidate.department || 'Department of General Studies'}</span>
                       </p>
+                      {candidate.bio && (
+                        <p className="text-xs text-gray-500 line-clamp-2">"{candidate.bio}"</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* NOTA Option */}
+            {currentPositionObj?.allow_nota !== false && (
+              <div className="pt-2">
+                <div
+                  onClick={handleSelectNota}
+                  className={`card p-4 cursor-pointer transition-all flex items-center gap-4 ${
+                    activeSelection?.isNota
+                      ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/30 shadow-md'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center border-gray-300 bg-white">
+                    {activeSelection?.isNota && (
+                      <div className="w-3 h-3 rounded-full bg-amber-600" />
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
-                    <span>Candidate #{cand.id}</span>
-                    <span className={`font-medium ${isSelected ? 'text-primary-600' : 'text-gray-400'}`}>
-                      {isSelected ? 'Selected' : 'Click to select'}
-                    </span>
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                    <NoSymbolIcon className="w-5 h-5" />
                   </div>
+
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-gray-800">None of the Above (NOTA)</h4>
+                    <p className="text-xs text-gray-500">
+                      Abstain from voting for any of the listed candidates for {currentPositionName}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Review Screen */
+        <div className="space-y-6">
+          <div className="card p-6 bg-gradient-to-r from-indigo-50/50 to-white border-indigo-200">
+            <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest block mb-1">
+              Final Verification
+            </span>
+            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+              Review Your Selections
+            </h2>
+            <p className="text-xs text-gray-600 mt-1">
+              Verify your choices across all {totalPositions} portfolios before sealing your ballot.
+              You can click "Modify" to adjust any selection.
+            </p>
+          </div>
+
+          <div className="card divide-y divide-gray-100 overflow-hidden">
+            {positionsData.map((p, idx) => {
+              const sel = selections[p.position];
+
+              return (
+                <div
+                  key={idx}
+                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/60 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-7 h-7 rounded-lg bg-gray-100 font-bold text-xs flex items-center justify-center text-gray-600 flex-shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <span className="text-xs text-gray-500 block font-medium">
+                        {p.position}
+                      </span>
+                      {sel ? (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {sel.isNota ? (
+                            <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              None of the Above (NOTA)
+                            </span>
+                          ) : (
+                            <span className="text-sm font-bold text-gray-900">
+                              {sel.candidateName}{' '}
+                              <span className="text-xs font-normal text-gray-500">
+                                ({sel.party})
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-red-500 font-semibold">Not Selected</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleJumpToStep(idx)}
+                    className="btn btn-ghost btn-xs text-primary-600 gap-1 self-end sm:self-auto"
+                  >
+                    <PencilSquareIcon className="w-3.5 h-3.5" />
+                    <span>Modify</span>
+                  </button>
                 </div>
               );
             })}
           </div>
-
-          {/* Action Bar */}
-          <div className="pt-4 flex items-center justify-between border-t border-gray-200">
-            <span className="text-xs text-gray-500">
-              {selectedCandidate ? (
-                <>Selected: <strong className="text-gray-900">{selectedCandidate.name}</strong> ({selectedCandidate.position || 'Candidate'})</>
-              ) : (
-                'Please select a candidate to enable submission.'
-              )}
-            </span>
-
-            <button
-              type="button"
-              disabled={!selectedCandidateId || submitting}
-              onClick={() => setConfirmModalOpen(true)}
-              className="btn btn-primary px-6 py-2.5 text-sm gap-2 shadow-md shadow-primary-500/20"
-            >
-              <span>Review & Cast Ballot</span>
-              <ShieldCheckIcon className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Confirmation Modal */}
-      <Modal
-        isOpen={confirmModalOpen}
-        onClose={() => !submitting && setConfirmModalOpen(false)}
-        title="Confirm Anonymous Secret Ballot"
-      >
-        <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-start gap-3">
-            <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">Irreversible Action</p>
-              <p className="text-xs mt-1">
-                Are you sure? Once cast, your ballot is anonymous and cannot be changed or undone.
-              </p>
-            </div>
-          </div>
+      {/* Stepper Bottom Controls */}
+      <div className="pt-6 border-t border-gray-200 mt-6 flex items-center justify-between gap-4">
+        <button
+          onClick={handleBack}
+          disabled={currentStep === 0 || submitting}
+          className="btn btn-secondary btn-sm gap-1.5"
+        >
+          <ArrowLeftIcon className="w-4 h-4" />
+          <span>Previous</span>
+        </button>
 
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-sm">
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">
-              Ballot Summary
-            </p>
-            <div className="flex justify-between py-1 border-b border-gray-200">
-              <span className="text-gray-600">Candidate:</span>
-              <span className="font-bold text-gray-900">{selectedCandidate?.name}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-gray-200">
-              <span className="text-gray-600">Position:</span>
-              <span className="font-semibold text-gray-800">{selectedCandidate?.position || 'N/A'}</span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span className="text-gray-600">Party/Affiliation:</span>
-              <span className="text-gray-800">{selectedCandidate?.party || 'Independent'}</span>
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-500 italic">
-            By clicking "Confirm & Cast Ballot", your vote is hashed, separated from your student identity, and sealed in the ballot ledger.
-          </p>
-
-          <div className="flex justify-end gap-3 pt-3">
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => setConfirmModalOpen(false)}
-              className="btn btn-secondary btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={handleCastVote}
-              className="btn btn-primary btn-sm px-5"
-            >
-              {submitting ? 'Casting Ballot...' : 'Confirm & Cast Ballot'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        {!isReviewStep ? (
+          <button
+            onClick={handleNext}
+            disabled={!activeSelection}
+            className="btn btn-primary btn-sm gap-1.5"
+          >
+            <span>{currentStep === totalPositions - 1 ? 'Go to Review' : 'Next Portfolio'}</span>
+            <ArrowRightIcon className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmitBallot}
+            disabled={submitting || completedCount < totalPositions}
+            className="btn btn-primary gap-2 shadow-lg shadow-primary-600/20"
+          >
+            {submitting ? (
+              <>
+                <ArrowPathIcon className="w-4 h-4 animate-spin text-white" />
+                <span>Sealing Secret Ballot...</span>
+              </>
+            ) : (
+              <>
+                <LockClosedIcon className="w-4 h-4" />
+                <span>Confirm & Cast Secret Ballot</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
