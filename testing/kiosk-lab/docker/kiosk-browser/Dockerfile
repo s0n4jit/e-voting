@@ -25,9 +25,10 @@ COPY policies.json /etc/opt/chrome/policies/managed/policies.json
 # Configure noVNC to automatically connect and auto-scale display on root access
 RUN echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=vnc.html?autoconnect=true&resize=scale&reconnect=true"></head><body>Redirecting to Kiosk Session...</body></html>' > /usr/share/novnc/index.html
 
-# Copy supervisor config and launcher script
+# Copy supervisor config, launcher script, and control agent
 COPY supervisord.conf /etc/supervisord.conf
 COPY start-kiosk.sh /start-kiosk.sh
+COPY kiosk-agent.py /kiosk-agent.py
 RUN chmod +x /start-kiosk.sh
 
 EXPOSE 8080

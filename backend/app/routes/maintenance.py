@@ -13,6 +13,7 @@ import shutil
 import socket
 import subprocess
 import time
+import urllib.request
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
@@ -352,6 +353,29 @@ def get_diagnostics():
     )
 
 
+def _send_lab_kiosk_action(action: str) -> bool:
+    """Send command to isolated Windows Lab Kiosk GUI Simulator container if active."""
+    endpoints = [
+        os.environ.get("KIOSK_CONTROL_URL", "http://kiosk_browser_novnc:8085"),
+        "http://localhost:8085",
+        "http://127.0.0.1:8085",
+    ]
+    for url in endpoints:
+        try:
+            req = urllib.request.Request(
+                f"{url}/action/{action}",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 @maintenance_bp.post("/action")
 @jwt_required()
 def execute_action():
@@ -386,9 +410,9 @@ def execute_action():
     is_testing = current_app.config.get("TESTING", False)
 
     if action == "restart_browser":
-        # Safe browser restart (handles physical Ubuntu host vs containerized lab)
-        executed = False
-        if not is_testing:
+        # Safe browser restart (handles testing lab container vs physical Ubuntu host)
+        executed = _send_lab_kiosk_action(action)
+        if not executed and not is_testing:
             for binary in (["pkill", "-f", "firefox"], ["killall", "firefox"], ["pkill", "-f", "chromium"]):
                 cmd_path = shutil.which(binary[0])
                 if cmd_path:
@@ -401,9 +425,9 @@ def execute_action():
         msg = "Browser process restart initiated." if executed else "Browser restart signal processed (active in kiosk environment)."
 
     elif action == "restart_kiosk":
-        # Safe kiosk session restart via user systemd unit
-        executed = False
-        if not is_testing:
+        # Safe kiosk session restart via user systemd unit or lab container
+        executed = _send_lab_kiosk_action(action)
+        if not executed and not is_testing:
             cmd_path = shutil.which("systemctl")
             if cmd_path:
                 try:
@@ -414,9 +438,9 @@ def execute_action():
         msg = "Kiosk user session restarted." if executed else "Kiosk session restart signal processed (active in kiosk environment)."
 
     elif action == "restart_system":
-        # Safe system reboot via allowlisted command
-        executed = False
-        if not is_testing:
+        # Safe system reboot via allowlisted command or lab container display reset
+        executed = _send_lab_kiosk_action(action)
+        if not executed and not is_testing:
             if shutil.which("sudo"):
                 try:
                     subprocess.run(["sudo", "/sbin/reboot"], check=False)
