@@ -38,12 +38,28 @@ export const KioskLogin = () => {
     const fetchActiveElections = async () => {
       try {
         setLoadingElections(true);
-        const res = await voterApi.getActiveElections();
-        const list = Array.isArray(res) ? res : (res?.elections || []);
+        // Use unauthenticated public discovery endpoint first
+        let list = [];
+        try {
+          const publicData = await authApi.getActiveElection();
+          if (publicData?.elections && publicData.elections.length > 0) {
+            list = publicData.elections;
+          } else if (publicData?.election) {
+            list = [publicData.election];
+          }
+        } catch (e) {
+          // Fallback to voter endpoint
+          try {
+            const res = await voterApi.getActiveElections();
+            list = Array.isArray(res) ? res : (res?.elections || []);
+          } catch (e2) {
+            console.warn('Could not load elections list:', e2);
+          }
+        }
+
         setElections(list);
 
         if (list.length > 0) {
-          // Default to first active or first in list
           const active = list.find((e) => e.is_active);
           setSelectedElectionId(active ? String(active.id) : String(list[0].id));
         }
@@ -80,17 +96,15 @@ export const KioskLogin = () => {
       return;
     }
 
-    if (!selectedElectionId) {
-      setErrorMessage('No active election slate selected for this voting booth.');
-      return;
-    }
+    // Auto-resolve election ID (backend also auto-resolves if omitted)
+    const targetElectionId = selectedElectionId || (elections[0] ? String(elections[0].id) : null);
 
     setSubmitting(true);
     try {
       const response = await authApi.voterPinLogin(
         cleanStudentId,
         cleanPin,
-        selectedElectionId,
+        targetElectionId,
         kioskToken
       );
 
@@ -107,8 +121,9 @@ export const KioskLogin = () => {
         );
       }
 
+      const destElectionId = response.election_id || targetElectionId || (elections[0] ? String(elections[0].id) : '2');
       toast.success('PIN verified! Loading your electronic ballot...');
-      navigate(`/kiosk/vote/${selectedElectionId}`);
+      navigate(`/kiosk/vote/${destElectionId}`);
     } catch (err) {
       console.error('Kiosk login failed:', err);
       const detail =

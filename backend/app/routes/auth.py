@@ -263,6 +263,29 @@ def get_current_user():
     return jsonify(user.to_dict()), 200
 
 
+@auth_bp.get("/active-election")
+def get_active_election():
+    """
+    Public/Kiosk discovery endpoint for the current campus election.
+    Accessible without JWT so unauthenticated kiosk booths can discover election details.
+    """
+    active_elections = Election.query.filter_by(is_active=True).all()
+    ongoing = [e for e in active_elections if e.is_ongoing]
+    election = ongoing[0] if ongoing else (
+        active_elections[0] if active_elections else Election.query.order_by(Election.created_at.desc()).first()
+    )
+
+    if not election:
+        return jsonify({"election": None, "elections": []}), 200
+
+    return jsonify({
+        "election": election.to_dict(),
+        "election_id": election.id,
+        "title": election.title,
+        "elections": [e.to_dict() for e in active_elections],
+    }), 200
+
+
 @auth_bp.post("/voter-pin-login")
 def voter_pin_login():
     """

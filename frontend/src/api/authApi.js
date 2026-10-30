@@ -43,12 +43,20 @@ export const authApi = {
 
   // Booth Kiosk Voter PIN Login
   voterPinLogin: async (studentId, votingPin, electionId, kioskToken) => {
-    const response = await apiClient.post('/auth/voter-pin-login', {
+    const payload = {
       student_id: studentId,
       voting_pin: votingPin,
-      election_id: electionId,
       kiosk_token: kioskToken,
-    });
+    };
+    if (electionId) {
+      payload.election_id = electionId;
+    }
+    const response = await apiClient.post('/auth/voter-pin-login', payload);
+    return response.data;
+  },
+
+  getActiveElection: async () => {
+    const response = await apiClient.get('/auth/active-election');
     return response.data;
   },
 };
