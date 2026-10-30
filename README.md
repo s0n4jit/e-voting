@@ -65,7 +65,7 @@ Open `http://localhost/` and complete the installation wizard. See the [installa
 - [Voting booth setup on Ubuntu](docs/KIOSK_SETUP.md) · [Booth maintenance](docs/KIOSK_MAINTENANCE.md)
 - [User guide](docs/USER_GUIDE.md) · [Security](docs/SECURITY.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Changelog](docs/CHANGELOG.md)
 - [Project report (LaTeX, for Overleaf)](docs/report/README.md)
-- Landing page: `docs/index.html` (GitHub Pages)
+- Landing page: `docs/` (GitHub Pages, deployed by `.github/workflows/pages.yml`). Preview locally with `python scripts/serve-site.py` (clean URLs like `/self-hosting`)
 
 ## Development
 
