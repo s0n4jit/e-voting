@@ -9,9 +9,9 @@
 </head>
 <body>
 <header class="nav"><div class="wrap">
-  <a class="brand" href="index.html"><img src="assets/logo.svg" alt="">Campus E-Voting</a>
-  <nav><a href="index.html">Home</a><a href="#install">Install</a><a href="#booths">Booths</a><a href="#operate">Operate</a><a href="https://github.com/s0n4jit/e-voting/blob/main/docs/FREE_HOSTING.md">Free hosting</a>
-  <a class="btn" href="https://github.com/s0n4jit/e-voting">GitHub</a></nav>
+  <a class="brand" href="./"><img src="assets/logo.svg" alt="">Campus E-Voting</a>
+  <nav><a href="./">Home</a><a href="#install">Install</a><a href="#booths">Booths</a><a href="#operate">Operate</a><a href="guide?doc=FREE_HOSTING">Free hosting</a>
+  <a href="guide">Docs</a><a href="team">Team</a><a class="btn" href="https://github.com/s0n4jit/e-voting">GitHub</a></nav>
 </div></header>
 
 <main class="doc">
@@ -48,7 +48,7 @@ docker compose ps</code></pre></div></li>
 <pre><code>vote.example.edu {
     reverse_proxy localhost:8080
 }</code></pre>
-<p>An nginx example and the Render/Supabase/Vercel option are in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/INSTALLATION.md">INSTALLATION.md</a> and <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/DEPLOYMENT.md">DEPLOYMENT.md</a>.</p>
+<p>An nginx example and the Render/Supabase/Vercel option are in <a href="guide?doc=INSTALLATION">Installation guide</a> and <a href="guide?doc=DEPLOYMENT">Deployment guide</a>.</p>
 
 <h2 id="prepare">3. Prepare the election</h2>
 <ol>
@@ -63,7 +63,7 @@ docker compose ps</code></pre></div></li>
 <pre><code>cd kiosk/ubuntu
 sudo VOTING_URL="https://vote.example.edu/kiosk/vote" bash setup-kiosk.sh
 sudo reboot</code></pre>
-<p>The script installs a locked-down browser session that opens only <code>/kiosk/vote</code>. In the Election Officer panel open <em>Voting booths</em>, generate a booth token, then enter the token and your current authenticator code on the booth screen. The booth is named <code>BOOTH-01</code>, <code>BOOTH-02</code>… automatically. Deleting a booth in the panel revokes it immediately. Removal of a machine is covered in the guide inside the panel and in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/KIOSK_SETUP.md">KIOSK_SETUP.md</a>.</p>
+<p>The script installs a locked-down browser session that opens only <code>/kiosk/vote</code>. In the Election Officer panel open <em>Voting booths</em>, generate a booth token, then enter the token and your current authenticator code on the booth screen. The booth is named <code>BOOTH-01</code>, <code>BOOTH-02</code>… automatically. Deleting a booth in the panel revokes it immediately. Removal of a machine is covered in the guide inside the panel and in <a href="guide?doc=KIOSK_SETUP">booth setup guide</a>.</p>
 
 <h2 id="operate">5. Operate</h2>
 <table>
@@ -76,7 +76,7 @@ sudo reboot</code></pre>
   <tr><td>Backup the database</td><td><code>docker compose exec -T db pg_dump -U evoting evoting &gt; backup.sql</code></td></tr>
   <tr><td>Upgrade</td><td><code>git pull &amp;&amp; docker compose up -d --build</code></td></tr>
 </table>
-<p>Health check: <code>GET /api/health</code>. More in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/OPERATIONS.md">OPERATIONS.md</a> and <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a>.</p>
+<p>Health check: <code>GET /api/health</code>. More in <a href="guide?doc=OPERATIONS">Operations guide</a> and <a href="guide?doc=TROUBLESHOOTING">Troubleshooting</a>.</p>
 
 <h2>Checklist before the election</h2>
 <ul>
@@ -88,6 +88,9 @@ sudo reboot</code></pre>
 </ul>
 </main>
 
-<footer><div class="wrap"><span>Campus E-Voting System</span><span><a href="index.html">Home</a> · <a href="https://github.com/s0n4jit/e-voting">Source</a></span></div></footer>
+<footer><div class="wrap foot">
+  <span class="brand"><img src="assets/logo.svg" alt="" style="width:24px;height:24px"> Campus E-Voting</span>
+  <strong>Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga</strong>
+</div></footer>
 </body>
 </html>
