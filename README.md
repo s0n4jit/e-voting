@@ -82,4 +82,4 @@ Set `DATABASE_URL` to a PostgreSQL URL, or leave it unset to use a local SQLite 
 
 ## License
 
-Academic software project. All rights reserved by the author unless a licence file is added.
+Released under the [MIT License](LICENSE). Free to use, modify and self-host; keep the copyright notice.
