@@ -1,0 +1,136 @@
+import React from 'react';
+import { toast } from 'react-hot-toast';
+import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+
+const CopyBlock = ({ children }) => (
+  <div className="relative group">
+    <pre className="bg-recessed border border-line rounded-lg px-4 py-3 pr-12 text-xs sm:text-sm overflow-x-auto font-mono leading-relaxed">{children}</pre>
+    <button
+      type="button"
+      className="absolute top-2 right-2 btn-ghost btn-sm p-1.5"
+      aria-label="Copy commands"
+      onClick={() => {
+        navigator.clipboard?.writeText(children);
+        toast.success('Copied');
+      }}
+    >
+      <ClipboardDocumentIcon className="w-4 h-4" />
+    </button>
+  </div>
+);
+
+const Step = ({ n, title, children }) => (
+  <section className="card card-body">
+    <div className="flex items-center gap-3 mb-3">
+      <span className="w-7 h-7 rounded-full bg-brand text-white text-sm font-semibold flex items-center justify-center shrink-0">{n}</span>
+      <h2 className="font-semibold">{title}</h2>
+    </div>
+    <div className="space-y-3 text-sm text-muted [&_strong]:text-fg [&_code]:font-mono [&_code]:text-fg [&_code]:bg-recessed [&_code]:rounded [&_code]:px-1">{children}</div>
+  </section>
+);
+
+const Row = ({ what, how }) => (
+  <tr>
+    <td className="align-top whitespace-normal font-medium">{what}</td>
+    <td className="whitespace-normal font-mono text-xs">{how}</td>
+  </tr>
+);
+
+/** Ubuntu booth guide for the Election Officer / technician. */
+export default function BoothGuide() {
+  return (
+    <div className="space-y-5 max-w-4xl">
+      <section className="card card-body text-sm text-muted">
+        <p>
+          A <strong className="text-fg">voting booth</strong> is an Ubuntu computer locked down so it can only show the voting page{' '}
+          <span className="font-mono text-fg">/kiosk/vote</span>. Votes are accepted only from computers set up this way. This guide covers
+          installing the lock-down, turning the computer into a booth, operating it, and turning it back into a normal computer.
+        </p>
+      </section>
+
+      <Step n="1" title="What you need">
+        <ul className="list-disc pl-5 space-y-1">
+          <li>A computer with <strong>Ubuntu 24.04 or 26.04 LTS</strong> (GNOME on Wayland), at least 4 GB RAM, and a working network connection to the portal.</li>
+          <li>An administrator (<code>sudo</code>) account, and <code>openssh-server</code> so you can manage the booth from another computer. The locked-down screen has no terminal.</li>
+          <li>The portal's HTTPS address, for example <code>https://evote.campus.internal</code>.</li>
+          <li>Internet access during installation (the script installs the Firefox snap).</li>
+          <li>Your Election Officer account with two-step verification, and your phone with the authenticator app.</li>
+        </ul>
+        <CopyBlock>{`sudo apt update
+sudo apt install -y git openssh-server`}</CopyBlock>
+      </Step>
+
+      <Step n="2" title="Install the lock-down on the computer">
+        <p>Copy the project to the computer and run the installer with the booth address. Replace the address with your portal.</p>
+        <CopyBlock>{`cd /opt
+sudo git clone <repository-url> e-voting
+cd /opt/e-voting/kiosk/ubuntu
+sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh
+sudo reboot`}</CopyBlock>
+        <p>The installer:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>creates a restricted user <code>evote</code> (no password, no admin rights) that logs in automatically;</li>
+          <li>starts Firefox in full-screen kiosk mode with a policy that lets it open <strong>only</strong> <code>/kiosk/vote…</code>, with no address bar, tabs, downloads or developer tools;</li>
+          <li>locks desktop shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners), disables USB storage and the Ctrl+Alt+F1–F12 text consoles;</li>
+          <li>installs a service, <code>evote-kiosk.service</code>, that restarts the browser if it ever closes.</li>
+        </ul>
+      </Step>
+
+      <Step n="3" title="Make it a booth">
+        <ol className="list-decimal pl-5 space-y-1">
+          <li>On the <strong>Booths</strong> tab of this page, press <strong>Generate booth token</strong>. The token works once and expires after 15 minutes.</li>
+          <li>On the booth computer the screen shows <strong>Set up this voting booth</strong>. Enter the token and the current 6-digit code from your authenticator app.</li>
+          <li>The booth gets its ID automatically for the running election (<code>BOOTH-01</code>, <code>BOOTH-02</code>, …) and shows the voter entry screen.</li>
+        </ol>
+        <p>A booth takes votes only while the election is <strong>Voting active</strong>, and only for its own election. It appears on the Booths tab as Online while it is running.</p>
+      </Step>
+
+      <Step n="4" title="What the booth can do, and how">
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>To do this</th><th>Use</th></tr></thead>
+            <tbody>
+              <Row what="Open the maintenance screen (unlock with your authenticator code)" how="Ctrl + Alt + Shift + M" />
+              <Row what="Open network diagnostics directly" how="Ctrl + Alt + Shift + N" />
+              <Row what="Restart or shut down the computer (asks to confirm)" how="Ctrl + Alt + Shift + R" />
+              <Row what="Return to the voting screen" how="Ctrl + Alt + Shift + L" />
+              <Row what="Re-run the network and server check" how="Ctrl + Alt + Shift + T" />
+              <Row what="Check the kiosk service (from an admin account, e.g. over SSH)" how="sudo systemctl --user -M evote@ status evote-kiosk.service" />
+              <Row what="Restart the kiosk browser" how="sudo systemctl --user -M evote@ restart evote-kiosk.service" />
+              <Row what="Check the network" how="ip addr   ·   ping -c 3 evote.campus.internal" />
+              <Row what="Restart the computer" how="sudo reboot" />
+            </tbody>
+          </table>
+        </div>
+        <p>Voters cannot reach a desktop, a terminal or other websites. A voter's screen clears itself after voting or after 5 minutes without activity.</p>
+      </Step>
+
+      <Step n="5" title="Remove a booth and use the computer normally again">
+        <ol className="list-decimal pl-5 space-y-2">
+          <li>
+            <strong>Revoke the booth.</strong> On the Booths tab press <strong>Delete</strong> next to it. Its token stops working at once and the screen asks for set-up again. This is all you need to stop it taking votes.
+          </li>
+          <li>
+            <strong>Remove the lock-down</strong> (only if the computer should become a normal workstation). From an admin account, for example over SSH:
+            <CopyBlock>{`cd /opt/e-voting/kiosk/ubuntu
+sudo bash rollback-kiosk.sh
+sudo reboot`}</CopyBlock>
+            This stops the service and restores the normal login, shortcuts, USB storage, text consoles and Firefox settings. To delete the <code>evote</code> user as well, run it with <code>--remove-user</code>.
+            <CopyBlock>{`sudo bash rollback-kiosk.sh --remove-user`}</CopyBlock>
+          </li>
+          <li>Optional: remove Firefox if it was only installed for the booth: <code>sudo snap remove firefox</code>. Delete <code>/opt/e-voting</code> if you no longer need it.</li>
+        </ol>
+        <p>To use the computer as a booth again later, run the installer again (step 2) and set it up with a new booth token (step 3).</p>
+      </Step>
+
+      <Step n="6" title="If something is wrong">
+        <ul className="list-disc pl-5 space-y-1">
+          <li><strong>"Token or code is not correct":</strong> the token was already used, expired (15 minutes) or mistyped, or the authenticator code is from another officer. Generate a new token; use the code of the officer who generated it.</li>
+          <li><strong>Booth goes back to set-up on its own:</strong> it was deleted on the Booths tab, or its election was archived. Generate a new token.</li>
+          <li><strong>Offline on the Booths tab:</strong> check the network (<code>ip addr</code>, <code>ping</code>), then restart the kiosk service.</li>
+          <li><strong>The page does not open:</strong> the address given at install time may be wrong. Edit <code>VOTING_URL</code> in <code>/etc/default/evote-kiosk</code> and restart the kiosk service.</li>
+        </ul>
+      </Step>
+    </div>
+  );
+}

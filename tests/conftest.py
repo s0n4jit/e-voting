@@ -44,7 +44,6 @@ def app():
         "SECRET_KEY": "test-secret-key",
         "WTF_CSRF_ENABLED": False,
         "RATELIMIT_ENABLED": False,          # disable rate-limiting in unit tests
-        "MAIL_SUPPRESS_SEND": True,
         "BCRYPT_LOG_ROUNDS": 4,             # faster hashing during tests
     })
     yield _app

@@ -1,375 +1,163 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { adminApi } from '../../api/adminApi';
-import LoadingSpinner from '../common/LoadingSpinner';
-import StatusBadge from '../common/StatusBadge';
+import { format, formatDistanceToNow } from 'date-fns';
 import {
-  UsersIcon,
-  ArchiveBoxIcon,
   CheckCircleIcon,
-  DocumentMagnifyingGlassIcon,
-  ArrowRightIcon,
-  PlusIcon,
-  ArrowUpTrayIcon,
-  ShieldCheckIcon,
-  ExclamationCircleIcon,
-  TicketIcon,
-  ComputerDesktopIcon,
+  ClipboardDocumentCheckIcon,
+  IdentificationIcon,
   UserGroupIcon,
+  UsersIcon,
+  InboxIcon,
 } from '@heroicons/react/24/outline';
-import { format } from 'date-fns';
+import { adminApi } from '../../api/adminApi';
+import { EmptyState, PageHeader, StatCard } from '../ui';
+import StatusBadge from '../common/StatusBadge';
+
+const STAGES = [
+  ['setup', 'Setup'],
+  ['registration', 'Registration'],
+  ['ready', 'Ready'],
+  ['voting_active', 'Voting'],
+  ['voting_closed', 'Closed'],
+  ['results_published', 'Results'],
+  ['archived', 'Archived'],
+];
+
+const ACTION_LABEL = (a) => a.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 export const AdminDashboard = () => {
-  const [stats, setStats] = useState({
-    totalVoters: 0,
-    activeElections: 0,
-    ballotsCast: 0,
-    auditEvents: 0,
-  });
-  const [recentElections, setRecentElections] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
 
-  const fetchDashboardData = async (silent = false) => {
+  const load = useCallback(async () => {
     try {
-      if (!silent) {
-        setLoading(true);
-        setError(null);
-      }
-
-      // Fetch elections, voters, and audit logs concurrently
-      const [electionsRes, votersRes, logsRes] = await Promise.allSettled([
-        adminApi.getElections(),
-        adminApi.getVoters(),
-        adminApi.getAuditLogs({ limit: 10 }),
-      ]);
-
-      const elections = electionsRes.status === 'fulfilled'
-        ? (Array.isArray(electionsRes.value) ? electionsRes.value : electionsRes.value?.elections || [])
-        : [];
-
-      const voters = votersRes.status === 'fulfilled'
-        ? (Array.isArray(votersRes.value) ? votersRes.value : votersRes.value?.voters || [])
-        : [];
-
-      const logs = logsRes.status === 'fulfilled'
-        ? (Array.isArray(logsRes.value) ? logsRes.value : logsRes.value?.logs || logsRes.value?.audit_logs || [])
-        : [];
-
-      const activeCount = elections.filter((e) => e.is_active).length;
-      const totalVotesCast = elections.reduce((acc, curr) => acc + (curr.total_votes || curr.ballots_cast || curr.votes_count || 0), 0);
-      const auditBallotsCast = logsRes.status === 'fulfilled' ? (logsRes.value?.stats?.ballots_cast || 0) : 0;
-      const votersVoted = voters.filter((v) => v.has_voted || v.status === 'voted').length;
-      const ballotsCast = Math.max(totalVotesCast, auditBallotsCast, votersVoted);
-
-      setStats({
-        totalVoters: voters.length,
-        activeElections: activeCount,
-        ballotsCast: ballotsCast,
-        auditEvents: logs.length > 0 ? (logsRes.value?.total || logs.length) : 0,
-      });
-
-      setRecentElections(elections.slice(0, 5));
-    } catch (err) {
-      if (!silent) {
-        console.error('Failed to load admin dashboard summary:', err);
-        setError('Error retrieving administration overview metrics.');
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      setData(await adminApi.getOverview());
+      setError('');
+    } catch {
+      setError('The dashboard could not be loaded.');
     }
-  };
-
-  useEffect(() => {
-    fetchDashboardData(false);
-
-    // Silent background refresh every 3.5 seconds
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      fetchDashboardData(true);
-    }, 3500);
-
-    return () => clearInterval(interval);
   }, []);
 
-  const formatDateString = (dateStr) => {
-    if (!dateStr) return '—';
-    try {
-      return format(new Date(dateStr), 'MMM d, yyyy');
-    } catch (e) {
-      return dateStr;
-    }
-  };
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const s = data?.stats;
+  const loading = !data && !error;
+  const election = data?.election;
+  const stage = STAGES.findIndex(([k]) => k === election?.status);
+
+  const todo = data && [
+    { done: data.setup.programmes > 0, label: 'Add programmes or classes', to: '/admin/programmes' },
+    { done: data.setup.candidates > 0, label: 'Add candidates for each position', to: '/admin/candidates' },
+    { done: data.setup.desk_officers > 0, label: 'Create Desk Officer accounts', to: '/admin/officers' },
+  ];
+  const pending = todo?.filter((t) => !t.done) || [];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Title & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              Administrator Center
-            </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Sync (3.5s)
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Campus election governance, cryptographic audit verification, and ballot management.
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title="Overview"
+        subtitle={election ? election.title : 'No election configured yet'}
+        actions={election && <StatusBadge label={election.status_label} />}
+      />
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Link
-            to="/admin/desk"
-            className="btn btn-secondary btn-sm gap-1.5"
-          >
-            <TicketIcon className="w-4 h-4 text-emerald-600" />
-            <span>Polling Desk</span>
-          </Link>
-          <Link
-            to="/admin/officers"
-            className="btn btn-secondary btn-sm gap-1.5"
-          >
-            <UserGroupIcon className="w-4 h-4 text-primary-600" />
-            <span>Desk Officers</span>
-          </Link>
-          <Link
-            to="/admin/kiosks"
-            className="btn btn-secondary btn-sm gap-1.5"
-          >
-            <ComputerDesktopIcon className="w-4 h-4 text-indigo-600" />
-            <span>Booth Kiosks</span>
-          </Link>
-          <Link
-            to="/admin/elections"
-            className="btn btn-primary btn-sm gap-1.5 shadow-sm"
-          >
-            <PlusIcon className="w-4 h-4" />
-            <span>New Election</span>
-          </Link>
+      {error && <div className="card mb-6"><EmptyState title={error} /></div>}
+
+      {pending.length > 0 && (
+        <div className="card card-body mb-6 border-brand/30 bg-brand-soft/50 animate-slide-up">
+          <p className="font-medium flex items-center gap-2">
+            <ClipboardDocumentCheckIcon className="w-5 h-5 text-brand-fg" /> Finish setting up
+          </p>
+          <ul className="mt-3 grid sm:grid-cols-3 gap-2 text-sm">
+            {todo.map((t) => (
+              <li key={t.label}>
+                <Link to={t.to} className={`flex items-center gap-2 rounded-lg px-3 py-2 bg-surface border border-line hover:border-brand/50 transition-colors ${t.done ? 'text-muted' : ''}`}>
+                  <CheckCircleIcon className={`w-5 h-5 shrink-0 ${t.done ? 'text-ok' : 'text-line'}`} />
+                  <span className={t.done ? 'line-through' : ''}>{t.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard loading={loading} label="Registered voters" value={s?.registered_voters} icon={UsersIcon} />
+        <StatCard loading={loading} label="Votes cast" value={s?.votes_cast} icon={CheckCircleIcon} />
+        <StatCard loading={loading} label="Remaining voters" value={s?.remaining_voters} icon={UserGroupIcon} />
+        <StatCard loading={loading} label="Turnout" value={s && `${s.turnout_percent}%`} icon={ClipboardDocumentCheckIcon} />
+        <StatCard loading={loading} label="Desk Officers" value={s?.desk_officers} icon={IdentificationIcon} />
+        <StatCard loading={loading} label="Candidates" value={s?.candidates} icon={UserGroupIcon} />
+        <div className="card card-body col-span-2 animate-slide-up">
+          <p className="text-sm text-muted">Voting turnout</p>
+          <div className="h-2.5 rounded-full bg-recessed mt-4 overflow-hidden" role="progressbar" aria-valuenow={s?.turnout_percent || 0} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-brand rounded-full transition-[width] duration-700 ease-out" style={{ width: `${s?.turnout_percent || 0}%` }} />
+          </div>
+          <p className="text-xs text-muted mt-2">
+            {s ? `${s.votes_cast} of ${s.registered_voters} registered voters have voted` : ' '}
+          </p>
         </div>
       </div>
 
-      {loading ? (
-        <div className="card py-16">
-          <LoadingSpinner text="Aggregating election telemetry..." />
-        </div>
-      ) : error ? (
-        <div className="card p-8 text-center bg-rose-50 border-rose-200">
-          <ExclamationCircleIcon className="w-8 h-8 text-rose-500 mx-auto mb-2" />
-          <p className="text-rose-800 font-semibold">{error}</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {/* Summary Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Registered Voters */}
-            <div className="card p-5 border-l-4 border-l-primary-600 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Registered Voters
-                </p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {stats.totalVoters.toLocaleString()}
-                </p>
-                <Link
-                  to="/admin/voters"
-                  className="text-xs text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1 mt-2"
-                >
-                  Manage Roster <ArrowRightIcon className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
-                <UsersIcon className="w-6 h-6" />
-              </div>
-            </div>
-
-            {/* Active Elections */}
-            <div className="card p-5 border-l-4 border-l-emerald-600 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Active Elections
-                </p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {stats.activeElections}
-                </p>
-                <Link
-                  to="/admin/elections"
-                  className="text-xs text-emerald-600 hover:text-emerald-800 font-medium inline-flex items-center gap-1 mt-2"
-                >
-                  View Polls <ArrowRightIcon className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <ArchiveBoxIcon className="w-6 h-6" />
-              </div>
-            </div>
-
-            {/* Ballots Cast */}
-            <div className="card p-5 border-l-4 border-l-indigo-600 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Ballots Cast
-                </p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {stats.ballotsCast.toLocaleString()}
-                </p>
-                <span className="text-xs text-gray-400 block mt-2">
-                  Blind cryptographic tokens
-                </span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <CheckCircleIcon className="w-6 h-6" />
-              </div>
-            </div>
-
-            {/* Security Audit Events */}
-            <div className="card p-5 border-l-4 border-l-purple-600 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Audit Events
-                </p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {stats.auditEvents.toLocaleString()}
-                </p>
-                <Link
-                  to="/admin/audit"
-                  className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1 mt-2"
-                >
-                  Inspect Trail <ArrowRightIcon className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <DocumentMagnifyingGlassIcon className="w-6 h-6" />
-              </div>
-            </div>
+      <div className="grid lg:grid-cols-5 gap-4 mt-4">
+        <div className="card card-body lg:col-span-3">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-medium">Election timeline</h2>
+            <Link to="/admin/elections" className="text-sm text-brand-fg hover:underline">Manage</Link>
           </div>
-
-          {/* Quick Action Navigation Tiles */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <Link
-              to="/admin/elections"
-              className="card p-6 border border-gray-200 hover:border-primary-400 hover:shadow-md transition-all group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                <ArchiveBoxIcon className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 group-hover:text-primary-600 text-base">
-                Election Management
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Configure ballot windows, register candidates, activate live voting sessions, and certify tally publications.
-              </p>
-            </Link>
-
-            <Link
-              to="/admin/voters"
-              className="card p-6 border border-gray-200 hover:border-primary-400 hover:shadow-md transition-all group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                <UsersIcon className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 group-hover:text-primary-600 text-base">
-                Voter Roster & CSV Import
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Add eligible campus voters, upload bulk CSV student rosters, and view eligibility states with hash anonymization.
-              </p>
-            </Link>
-
-            <Link
-              to="/admin/audit"
-              className="card p-6 border border-gray-200 hover:border-primary-400 hover:shadow-md transition-all group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                <ShieldCheckIcon className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 group-hover:text-primary-600 text-base">
-                Tamper-Evident Audit Log
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Monitor immutable timestamps, system actions, IP logs, and cryptographic access events in real-time.
-              </p>
-            </Link>
-          </div>
-
-          {/* Recent Elections List */}
-          <div className="card overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h2 className="text-base font-bold text-gray-900">Recent Elections</h2>
-              <Link
-                to="/admin/elections"
-                className="text-xs font-semibold text-primary-600 hover:text-primary-800"
-              >
-                View All →
-              </Link>
-            </div>
-
-            {recentElections.length === 0 ? (
-              <div className="p-8 text-center text-sm text-gray-500">
-                No elections created yet. Click "New Election" to schedule the first campus poll.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Title</th>
-                      <th>Window</th>
-                      <th>Status</th>
-                      <th>Results</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentElections.map((elec) => (
-                      <tr key={elec.id}>
-                        <td>
-                          <div className="font-semibold text-gray-900">{elec.title}</div>
-                          <div className="text-xs text-gray-400 font-mono">ID: {elec.id}</div>
-                        </td>
-                        <td className="text-xs text-gray-500">
-                          {formatDateString(elec.start_time)} – {formatDateString(elec.end_time)}
-                        </td>
-                        <td>
-                          <StatusBadge
-                            status={elec.is_active ? 'active' : 'closed'}
-                            label={elec.is_active ? 'Active' : 'Closed'}
-                          />
-                        </td>
-                        <td>
-                          <StatusBadge
-                            status={elec.results_published ? 'published' : 'draft'}
-                            label={elec.results_published ? 'Published' : 'Hidden'}
-                          />
-                        </td>
-                        <td className="text-right space-x-2">
-                          <Link
-                            to={`/admin/candidates/${elec.id}`}
-                            className="btn btn-secondary btn-sm text-xs"
-                          >
-                            Candidates
-                          </Link>
-                          <Link
-                            to={`/admin/results/${elec.id}`}
-                            className="btn btn-primary btn-sm text-xs"
-                          >
-                            Tally
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {election ? (
+            <>
+              <ol className="flex items-center">
+                {STAGES.map(([key, label], i) => (
+                  <li key={key} className="flex-1 flex items-center last:flex-none">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className={`w-3 h-3 rounded-full transition-colors ${i <= stage ? 'bg-brand' : 'bg-line'} ${i === stage ? 'ring-4 ring-brand/25' : ''}`} />
+                      <span className={`text-[11px] hidden sm:block ${i === stage ? 'font-medium text-fg' : 'text-muted'}`}>{label}</span>
+                    </div>
+                    {i < STAGES.length - 1 && <span className={`flex-1 h-px mx-1 ${i < stage ? 'bg-brand' : 'bg-line'}`} />}
+                  </li>
+                ))}
+              </ol>
+              <dl className="grid grid-cols-2 gap-4 mt-6 text-sm">
+                <div>
+                  <dt className="text-muted">Voting opens</dt>
+                  <dd className="font-medium">{format(new Date(election.start_time), 'PPp')}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Voting closes</dt>
+                  <dd className="font-medium">{format(new Date(election.end_time), 'PPp')}</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <EmptyState title="No election yet">Create an election to get started.</EmptyState>
+          )}
         </div>
-      )}
+
+        <div className="card lg:col-span-2">
+          <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+            <h2 className="font-medium">Recent activity</h2>
+            <Link to="/admin/audit" className="text-sm text-brand-fg hover:underline">View all</Link>
+          </div>
+          {data?.recent_activity?.length ? (
+            <ul className="divide-y divide-line">
+              {data.recent_activity.map((a, i) => (
+                <li key={i} className="px-6 py-3">
+                  <p className="text-sm font-medium">{ACTION_LABEL(a.action)}</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    {a.actor} · {a.at ? formatDistanceToNow(new Date(a.at), { addSuffix: true }) : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon={InboxIcon} title="No activity yet" />
+          )}
+        </div>
+      </div>
     </div>
   );
 };

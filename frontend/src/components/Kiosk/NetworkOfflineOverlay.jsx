@@ -70,7 +70,7 @@ export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
   if (!isOffline) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl text-center select-none animate-fade-in">
+    <div className="no-flip fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl text-center select-none animate-fade-in">
       <div className="w-full max-w-lg p-8 sm:p-12 rounded-3xl bg-slate-900 border-2 border-rose-600/80 shadow-2xl relative overflow-hidden">
         {/* Pulsing Alert Icon */}
         <div className="w-20 h-20 mx-auto rounded-3xl bg-rose-600/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-6 shadow-lg shadow-rose-600/10">

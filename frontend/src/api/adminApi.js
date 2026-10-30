@@ -22,47 +22,16 @@ export const adminApi = {
     return response.data;
   },
 
-  toggleElectionActive: async (electionId, makeActive) => {
-    const endpoint = makeActive ? `/admin/elections/${electionId}/activate` : `/admin/elections/${electionId}/close`;
-    try {
-      const response = await apiClient.post(endpoint);
-      return response.data;
-    } catch (err) {
-      // Fallback to PUT if specific toggle endpoint is not present
-      const response = await apiClient.put(`/admin/elections/${electionId}`, {
-        is_active: makeActive,
-      });
-      return response.data;
-    }
-  },
-
-  publishResults: async (electionId) => {
-    try {
-      const response = await apiClient.post(`/admin/elections/${electionId}/publish`);
-      return response.data;
-    } catch (err) {
-      // Fallback to PUT
-      const response = await apiClient.put(`/admin/elections/${electionId}`, {
-        results_published: true,
-      });
-      return response.data;
-    }
-  },
-
   // Candidates
-  getCandidates: async (electionId) => {
-    try {
-      const response = await apiClient.get(`/admin/elections/${electionId}/candidates`);
-      return response.data;
-    } catch (err) {
-      // Also fallback to public/voter candidates endpoint if admin-specific is alias
-      const response = await apiClient.get(`/voter/elections/${electionId}/candidates`);
-      return response.data;
-    }
-  },
+  getElection: async (electionId) => (await apiClient.get(`/admin/elections/${electionId}`)).data,
 
   addCandidate: async (electionId, candidateData) => {
-    const response = await apiClient.post(`/admin/elections/${electionId}/candidates`, candidateData);
+    // multipart: the photo file travels with the fields in one request, so a failure stores nothing
+    const form = new FormData();
+    Object.entries(candidateData).forEach(([k, v]) => form.append(k, v));
+    const response = await apiClient.post(`/admin/elections/${electionId}/candidates`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
 
@@ -82,29 +51,6 @@ export const adminApi = {
   // Voters
   getVoters: async (params = {}) => {
     const response = await apiClient.get('/admin/voters', { params });
-    return response.data;
-  },
-
-  addVoter: async (voterData) => {
-    const response = await apiClient.post('/admin/voters', voterData);
-    return response.data;
-  },
-
-  importVotersCsv: async (fileOrFormData) => {
-    let payload = fileOrFormData;
-    let headers = {};
-
-    if (fileOrFormData instanceof File) {
-      const formData = new FormData();
-      formData.append('file', fileOrFormData);
-      payload = formData;
-      headers = { 'Content-Type': 'multipart/form-data' };
-    } else if (fileOrFormData instanceof FormData) {
-      payload = fileOrFormData;
-      headers = { 'Content-Type': 'multipart/form-data' };
-    }
-
-    const response = await apiClient.post('/admin/voters/import', payload, { headers });
     return response.data;
   },
 
@@ -135,14 +81,31 @@ export const adminApi = {
     } else if (queryOrParams && typeof queryOrParams === 'object') {
       params = queryOrParams;
     }
-    try {
-      const response = await apiClient.get('/admin/desk/voters', { params });
-      return response.data;
-    } catch (err) {
-      // Fallback to standard voters list with client filtering if desk endpoint not yet available
-      const fallback = await apiClient.get('/admin/voters', { params });
-      return fallback.data;
-    }
+    const response = await apiClient.get('/admin/desk/voters', { params });
+    return response.data;
+  },
+
+  // Officer dashboard, lifecycle, positions, programmes, settings
+  getOverview: async () => (await apiClient.get('/admin/overview')).data,
+  setElectionStatus: async (electionId, status) =>
+    (await apiClient.post(`/admin/elections/${electionId}/status`, { status })).data,
+  setPositions: async (electionId, positions) =>
+    (await apiClient.put(`/admin/elections/${electionId}/positions`, { positions })).data,
+  getProgrammes: async () => (await apiClient.get('/admin/programmes')).data,
+  createProgramme: async (data) => (await apiClient.post('/admin/programmes', data)).data,
+  updateProgramme: async (id, data) => (await apiClient.put(`/admin/programmes/${id}`, data)).data,
+  deleteProgramme: async (id) => (await apiClient.delete(`/admin/programmes/${id}`)).data,
+  importProgrammes: async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await apiClient.post('/admin/programmes/import', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+  },
+  getSettings: async () => (await apiClient.get('/admin/settings')).data,
+  saveSettings: async (data) => (await apiClient.put('/admin/settings', data)).data,
+  updateOfficer: async (id, data) => (await apiClient.patch(`/admin/officers/${id}`, data)).data,
+  downloadReport: async (electionId) => {
+    const res = await apiClient.get(`/admin/elections/${electionId}/report`, { responseType: 'blob' });
+    return res.data;
   },
 
   // Booth Kiosks
@@ -152,6 +115,7 @@ export const adminApi = {
     });
     return response.data;
   },
+  createBoothToken: async () => (await apiClient.post('/admin/booth-tokens')).data,
 
   getKiosks: async () => {
     const response = await apiClient.get('/admin/kiosk/list');

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Self-hosting guide — Campus E-Voting System</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/logo.svg" alt="">Campus E-Voting</a>
+  <nav><a href="index.html">Home</a><a href="#install">Install</a><a href="#booths">Booths</a><a href="#operate">Operate</a><a href="https://github.com/s0n4jit/e-voting/blob/main/docs/FREE_HOSTING.md">Free hosting</a>
+  <a class="btn" href="https://github.com/s0n4jit/e-voting">GitHub</a></nav>
+</div></header>
+
+<main class="doc">
+<h1>Self-hosting guide</h1>
+<p class="sub">Run the portal on a college server or any computer with Docker. Your data never leaves your machine.</p>
+
+<h2 id="requirements">Requirements</h2>
+<ul>
+  <li>A server or VM with Docker Engine 24+ and the Compose plugin (Docker Desktop also works), about 1 GB RAM and 2 GB disk.</li>
+  <li>For real elections: a DNS name with HTTPS in front of the portal.</li>
+  <li>For booths: Ubuntu 22.04+ computers on the same network, and an authenticator app (Google Authenticator, Aegis, Microsoft Authenticator) for the Election Officer.</li>
+</ul>
+
+<h2 id="install">1. Install</h2>
+<ol class="steps">
+  <li><div><strong>Get the code</strong>
+<pre><code>git clone https://github.com/s0n4jit/e-voting.git
+cd e-voting
+cp .env.example .env</code></pre></div></li>
+  <li><div><strong>Fill in <code>.env</code></strong>
+<p>Set <code>POSTGRES_PASSWORD</code> (letters and digits only), and two different long random values for <code>SECRET_KEY</code> and <code>JWT_SECRET_KEY</code>:</p>
+<pre><code>python -c "import secrets; print(secrets.token_hex(32))"</code></pre>
+<p>The backend refuses to start in production with the development defaults. Never commit <code>.env</code>.</p></div></li>
+  <li><div><strong>Start</strong>
+<pre><code>docker compose up -d --build
+docker compose ps</code></pre></div></li>
+  <li><div><strong>Run the wizard</strong>
+<p>Open <code>http://&lt;server&gt;/</code>. Enter your institution, logo, slip ID letters (default <code>SUE</code>), the Election Officer account and the first election, then press <em>Install</em> and set up two-step verification. Your logo becomes the site's favicon; without one, the default logo is used.</p></div></li>
+</ol>
+<div class="note">If the server is reachable before you finish the wizard, set <code>SETUP_TOKEN</code> in <code>.env</code> so only you can run it.</div>
+
+<h2 id="https">2. HTTPS and reverse proxy</h2>
+<p>Serve the portal over HTTPS only. With Caddy (automatic certificates), set <code>WEB_PORT=8080</code> and <code>PROXY_HOPS=2</code> in <code>.env</code>, then:</p>
+<pre><code>vote.example.edu {
+    reverse_proxy localhost:8080
+}</code></pre>
+<p>An nginx example and the Render/Supabase/Vercel option are in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/INSTALLATION.md">INSTALLATION.md</a> and <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/DEPLOYMENT.md">DEPLOYMENT.md</a>.</p>
+
+<h2 id="prepare">3. Prepare the election</h2>
+<ol>
+  <li>Programmes: add them or import a CSV (<code>level,programme,department,terms</code>).</li>
+  <li>Candidates: each with a photo and department.</li>
+  <li>Desk Officers: one account per desk.</li>
+  <li>Move the election: Registration → Ready → Voting active → Voting closed → Results published.</li>
+</ol>
+
+<h2 id="booths">4. Set up voting booths</h2>
+<p>On the booth computer (Ubuntu), from the repository:</p>
+<pre><code>cd kiosk/ubuntu
+sudo VOTING_URL="https://vote.example.edu/kiosk/vote" bash setup-kiosk.sh
+sudo reboot</code></pre>
+<p>The script installs a locked-down browser session that opens only <code>/kiosk/vote</code>. In the Election Officer panel open <em>Voting booths</em>, generate a booth token, then enter the token and your current authenticator code on the booth screen. The booth is named <code>BOOTH-01</code>, <code>BOOTH-02</code>… automatically. Deleting a booth in the panel revokes it immediately. Removal of a machine is covered in the guide inside the panel and in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/KIOSK_SETUP.md">KIOSK_SETUP.md</a>.</p>
+
+<h2 id="operate">5. Operate</h2>
+<table>
+  <tr><th>Task</th><th>Command</th></tr>
+  <tr><td>Status of the installation</td><td><code>docker compose exec backend python manage.py status</code></td></tr>
+  <tr><td>Apply database upgrades</td><td><code>docker compose exec backend python manage.py migrate</code></td></tr>
+  <tr><td>Reset an officer's password</td><td><code>docker compose exec backend python manage.py set-password &lt;username&gt;</code></td></tr>
+  <tr><td>Reset a lost authenticator</td><td><code>docker compose exec backend python manage.py reset-2fa &lt;username&gt;</code></td></tr>
+  <tr><td>Logs</td><td><code>docker compose logs -f backend</code></td></tr>
+  <tr><td>Backup the database</td><td><code>docker compose exec -T db pg_dump -U evoting evoting &gt; backup.sql</code></td></tr>
+  <tr><td>Upgrade</td><td><code>git pull &amp;&amp; docker compose up -d --build</code></td></tr>
+</table>
+<p>Health check: <code>GET /api/health</code>. More in <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/OPERATIONS.md">OPERATIONS.md</a> and <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a>.</p>
+
+<h2>Checklist before the election</h2>
+<ul>
+  <li>HTTPS works; <code>/api/health</code> is healthy.</li>
+  <li>Strong secrets set; <code>.env</code> not in version control.</li>
+  <li>Two-step verification active for the Election Officer.</li>
+  <li>A test registration and test vote done on a separate test installation.</li>
+  <li>Database backup taken; booth hardware secured (BIOS password, ports).</li>
+</ul>
+</main>
+
+<footer><div class="wrap"><span>Campus E-Voting System</span><span><a href="index.html">Home</a> · <a href="https://github.com/s0n4jit/e-voting">Source</a></span></div></footer>
+</body>
+</html>

@@ -37,6 +37,12 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
   // Inactivity auto-close timer (5 minutes = 300s)
   const inactivityTimeoutRef = useRef(null);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    document.body.style.overflow = 'hidden'; // keep the page behind from scrolling
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
     if (isOpen && authenticated) {
@@ -77,8 +83,8 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
       console.warn('Diagnostics fetch failed:', err);
       // Fallback local status
       setDiagnostics({
-        booth_id: localStorage.getItem('kiosk_name') || 'BOOTH-LAB-01',
-        os_info: navigator.userAgent.includes('Linux') ? 'Ubuntu 26.04 LTS (Wayland)' : 'Windows Environment (Kiosk Simulator)',
+        booth_id: localStorage.getItem('kiosk_name') || null,
+        os_info: null,
         uptime_seconds: 7200,
         interfaces: [{ name: 'eth0', ip: '192.168.1.105', status: 'UP' }],
         gateway: { status: 'REACHABLE', ip: '192.168.1.1' },
@@ -103,8 +109,8 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
     e.preventDefault();
     setAuthError(null);
 
-    if (!staffPin || staffPin.trim().length < 4) {
-      setAuthError('Please enter the full staff security PIN.');
+    if (staffPin.trim().length !== 6) {
+      setAuthError('Enter the 6-digit code from the authenticator app.');
       return;
     }
 
@@ -117,7 +123,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
         setStaffPin('');
         toast.success('Staff maintenance mode unlocked.');
       } else {
-        setAuthError(res.message || 'Invalid Staff PIN.');
+        setAuthError(res.message || 'That code is not correct.');
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Authentication rejected.';
@@ -140,12 +146,12 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
 
       if (actionKey === 'restart_browser' || actionKey === 'restart_kiosk') {
         setTimeout(() => {
-          window.location.href = '/kiosk';
+          window.location.href = '/kiosk/vote';
         }, 1200);
       } else if (actionKey === 'restart_system') {
         toast('Rebooting terminal station. Reconnecting shortly...', { icon: '🔄' });
         setTimeout(() => {
-          window.location.href = '/kiosk';
+          window.location.href = '/kiosk/vote';
         }, 2500);
       } else {
         await loadDiagnostics();
@@ -169,7 +175,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+    <div className="no-flip fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
@@ -187,7 +193,8 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                Booth ID: <span className="text-slate-200 font-semibold">{diagnostics?.booth_id || 'BOOTH-LAB-01'}</span>
+                Booth ID: <span className="text-slate-200 font-semibold">{diagnostics?.booth_id || localStorage.getItem('kiosk_name') || '—'}</span>
+                {diagnostics?.election_title && <span className="text-slate-400"> · {diagnostics.election_title}</span>}
               </p>
             </div>
           </div>
@@ -210,7 +217,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
             </div>
             <h3 className="text-xl font-bold text-white tracking-tight">Staff Authentication Required</h3>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Enter the authorized electoral staff PIN to access terminal diagnostics, network controls, and hardware actions.
+              Enter the current code from the Election Officer's authenticator app to open diagnostics, network checks and restart options.
             </p>
 
             {authError && (
@@ -224,20 +231,22 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
               <div className="relative">
                 <KeyIcon className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
-                  type="password"
+                  type="text"
                   inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
                   autoFocus
                   required
-                  placeholder="Enter Staff Security PIN"
+                  placeholder="6-digit authenticator code"
                   value={staffPin}
-                  onChange={(e) => setStaffPin(e.target.value)}
+                  onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, ''))}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-11 pr-4 py-3 text-white text-center font-mono tracking-widest text-lg focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={authenticating || !staffPin}
+                disabled={authenticating || staffPin.length !== 6}
                 className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {authenticating ? (
@@ -253,7 +262,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
 
             <div className="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center gap-2">
               <ShieldCheckIcon className="w-4 h-4 text-emerald-400" />
-              <span>Protected against brute-force attacks with salted PBKDF2 & lockout.</span>
+              <span>Locked for 15 minutes after repeated wrong codes.</span>
             </div>
           </div>
         ) : (
@@ -303,17 +312,19 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
                       <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Terminal Station</p>
-                      <p className="text-base font-bold text-white mt-1">{diagnostics?.booth_id || 'BOOTH-LAB-01'}</p>
-                      <span className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        Official Voting Booth Active
+                      <p className="text-base font-bold text-white mt-1">{diagnostics?.booth_id || localStorage.getItem('kiosk_name') || '—'}</p>
+                      {diagnostics?.election_title && <p className="text-xs text-slate-300 mt-1 truncate">{diagnostics.election_title}</p>}
+                      <span className={`inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded border text-[10px] font-semibold ${diagnostics?.voting_open ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${diagnostics?.voting_open ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                        {diagnostics?.voting_open ? 'Accepting votes' : 'Voting is not open'}
                       </span>
+                      {diagnostics?.session_ref && <p className="text-[11px] text-slate-500 font-mono mt-2">Session {diagnostics.session_ref}</p>}
                     </div>
 
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
                       <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Operating Platform</p>
                       <p className="text-sm font-semibold text-white mt-1 truncate">
-                        {diagnostics?.os_info || 'Ubuntu 26.04 LTS (GNOME Wayland)'}
+                        {diagnostics?.os_info || 'Not reported'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1 font-mono">
                         Session: Restricted 'evote' Kiosk User
@@ -515,7 +526,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
 
       {/* Confirmation Sub-Modal for Destructive Actions */}
       {confirmModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 animate-fade-in">
+        <div className="no-flip fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 animate-fade-in">
           <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
             <div className="w-12 h-12 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
               <ExclamationTriangleIcon className="w-6 h-6" />

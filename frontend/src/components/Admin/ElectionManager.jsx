@@ -1,472 +1,247 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import { toast } from 'react-hot-toast';
+import { ArrowDownTrayIcon, PlusIcon, RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
-import LoadingSpinner from '../common/LoadingSpinner';
+import { saveBlob } from '../../api/deskApi';
+import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage } from '../ui';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
-import { toast } from 'react-hot-toast';
-import {
-  PlusIcon,
-  PencilSquareIcon,
-  TrashIcon,
-  CheckCircleIcon,
-  NoSymbolIcon,
-  MegaphoneIcon,
-  UserGroupIcon,
-  ChartBarIcon,
-  CalendarIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline';
-import { format } from 'date-fns';
+
+const ORDER = ['setup', 'registration', 'ready', 'voting_active', 'voting_closed', 'results_published', 'archived'];
+const NEXT = {
+  setup: ['registration', 'Open registration', null],
+  registration: ['ready', 'Mark ready', null],
+  ready: ['voting_active', 'Open voting', 'Voters with a PIN will be able to vote as soon as the voting period starts. Positions, candidates and the voting period are locked from this point.'],
+  voting_active: ['voting_closed', 'Close voting', 'No further ballots will be accepted. This cannot be undone.'],
+  voting_closed: ['results_published', 'Publish results', 'Unlocks the results for you: the projector reveal, the report and the public link on the Results page. Until you publish, nobody can see the counts. This does not make them public. This cannot be undone.'],
+  results_published: ['archived', 'Archive election', 'Archived elections are read-only.'],
+};
+
+const toLocalInput = (iso) => {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
 
 export const ElectionManager = () => {
-  const [elections, setElections] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingElection, setEditingElection] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [elections, setElections] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [editor, setEditor] = useState(null); // {election?, form}
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    start_time: '',
-    end_time: '',
-    is_active: false,
-    results_published: false,
-  });
-
-  const fetchElections = async () => {
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await adminApi.getElections();
-      const list = Array.isArray(data) ? data : (data.elections || []);
-      setElections(list);
+      setElections(Array.isArray(data) ? data : data.elections || []);
     } catch (err) {
-      console.error('Failed to load elections:', err);
-      toast.error('Could not load elections list.');
-    } finally {
-      setLoading(false);
+      toast.error(errorMessage(err));
+      setElections([]);
     }
-  };
-
-  useEffect(() => {
-    fetchElections();
   }, []);
 
-  const openCreateModal = () => {
-    setEditingElection(null);
-    // Default start_time now, end_time 24h later in format suitable for datetime-local
-    const now = new Date();
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const toInputFormat = (d) => d.toISOString().slice(0, 16);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-    setFormData({
-      title: '',
-      description: '',
-      start_time: toInputFormat(now),
-      end_time: toInputFormat(tomorrow),
-      is_active: true,
-      results_published: false,
-    });
-    setModalOpen(true);
-  };
-
-  const openEditModal = (elec) => {
-    setEditingElection(elec);
-    const toInputFormat = (dateStr) => {
-      if (!dateStr) return '';
-      try {
-        return new Date(dateStr).toISOString().slice(0, 16);
-      } catch (e) {
-        return '';
-      }
-    };
-
-    setFormData({
-      title: elec.title || '',
-      description: elec.description || '',
-      start_time: toInputFormat(elec.start_time),
-      end_time: toInputFormat(elec.end_time),
-      is_active: Boolean(elec.is_active),
-      results_published: Boolean(elec.results_published),
-    });
-    setModalOpen(true);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.title.trim()) {
-      toast.error('Election title is required.');
-      return;
-    }
-
-    setSubmitting(true);
+  const move = async (election, status) => {
+    setBusy(true);
     try {
-      const payload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        start_time: new Date(formData.start_time).toISOString(),
-        end_time: new Date(formData.end_time).toISOString(),
-        is_active: formData.is_active,
-        results_published: formData.results_published,
-      };
-
-      if (editingElection) {
-        await adminApi.updateElection(editingElection.id, payload);
-        toast.success('Election updated successfully!');
-      } else {
-        await adminApi.createElection(payload);
-        toast.success('Election created successfully!');
-      }
-
-      setModalOpen(false);
-      fetchElections();
+      await adminApi.setElectionStatus(election.id, status);
+      toast.success('Election updated');
+      setConfirm(null);
+      await load();
     } catch (err) {
-      console.error('Error saving election:', err);
-      const detail = err.response?.data?.message || err.response?.data?.error || 'Failed to save election.';
-      toast.error(detail);
+      toast.error(errorMessage(err));
+      setConfirm(null);
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   };
 
-  const handleToggleActive = async (elec) => {
-    const nextState = !elec.is_active;
+  const openEditor = (election) => {
+    const now = new Date();
+    setFormError('');
+    setEditor({
+      election,
+      form: election
+        ? {
+            title: election.title,
+            description: election.description || '',
+            start_time: toLocalInput(election.start_time),
+            end_time: toLocalInput(election.end_time),
+            positions: election.positions.join('\n'),
+          }
+        : {
+            title: '',
+            description: '',
+            start_time: toLocalInput(now),
+            end_time: toLocalInput(new Date(now.getTime() + 86400000)),
+            positions: ['Vice President', 'General Secretary', 'Cultural Secretary', 'Magazine Secretary', 'Assistant General Secretary', 'Major Games Secretary', 'Minor Games Secretary', 'Boys’ Common Room Secretary', 'Girls’ Common Room Secretary'].join(chr(10)),
+          },
+    });
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    const { election, form } = editor;
+    setBusy(true);
+    setFormError('');
+    const locked = election && ORDER.indexOf(election.status) >= ORDER.indexOf('voting_active');
+    const payload = {
+      title: form.title,
+      description: form.description,
+      ...(locked ? {} : { start_time: new Date(form.start_time).toISOString(), end_time: new Date(form.end_time).toISOString() }),
+    };
+    const positions = form.positions.split('\n').map((p) => p.trim()).filter(Boolean);
     try {
-      await adminApi.toggleElectionActive(elec.id, nextState);
-      toast.success(`Election ${nextState ? 'activated' : 'closed'} successfully.`);
-      fetchElections();
+      if (election) {
+        await adminApi.updateElection(election.id, payload);
+        if (!locked) await adminApi.setPositions(election.id, positions);
+      } else {
+        await adminApi.createElection({ ...payload, positions });
+      }
+      toast.success(election ? 'Election saved' : 'Election created');
+      setEditor(null);
+      load();
     } catch (err) {
-      console.error('Error toggling status:', err);
-      toast.error('Could not toggle election status.');
+      setFormError(errorMessage(err));
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handlePublishResults = async (elec) => {
-    if (elec.results_published) {
-      toast.info('Results are already published.');
-      return;
-    }
-    if (window.confirm(`Publish verified tally results for "${elec.title}" to all students?`)) {
-      try {
-        await adminApi.publishResults(elec.id);
-        toast.success('Results published to campus!');
-        fetchElections();
-      } catch (err) {
-        console.error('Error publishing results:', err);
-        toast.error('Failed to publish results.');
-      }
-    }
-  };
-
-  const handleDeleteElection = async (elec) => {
-    if (window.confirm(`Are you sure you want to delete election "${elec.title}"? This cannot be undone.`)) {
-      try {
-        await adminApi.deleteElection(elec.id);
-        toast.success('Election deleted.');
-        fetchElections();
-      } catch (err) {
-        console.error('Error deleting election:', err);
-        toast.error('Could not delete election.');
-      }
-    }
-  };
-
-  const formatDateString = (dateStr) => {
-    if (!dateStr) return 'TBD';
+  const report = async (election) => {
     try {
-      return format(new Date(dateStr), 'MMM d, yyyy h:mm a');
-    } catch (e) {
-      return dateStr;
+      saveBlob(await adminApi.downloadReport(election.id), `election-${election.id}-report.csv`);
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   };
+
+  const busyElection = (elections || []).some((e) => e.status !== 'archived');
+  const editing = editor?.election;
+  const lockedEditing = editing && ORDER.indexOf(editing.status) >= ORDER.indexOf('voting_active');
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Election Management
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Create, schedule, activate, and certify campus student elections.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+    <div>
+      <PageHeader
+        title="Elections"
+        subtitle="One election runs at a time. Archive it to start the next."
+        actions={
           <button
-            onClick={fetchElections}
-            className="btn btn-secondary btn-sm gap-1.5"
-            title="Refresh list"
+            className="btn-primary"
+            onClick={() => openEditor(null)}
+            disabled={busyElection}
+            title={busyElection ? 'Only one election can run at a time. Archive the current one first.' : undefined}
           >
-            <ArrowPathIcon className="w-4 h-4" />
-            <span>Refresh</span>
+            <PlusIcon className="w-4 h-4" /> New election
           </button>
-          <button
-            onClick={openCreateModal}
-            className="btn btn-primary btn-sm gap-1.5 shadow-sm"
-          >
-            <PlusIcon className="w-4 h-4" />
-            <span>Create New Election</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Main Table */}
-      {loading ? (
-        <div className="card py-16">
-          <LoadingSpinner text="Loading elections roster..." />
-        </div>
+      {!elections ? (
+        <div className="card"><TableSkeleton rows={3} cols={3} /></div>
       ) : elections.length === 0 ? (
-        <div className="card p-12 text-center border-dashed border-2">
-          <CalendarIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-gray-900">No Elections Created</h3>
-          <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
-            Get started by scheduling a new campus election.
-          </p>
-          <button onClick={openCreateModal} className="mt-4 btn btn-primary btn-sm">
-            Create Election
-          </button>
+        <div className="card">
+          <EmptyState icon={RectangleStackIcon} title="No elections yet" action={<button className="btn-primary" onClick={() => openEditor(null)}>Create election</button>}>
+            Create your first election to define positions and open registration.
+          </EmptyState>
         </div>
       ) : (
-        <div className="table-container bg-white">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Election Info</th>
-                <th>Voting Window</th>
-                <th>Poll Status</th>
-                <th>Results Status</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {elections.map((elec) => (
-                <tr key={elec.id}>
-                  <td>
-                    <div className="font-bold text-gray-900 text-sm">{elec.title}</div>
-                    <div className="text-xs text-gray-500 line-clamp-1 max-w-xs mt-0.5">
-                      {elec.description || 'No description.'}
+        <div className="space-y-4">
+          {elections.map((e) => {
+            const next = NEXT[e.status];
+            const idx = ORDER.indexOf(e.status);
+            return (
+              <article key={e.id} className="card card-body animate-slide-up">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="font-semibold text-lg">{e.title}</h2>
+                      <StatusBadge label={e.status_label} />
                     </div>
-                    <div className="text-[11px] text-gray-400 font-mono mt-0.5">
-                      ID: #{elec.id}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="text-xs text-gray-700">
-                      <span className="font-medium">From:</span> {formatDateString(elec.start_time)}
-                    </div>
-                    <div className="text-xs text-gray-700 mt-0.5">
-                      <span className="font-medium">To:</span> {formatDateString(elec.end_time)}
-                    </div>
-                  </td>
-                  <td>
-                    <StatusBadge
-                      status={elec.is_active ? 'active' : 'closed'}
-                      label={elec.is_active ? 'Live Poll' : 'Closed / Paused'}
-                    />
-                  </td>
-                  <td>
-                    <StatusBadge
-                      status={elec.results_published ? 'published' : 'draft'}
-                      label={elec.results_published ? 'Certified & Live' : 'Unpublished'}
-                    />
-                  </td>
-                  <td className="text-right">
-                    <div className="inline-flex items-center gap-1.5 flex-wrap justify-end">
-                      {/* Manage Candidates */}
-                      <Link
-                        to={`/admin/candidates/${elec.id}`}
-                        className="btn btn-secondary btn-sm text-xs gap-1"
-                        title="Manage candidates on this ballot"
-                      >
-                        <UserGroupIcon className="w-3.5 h-3.5 text-primary-600" />
-                        <span>Candidates</span>
-                      </Link>
-
-                      {/* View Tally Results */}
-                      <Link
-                        to={`/admin/results/${elec.id}`}
-                        className="btn btn-secondary btn-sm text-xs gap-1"
-                        title="View vote counts and analytics"
-                      >
-                        <ChartBarIcon className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Tally</span>
-                      </Link>
-
-                      {/* Toggle Active */}
-                      <button
-                        onClick={() => handleToggleActive(elec)}
-                        className={`btn btn-sm text-xs gap-1 ${
-                          elec.is_active
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                        }`}
-                        title={elec.is_active ? 'Close this election' : 'Open this election for voting'}
-                      >
-                        {elec.is_active ? (
-                          <>
-                            <NoSymbolIcon className="w-3.5 h-3.5" />
-                            <span>Close</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircleIcon className="w-3.5 h-3.5" />
-                            <span>Activate</span>
-                          </>
-                        )}
+                    {e.description && <p className="text-sm text-muted mt-1">{e.description}</p>}
+                    <p className="text-sm text-muted mt-2">
+                      {format(new Date(e.start_time), 'PPp')} → {format(new Date(e.end_time), 'PPp')}
+                    </p>
+                    <p className="text-sm text-muted mt-1">
+                      {e.positions.length} {e.positions.length === 1 ? 'position' : 'positions'}
+                      {e.candidates ? ` · ${e.candidates.length} candidates` : ''} · {e.total_votes} votes cast
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    {idx > 0 && idx <= 2 && (
+                      <button className="btn-ghost btn-sm" onClick={() => move(e, ORDER[idx - 1])} disabled={busy}>Back a stage</button>
+                    )}
+                    {next && (
+                      <button className="btn-primary btn-sm" disabled={busy} onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}>
+                        {next[1]}
                       </button>
-
-                      {/* Publish Results */}
-                      {!elec.results_published && (
-                        <button
-                          onClick={() => handlePublishResults(elec)}
-                          className="btn btn-sm text-xs bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 gap-1"
-                          title="Publish official results publicly"
-                        >
-                          <MegaphoneIcon className="w-3.5 h-3.5" />
-                          <span>Publish</span>
-                        </button>
-                      )}
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => openEditModal(elec)}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-                        title="Edit details"
-                      >
-                        <PencilSquareIcon className="w-4 h-4" />
-                      </button>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDeleteElection(elec)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-danger-600 hover:bg-danger-50 transition-colors"
-                        title="Delete election"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-line">
+                  <Link to={`/admin/candidates?election=${e.id}`} className="btn-secondary btn-sm">Candidates</Link>
+                  <button className="btn-secondary btn-sm" onClick={() => openEditor(e)}>Edit details</button>
+                  <Link to={`/admin/results?election=${e.id}`} className="btn-secondary btn-sm">Results</Link>
+                  <button
+                    className="btn-secondary btn-sm"
+                    onClick={() => report(e)}
+                    disabled={!['results_published', 'archived'].includes(e.status)}
+                    title={['results_published', 'archived'].includes(e.status) ? undefined : 'Available after the results are published, so they stay a surprise.'}
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" /> Report
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {/* Create / Edit Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => !submitting && setModalOpen(false)}
-        title={editingElection ? 'Edit Election Settings' : 'Create New Campus Election'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label" htmlFor="title">
-              Election Title *
-            </label>
-            <input
-              id="title"
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="e.g. Student Council Presidential Election 2026"
-              className="input"
-            />
-          </div>
-
-          <div>
-            <label className="label" htmlFor="description">
-              Election Description
-            </label>
-            <textarea
-              id="description"
-              rows={3}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Describe the scope, eligibility criteria, and instructions for voters..."
-              className="input resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label" htmlFor="start_time">
-                Start Date & Time
-              </label>
-              <input
-                id="start_time"
-                type="datetime-local"
-                required
-                value={formData.start_time}
-                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                className="input"
-              />
-            </div>
-
-            <div>
-              <label className="label" htmlFor="end_time">
-                End Date & Time
-              </label>
-              <input
-                id="end_time"
-                type="datetime-local"
-                required
-                value={formData.end_time}
-                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                className="input"
-              />
+      <Modal isOpen={Boolean(confirm)} onClose={() => setConfirm(null)} title={confirm?.next[1]}>
+        {confirm && (
+          <div className="space-y-5">
+            <p className="text-sm text-muted">{confirm.next[2]}</p>
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost" onClick={() => setConfirm(null)}>Cancel</button>
+              <button className="btn-primary" disabled={busy} onClick={() => move(confirm.election, confirm.next[0])}>
+                {confirm.next[1]}
+              </button>
             </div>
           </div>
+        )}
+      </Modal>
 
-          <div className="pt-2 space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium text-gray-800">
-                Poll is Open / Active for voting
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.results_published}
-                onChange={(e) => setFormData({ ...formData, results_published: e.target.checked })}
-                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium text-gray-800">
-                Publish results to voters and public
-              </span>
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => setModalOpen(false)}
-              className="btn btn-secondary btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn btn-primary btn-sm px-5"
-            >
-              {submitting ? 'Saving...' : editingElection ? 'Update Election' : 'Create Election'}
-            </button>
-          </div>
-        </form>
+      <Modal isOpen={Boolean(editor)} onClose={() => setEditor(null)} title={editing ? 'Edit election' : 'New election'} maxWidth="max-w-xl">
+        {editor && (
+          <form onSubmit={save} className="space-y-4">
+            <Field label="Title" htmlFor="el-title">
+              <input id="el-title" className="input" required value={editor.form.title} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, title: e.target.value } })} />
+            </Field>
+            <Field label="Description" htmlFor="el-desc">
+              <textarea id="el-desc" className="input min-h-[64px]" value={editor.form.description} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, description: e.target.value } })} />
+            </Field>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Voting starts" htmlFor="el-start">
+                <input id="el-start" type="datetime-local" className="input" required disabled={lockedEditing} value={editor.form.start_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, start_time: e.target.value } })} />
+              </Field>
+              <Field label="Voting ends" htmlFor="el-end">
+                <input id="el-end" type="datetime-local" className="input" required disabled={lockedEditing} value={editor.form.end_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, end_time: e.target.value } })} />
+              </Field>
+            </div>
+            <Field label="Positions" htmlFor="el-pos" hint={lockedEditing ? 'Positions are locked once voting has opened.' : 'One per line, in the order voters will see them.'}>
+              <textarea id="el-pos" className="input min-h-[110px]" disabled={lockedEditing} value={editor.form.positions} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, positions: e.target.value } })} />
+            </Field>
+            {formError && <p className="error-text" role="alert">{formError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="btn-ghost" onClick={() => setEditor(null)}>Cancel</button>
+              <button className="btn-primary" disabled={busy}>{editing ? 'Save changes' : 'Create election'}</button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

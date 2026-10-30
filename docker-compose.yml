@@ -1,51 +1,50 @@
+# Self-hosted deployment. Copy .env.example to .env, fill it in, then:  docker compose up -d --build
+# See docs/INSTALLATION.md. For a throwaway local test instance use testing/local/ instead.
+name: evoting
+
 services:
   db:
-    image: postgres:15-alpine
-    container_name: evoting_db
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: evoting_db
-      POSTGRES_USER: evoting_user
-      POSTGRES_PASSWORD: evoting_secure_password_2026
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-evoting}
+      POSTGRES_USER: ${POSTGRES_USER:-evoting}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U evoting_user -d evoting_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: evoting_backend
+    build: ./backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
       FLASK_ENV: production
-      SECRET_KEY: campus-evoting-super-secret-key-production-2026
-      JWT_SECRET_KEY: campus-evoting-jwt-secret-key-production-2026
-      DATABASE_URL: postgresql://evoting_user:evoting_secure_password_2026@db:5432/evoting_db
-      CORS_ORIGINS: http://localhost:3000,http://localhost
-      OTP_VALIDITY_SECONDS: 300
-    ports:
-      - "5000:5000"
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-evoting}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-evoting}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      PROXY_HOPS: ${PROXY_HOPS:-1}
+    volumes:
+      - backend_logs:/app/logs
+    expose:
+      - "5000"
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: evoting_frontend
+    build: ./frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "3000:80"
+      - "${WEB_PORT:-80}:80"
 
 volumes:
-  postgres_data:
+  db_data:
+  backend_logs:

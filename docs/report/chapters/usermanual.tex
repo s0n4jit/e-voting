@@ -1,0 +1,97 @@
+\chapter{User Manual}
+\label{chap:manual}
+
+This manual explains how each person uses the system. Installation and hosting are covered in Appendix~\ref{app:hosting}.
+
+\section{Roles at a glance}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Role} & \textbf{What the person does} \\
+\midrule
+Election Officer & Installs and configures the system, prepares the election, controls its stages, sets up booths, publishes results \\
+Desk Officer & Registers students, checks them in, hands out slips and PINs \\
+Voter & Votes once on an authorised booth \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Election Officer}
+
+\subsection{First-time installation}
+
+\begin{enumerate}
+  \item Open the portal in a browser. On a new installation the installation wizard appears.
+  \item Enter the institution details, logo, time zone, and the letters for the Voter Slip ID (default \code{SUE}).
+  \item Create the Election Officer account and, optionally, a profile photo.
+  \item Create the first election: title, voting period, positions and programmes. A template with the college's departments is pre-filled.
+  \item Press \textbf{Install}, then scan the displayed code with an authenticator application and confirm. Two-step verification is mandatory for Election Officers.
+\end{enumerate}
+
+\subsection{Preparing the election}
+
+\begin{itemize}
+  \item \textbf{Programmes:} add programmes and departments or import a CSV with the columns \code{level}, \code{programme}, \code{department}, \code{terms}.
+  \item \textbf{Candidates:} add each candidate with a photo (required) and a department chosen from the list.
+  \item \textbf{Desk Officers:} create an account for each person who will staff a registration desk.
+  \item \textbf{Voting booths:} generate a one-time booth token in the panel and enter it together with your authenticator code on the booth computer.
+\end{itemize}
+
+\subsection{Running the election}
+
+Use the \textbf{Elections} page to move the election through its stages (Figure~\ref{fig:lifecycle} in Chapter~\ref{chap:design}). Positions, candidates and the voting period are locked as soon as voting opens. Only one election can be active in an installation.
+
+\subsection{Results}
+
+\begin{enumerate}
+  \item Close voting. Nothing is visible yet.
+  \item Press \textbf{Publish results}.
+  \item Open \textbf{Results}. Use \textbf{Present on projector} for the reveal, one position at a time (Space or right arrow to reveal and continue, left arrow to go back, F for full screen).
+  \item Optionally press \textbf{Create public link} to share the results; the link can be deleted at any time.
+  \item Download the CSV report if needed.
+\end{enumerate}
+
+Equal top votes are shown as a draw; the system never picks a winner by chance.
+
+\subsection{Account and audit log}
+
+Click your name at the top right to open your profile: change the photo, change the password (using the current password, or an authenticator code if it was forgotten), and manage two-step verification. The audit log lists every important action, grouped into categories that can be filtered.
+
+\section{Desk Officer}
+
+\begin{enumerate}
+  \item \textbf{Register student:} enter the name, choose the programme, department or stream and the semester or year. A Voter Slip ID such as \code{SUE26-E1-483920} is generated and can be printed. A warning appears if the same student seems to be registered already.
+  \item \textbf{Registrations:} search by name or slip ID, filter, edit details (until the student has voted) and export a list. Statuses update live.
+  \item \textbf{Voter check-in:} enter the slip ID, check the status and press \textbf{Issue voting PIN}. The PIN works once and for 20 minutes. Give the student the slip and PIN.
+\end{enumerate}
+
+\section{Voter}
+
+\begin{enumerate}
+  \item Go to a free booth. The screen shows the election and the slip prefix, for example \code{SUE26-E1-}.
+  \item Type the six digits of the slip ID and the six-digit PIN.
+  \item Read the instructions. For every position choose one candidate or \emph{Abstain}.
+  \item Review the choices and press \textbf{Submit my vote}.
+  \item A confirmation appears and the booth clears itself for the next voter.
+\end{enumerate}
+
+\notebox{A submitted vote cannot be changed or looked up. It is stored without any link to the voter's name.}
+
+\section{Troubleshooting summary}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{5cm}X@{}}
+\toprule
+\textbf{Problem} & \textbf{Action} \\
+\midrule
+PIN cannot be issued & The student has already voted, or the slip ID is wrong \\
+PIN stopped working & It expires after 20 minutes and is cancelled after five wrong entries; issue a new one \\
+Booth says voting is not open & The election is not in the voting stage or is outside its time window \\
+Booth returned to set-up & It was removed in the panel; generate a new token \\
+Results are locked & Close voting, then publish the results \\
+Lost authenticator & The system operator runs the recovery command described in the security guide \\
+\bottomrule
+\end{tabularx}
+\end{center}

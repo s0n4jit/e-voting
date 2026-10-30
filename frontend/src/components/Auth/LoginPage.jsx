@@ -1,334 +1,168 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRightIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { authApi } from '../../api/authApi';
 import { useAuth } from '../../context/AuthContext';
-import { toast } from 'react-hot-toast';
-import {
-  ShieldCheckIcon,
-  KeyIcon,
-  IdentificationIcon,
-  LockClosedIcon,
-  CheckBadgeIcon,
-  ArrowRightIcon,
-  ArrowPathIcon,
-  ComputerDesktopIcon,
-} from '@heroicons/react/24/outline';
+import { useBrand } from '../../context/BrandContext';
+import { BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
+
+const home = (role) => (role === 'admin' ? '/admin/dashboard' : role === 'polling_officer' ? '/desk' : '/kiosk/vote');
 
 export const LoginPage = () => {
-  const { login, verifyOtp } = useAuth();
+  const { login, verifyOtp, isAuthenticated, role } = useAuth();
+  const { installed, ready } = useBrand();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Form states
-  const [studentId, setStudentId] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [otpCode, setOtpCode] = useState('');
+  const [code, setCode] = useState('');
   const [tempToken, setTempToken] = useState(null);
-  const [stage, setStage] = useState('credentials'); // 'credentials' | 'otp'
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [forgot, setForgot] = useState(null); // null, or { identifier, code, next, confirm, done }
 
-  // Autofill helper for campus staff demos
-  const setDemoCredentials = (role) => {
-    if (role === 'admin') {
-      setStudentId('admin@campus.edu');
-      setPassword('Admin@1234');
-    } else if (role === 'desk') {
-      setStudentId('desk001@campus.edu');
-      setPassword('Desk@1234');
-    } else {
-      setStudentId('STU001');
-      setPassword('Student@1234');
-    }
-    setErrorMsg('');
-  };
+  if (ready && !installed) return <Navigate to="/setup" replace />;
+  if (isAuthenticated && role) return <Navigate to={home(role)} replace />;
 
-  const resolveTarget = (role) => {
-    if (role === 'admin') return '/admin/dashboard';
-    if (role === 'polling_officer') return '/desk';
-    return '/voter/dashboard';
-  };
+  const finish = (user) => navigate(location.state?.from?.pathname || home(user?.role), { replace: true });
 
-  const handleCredentialsSubmit = async (e) => {
+  const submitCredentials = async (e) => {
     e.preventDefault();
-    if (!studentId.trim() || !password) {
-      setErrorMsg('Please enter both ID and Password.');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
+    setBusy(true);
+    setError('');
     try {
-      const response = await login(studentId.trim(), password);
-      // Check if MFA is required
-      if (response?.mfa_required || response?.temp_token) {
-        setTempToken(response.temp_token);
-        setStage('otp');
-        toast.success('Credentials verified. Enter your 2FA OTP code.');
-      } else {
-        // Direct login succeeded
-        toast.success('Login successful!');
-        const userRole = response?.user?.role || (response?.access_token ? 'voter' : '');
-        const target = resolveTarget(userRole);
-        const destination = location.state?.from?.pathname || target;
-        navigate(destination, { replace: true });
-      }
+      const res = await login(identifier.trim(), password);
+      if (res?.mfa_required) setTempToken(res.temp_token);
+      else finish(res.user);
     } catch (err) {
-      console.error('Login error:', err);
-      const detail = err.response?.data?.message || err.response?.data?.error || 'Invalid ID or password. Please try again.';
-      setErrorMsg(detail);
-      toast.error(detail);
+      setError(errorMessage(err, 'The email, username or password is incorrect.'));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleOtpSubmit = async (e) => {
+  const submitForgot = async (e) => {
     e.preventDefault();
-    if (!otpCode.trim() || otpCode.trim().length < 6) {
-      setErrorMsg('Please enter a valid 6-digit OTP code.');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
+    if (forgot.next !== forgot.confirm) return setError('The two passwords do not match.');
+    setBusy(true);
+    setError('');
     try {
-      const response = await verifyOtp({
-        temp_token: tempToken,
-        otp: otpCode.trim(),
-        student_id: studentId.trim(),
-      });
-
-      toast.success('Identity verified successfully!');
-      const userRole = response?.user?.role;
-      const target = resolveTarget(userRole);
-      const destination = location.state?.from?.pathname || target;
-      navigate(destination, { replace: true });
+      await authApi.forgotPassword(forgot.identifier.trim(), forgot.code.trim(), forgot.next);
+      setForgot({ ...forgot, done: true });
     } catch (err) {
-      console.error('OTP error:', err);
-      const detail = err.response?.data?.message || err.response?.data?.error || 'Invalid or expired OTP code. Please retry.';
-      setErrorMsg(detail);
-      toast.error(detail);
+      setError(errorMessage(err));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleResetToCredentials = () => {
-    setStage('credentials');
-    setOtpCode('');
-    setTempToken(null);
-    setErrorMsg('');
+  const submitCode = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const res = await verifyOtp({ temp_token: tempToken, otp: code.trim() });
+      finish(res.user);
+    } catch (err) {
+      setError(errorMessage(err, 'That code is not valid. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-indigo-50/40 to-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-xl shadow-primary-500/25 mb-4 transform hover:scale-105 transition-transform">
-          <ShieldCheckIcon className="w-10 h-10" />
-        </div>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-          Campus <span className="text-primary-600">e-Voting</span>
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 font-medium">
-          Confidential • End-to-End Verifiable • Cryptographically Secure
-        </p>
-      </div>
+    <div className="min-h-screen bg-bg flex flex-col">
+      <header className="flex items-center justify-between px-6 py-4">
+        <BrandMark />
+        <ThemeToggle />
+      </header>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="card shadow-xl border-gray-100 overflow-hidden">
-          {/* Demo Helper Banner for Campus Officers */}
-          <div className="bg-gradient-to-r from-primary-900 via-indigo-900 to-slate-900 text-white p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs uppercase tracking-wider font-semibold text-primary-200 flex items-center gap-1">
-                <CheckBadgeIcon className="w-4 h-4 text-primary-300" /> Official Staff Credentials
-              </span>
-              <span className="text-[11px] text-gray-400">Click to autofill</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setDemoCredentials('admin')}
-                className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
-              >
-                <div className="font-semibold text-indigo-200">Election Officer</div>
-                <div className="text-[11px] text-gray-300 font-mono">admin@campus.edu</div>
-                <div className="text-[11px] text-gray-300 font-mono">PW: Admin@1234</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDemoCredentials('desk')}
-                className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
-              >
-                <div className="font-semibold text-amber-300">Desk Officer</div>
-                <div className="text-[11px] text-gray-300 font-mono">desk001@campus.edu</div>
-                <div className="text-[11px] text-gray-300 font-mono">PW: Desk@1234</div>
-              </button>
-            </div>
-          </div>
+      <main className="flex-1 flex items-center justify-center px-4 pb-16">
+        <div className="w-full max-w-sm animate-page-in">
+          <h1 className="text-2xl font-semibold tracking-tight">{forgot ? 'Reset your password' : tempToken ? 'Two-step verification' : 'Staff sign in'}</h1>
+          <p className="text-sm text-muted mt-1.5 mb-8">
+            {forgot
+              ? 'Available when two-step verification is turned on for your account.'
+              : tempToken
+              ? 'Enter the 6-digit code from your authenticator app.'
+              : 'For Election Officers and Desk Officers.'}
+          </p>
 
-          <div className="p-8">
-            {errorMsg && (
-              <div className="mb-6 p-3 rounded-lg bg-danger-50 border border-danger-200 text-danger-700 text-sm flex items-start gap-2">
-                <span className="font-bold">Error:</span>
-                <span>{errorMsg}</span>
+          {forgot ? (
+            forgot.done ? (
+              <div className="text-center space-y-4 animate-pop-in" role="status">
+                <CheckCircleIcon className="w-14 h-14 text-ok mx-auto" />
+                <p className="font-medium">Your password has been reset.</p>
+                <button className="btn-primary w-full" onClick={() => { setForgot(null); setError(''); }}>Back to sign in</button>
               </div>
-            )}
-
-            {stage === 'credentials' ? (
-              <form onSubmit={handleCredentialsSubmit} className="space-y-5">
-                <div>
-                  <label htmlFor="student_id" className="label flex items-center justify-between">
-                    <span>Email or Staff / Student ID</span>
-                    <span className="text-xs text-gray-400 font-normal">e.g. admin@campus.edu or ADMIN001</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                      <IdentificationIcon className="h-5 w-5" />
-                    </div>
-                    <input
-                      id="student_id"
-                      type="text"
-                      required
-                      autoComplete="username"
-                      value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
-                      placeholder="admin@campus.edu or ID"
-                      className="input pl-10 text-sm font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="label">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                      <LockClosedIcon className="h-5 w-5" />
-                    </div>
-                    <input
-                      id="password"
-                      type="password"
-                      required
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="input pl-10"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn btn-primary py-2.5 text-base gap-2 shadow-md shadow-primary-500/20"
-                >
-                  {loading ? (
-                    <>
-                      <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                      <span>Authenticating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Continue to Verification</span>
-                      <ArrowRightIcon className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
             ) : (
-              <form onSubmit={handleOtpSubmit} className="space-y-5">
-                <div className="text-center pb-2">
-                  <div className="inline-flex p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-2">
-                    <KeyIcon className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-base font-bold text-gray-900">Authenticator 2FA (RFC 6238)</h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Enter the 6-digit rolling code from your Authenticator app (Google Authenticator / Authy).
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="otp" className="label text-center">
-                    6-Digit Authenticator Code
-                  </label>
-                  <input
-                    id="otp"
-                    type="text"
-                    required
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoFocus
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="••••••"
-                    className="input text-center font-mono text-2xl tracking-[0.5em] py-3 font-bold text-indigo-700"
-                  />
-                  <p className="text-[11px] text-gray-400 text-center mt-1.5 font-mono">
-                    RFC 6238 Standard (30-second window). Initial demo code: 123456
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading || otpCode.length < 6}
-                    className="w-full btn btn-primary py-2.5 text-base gap-2 shadow-md shadow-primary-500/20"
-                  >
-                    {loading ? (
-                      <>
-                        <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                        <span>Verifying Code...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Confirm & Access Ballot</span>
-                        <ArrowRightIcon className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResetToCredentials}
-                    className="btn btn-ghost text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    ← Back to Student ID & Password
-                  </button>
-                </div>
+              <form onSubmit={submitForgot} className="space-y-4">
+                <Field label="Email or username" htmlFor="f-id">
+                  <input id="f-id" className="input" value={forgot.identifier} onChange={(e) => setForgot({ ...forgot, identifier: e.target.value })} autoFocus required />
+                </Field>
+                <Field label="Code from your authenticator app" htmlFor="f-code">
+                  <input id="f-code" className="input text-center text-xl tracking-[0.4em] tabular-nums" inputMode="numeric" maxLength={6} value={forgot.code} onChange={(e) => setForgot({ ...forgot, code: e.target.value.replace(/\D/g, '') })} autoComplete="one-time-code" required />
+                </Field>
+                <Field label="New password" htmlFor="f-new" hint="At least 8 characters with a letter and a number.">
+                  <input id="f-new" type="password" className="input" value={forgot.next} onChange={(e) => setForgot({ ...forgot, next: e.target.value })} autoComplete="new-password" required />
+                </Field>
+                <Field label="Confirm new password" htmlFor="f-confirm">
+                  <input id="f-confirm" type="password" className="input" value={forgot.confirm} onChange={(e) => setForgot({ ...forgot, confirm: e.target.value })} autoComplete="new-password" required />
+                </Field>
+                {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 animate-pop-in" role="alert">{error}</p>}
+                <button className="btn-primary w-full" disabled={busy || forgot.code.length !== 6 || !forgot.next}>{busy ? 'Resetting…' : 'Reset password'}</button>
+                <p className="text-xs text-muted">No two-step verification on your account? Ask the Election Officer to reset your password (Desk Officers), or the person who runs the server (Election Officers).</p>
+                <button type="button" className="btn-ghost w-full" onClick={() => { setForgot(null); setError(''); }}>Back to sign in</button>
               </form>
-            )}
+            )
+          ) : !tempToken ? (
+            <form onSubmit={submitCredentials} className="space-y-5">
+              <Field label="Email or username" htmlFor="identifier">
+                <input id="identifier" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" autoFocus required />
+              </Field>
+              <Field label="Password" htmlFor="password">
+                <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+              </Field>
+              {error && (
+                <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 animate-pop-in" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" className="btn-primary w-full" disabled={busy || !identifier || !password}>
+                {busy ? 'Signing in…' : 'Sign in'}
+              </button>
+              <button type="button" className="text-sm text-brand-fg hover:underline w-full text-center" onClick={() => { setForgot({ identifier, code: '', next: '', confirm: '' }); setError(''); }}>
+                Forgot password?
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submitCode} className="space-y-5">
+              <Field label="Authenticator code" htmlFor="code">
+                <input id="code" className="input text-center text-xl tracking-[0.4em] tabular-nums" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoComplete="one-time-code" autoFocus required />
+              </Field>
+              {error && (
+                <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 animate-pop-in" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" className="btn-primary w-full" disabled={busy || code.length !== 6}>
+                {busy ? 'Verifying…' : 'Verify'}
+              </button>
+              <button type="button" className="btn-ghost w-full" onClick={() => { setTempToken(null); setCode(''); setError(''); }}>
+                Use a different account
+              </button>
+            </form>
+          )}
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-              <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
-                <ShieldCheckIcon className="w-4 h-4 text-emerald-500" />
-                <span>Protected with SHA-256 HMAC & Blind Signature Tokenization</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Student Voter in Campus Election Prompt */}
-        <div className="mt-5 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
-          <p className="text-xs font-bold text-slate-800">
-            Student Voter in Campus Election?
+          <p className="text-sm text-muted mt-10 text-center">
+            Here to vote?{' '}
+            <Link to="/kiosk/vote" className="text-brand-fg font-medium inline-flex items-center gap-1 hover:underline">
+              Go to the voting booth <ArrowRightIcon className="w-3.5 h-3.5" />
+            </Link>
           </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Voting takes place in-person on campus computer booths. Get your 6-digit Voting PIN slip from the Polling Desk and access the booth terminal.
-          </p>
-          <Link
-            to="/kiosk"
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm"
-          >
-            <ComputerDesktopIcon className="w-4 h-4 text-emerald-400" />
-            <span>Open Campus Polling Booth Terminal →</span>
-          </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campus E-Voting — secure college elections you host yourself</title>
+<meta name="description" content="Open-source e-voting platform for colleges: installation wizard, desk registration, supervised booths, secret ballot, hidden results and a full audit log. Self-host or deploy free on Render + Supabase.">
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="#"><img src="assets/logo.svg" alt="">Campus E-Voting</a>
+  <nav><a href="#features">Features</a><a href="#how">How it works</a><a href="#security">Security</a><a href="#hosting">Hosting</a><a href="#faq">FAQ</a>
+  <a class="btn sm" href="self-hosting.html">Get started</a></nav>
+</div></header>
+
+<main>
+<section class="hero"><div class="wrap">
+  <span class="badge"><b>●</b> Open source · free to run</span>
+  <h1>College elections that are <span class="grad">secure, fast and yours.</span></h1>
+  <p class="lead">Registration desk, supervised voting booths, secret ballot and live results — in one platform you install on your own server in minutes.</p>
+  <div class="cta"><a class="btn" href="self-hosting.html">Self-host in 5 minutes →</a><a class="btn ghost" href="https://github.com/s0n4jit/e-voting">View on GitHub</a></div>
+  <small>Docker Compose · PostgreSQL · or free on Render + Supabase</small>
+
+  <div class="mock" aria-hidden="true">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <div class="body">
+      <aside><span class="on">Overview</span><span>Elections</span><span>Candidates</span><span>Booths</span><span>Results</span><span>Audit log</span></aside>
+      <main>
+        <h4>General Election of the Student Union 2026–27</h4>
+        <div class="stats">
+          <div class="stat"><b>482</b><span>Registered</span></div>
+          <div class="stat"><b>331</b><span>Votes cast</span></div>
+          <div class="stat"><b>69%</b><span>Turnout</span></div>
+          <div class="stat"><b>4</b><span>Booths online</span></div>
+        </div>
+        <div class="cands"><div class="cand sel"><i>A</i>Candidate one</div><div class="cand"><i>B</i>Candidate two</div><div class="cand"><i>N</i>None of the above</div></div>
+        <div class="progress"><div></div></div>
+      </main>
+    </div>
+  </div>
+</div></section>
+
+<div class="wrap strip">
+  <div><b>3</b><span>roles, one clear workflow</span></div>
+  <div><b>1 voter = 1 ballot</b><span>enforced in the database</span></div>
+  <div><b>146</b><span>automated tests</span></div>
+  <div><b>0</b><span>third-party services needed</span></div>
+</div>
+
+<section id="features"><div class="wrap">
+  <div class="center"><div class="eyebrow">Features</div><h2>Everything a campus election needs</h2><p class="sub">Built around how elections are really run: a desk, supervised booths and a results announcement.</p></div>
+  <div class="bento">
+    <div class="tile w4"><div class="ico">🧭</div><h3>Guided installation</h3><p>A first-run wizard sets up the institution, logo, slip ID letters, the Election Officer (with mandatory two-step verification) and the first election. It locks itself when done.</p>
+      <div class="chips"><span class="on">Setup</span><span>Registration</span><span>Ready</span><span>Voting</span><span>Closed</span><span>Published</span><span>Archived</span></div></div>
+    <div class="tile"><div class="ico">🪪</div><h3>Desk registration</h3><p>Unique Voter Slip IDs like <code>SUE26-E1-483920</code> and single-use PINs, generated automatically.</p></div>
+    <div class="tile"><div class="ico">🖥️</div><h3>Supervised booths</h3><p>A booth works only after a one-time token plus the officer's authenticator code. Remove it and it stops instantly.</p></div>
+    <div class="tile"><div class="ico">✨</div><h3>Animated voting</h3><p>Big candidate cards with photos, one position at a time, review and confirm. Light and dark themes.</p></div>
+    <div class="tile"><div class="ico">🏆</div><h3>Projector reveal</h3><p>Results stay hidden until published. Reveal winner by winner with confetti; draws are shown honestly.</p></div>
+    <div class="tile w3"><div class="ico">📜</div><h3>Readable audit log</h3><p>Every important action in plain language — who, what, which booth — grouped by category and filterable.</p></div>
+    <div class="tile w3"><div class="ico">🔗</div><h3>Public results link</h3><p>Create a shareable results page with one click and delete it whenever you want.</p></div>
+  </div>
+</div></section>
+
+<section id="how" class="alt"><div class="wrap">
+  <div class="center"><div class="eyebrow">How it works</div><h2>From install to results in four steps</h2><p class="sub">One officer, a few desk staff, and voters who just type two numbers.</p></div>
+  <div class="steps4">
+    <div class="step"><h3>Install &amp; prepare</h3><p>Run the wizard, add programmes (CSV import), candidates with photos and Desk Officers.</p></div>
+    <div class="step"><h3>Register students</h3><p>Desk Officers register students and hand out the slip with a Voter Slip ID.</p></div>
+    <div class="step"><h3>Vote on booths</h3><p>Voters enter the slip number and a PIN at an approved booth and choose once per position.</p></div>
+    <div class="step"><h3>Publish &amp; reveal</h3><p>Close voting, publish, present on the projector and share the public link.</p></div>
+  </div>
+</div></section>
+
+<section id="security"><div class="wrap">
+  <div class="center"><div class="eyebrow">Security</div><h2>A secret ballot you can defend</h2><p class="sub">Identity and choice live in separate tables with no key between them. The server decides everything; the browser is never trusted.</p></div>
+  <div class="bento">
+    <div class="tile"><div class="ico">🔒</div><h3>One voter, one vote</h3><p>Ballot and "voted" mark are written in one transaction with a row lock.</p></div>
+    <div class="tile"><div class="ico">🛡️</div><h3>Booth-only voting</h3><p>Hashed one-time booth tokens and officer TOTP; revocation is immediate.</p></div>
+    <div class="tile"><div class="ico">🙈</div><h3>Hidden results</h3><p>Counts never reach a browser until the officer publishes them.</p></div>
+    <div class="tile w3"><div class="ico">🔑</div><h3>Strong staff accounts</h3><p>bcrypt passwords, mandatory two-step verification for officers, instant sign-out on deactivation.</p></div>
+    <div class="tile w3"><div class="ico">🚦</div><h3>Abuse protection</h3><p>Rate limits, PINs cancelled after five wrong tries, sanitised input, formula-safe exports.</p></div>
+  </div>
+</div></section>
+
+<section id="hosting" class="alt"><div class="wrap">
+  <div class="center"><div class="eyebrow">Hosting</div><h2>Run it your way</h2><p class="sub">Your data stays with you. Pick the option that fits your college.</p></div>
+  <div class="plans">
+    <div class="plan pop"><h3>Your own server</h3><div class="price">Free<small> · Docker</small></div><p>Best for real elections.</p>
+      <ul><li>One command: <code>docker compose up</code></li><li>PostgreSQL included</li><li>HTTPS with Caddy or nginx</li><li>Ubuntu booth lock-down scripts</li></ul>
+      <a class="btn" href="self-hosting.html">Self-hosting guide</a></div>
+    <div class="plan"><h3>Free cloud</h3><div class="price">$0<small> · Render + Supabase</small></div><p>Best for trials and small elections.</p>
+      <ul><li>API on Render, database on Supabase</li><li>Static web app, always on</li><li>Built-in self-ping keeps it awake</li><li>Blueprint file included</li></ul>
+      <a class="btn ghost" href="https://github.com/s0n4jit/e-voting/blob/main/docs/FREE_HOSTING.md">Free hosting guide</a></div>
+    <div class="plan"><h3>Managed hosting</h3><div class="price">Your choice</div><p>Any Docker or PostgreSQL host.</p>
+      <ul><li>Fly, Railway, VPS, campus server</li><li>Only environment variables differ</li><li>Move the database with <code>pg_dump</code></li><li>Deployment checklist included</li></ul>
+      <a class="btn ghost" href="https://github.com/s0n4jit/e-voting/blob/main/docs/DEPLOYMENT.md">Deployment guide</a></div>
+  </div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <div class="center"><div class="eyebrow">FAQ</div><h2>Questions</h2></div>
+  <div class="faq">
+    <details><summary>Can anyone vote from their phone?</summary><p>No. Votes are accepted only from booths the Election Officer has approved, so every vote happens under supervision.</p></details>
+    <details><summary>Can the admin see who I voted for?</summary><p>No. The ballot is stored without any reference to the voter, and the audit log records only that a ballot was cast.</p></details>
+    <details><summary>What if two people submit at the same moment?</summary><p>A database row lock guarantees exactly one ballot per voter, verified on PostgreSQL.</p></details>
+    <details><summary>Does it work on free hosting?</summary><p>Yes, on Render and Supabase. A built-in self-ping keeps the API and database awake. For a real election a server you control is recommended.</p></details>
+    <details><summary>What if the officer loses their authenticator?</summary><p>The operator runs <code>manage.py reset-2fa</code> on the server and the officer sets it up again.</p></details>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+  <div class="final"><h2>Ready to run your election?</h2><p>Clone the repository, set three secrets and start. The wizard does the rest.</p>
+    <div class="cta"><a class="btn" href="self-hosting.html">Self-hosting guide</a><a class="btn ghost" href="https://github.com/s0n4jit/e-voting">GitHub</a></div></div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span class="brand"><img src="assets/logo.svg" alt="" style="width:24px;height:24px"> Campus E-Voting · Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga</span>
+  <span><a href="self-hosting.html">Self-hosting</a> · <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/FREE_HOSTING.md">Free hosting</a> · <a href="https://github.com/s0n4jit/e-voting/blob/main/docs/SECURITY.md">Security</a> · <a href="https://github.com/s0n4jit/e-voting">Source</a></span>
+</div></footer>
+</body>
+</html>

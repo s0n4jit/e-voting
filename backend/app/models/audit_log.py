@@ -5,6 +5,7 @@ app/models/audit_log.py — AuditLog ORM model.
 from datetime import datetime, timezone
 from sqlalchemy.orm import synonym
 from app.extensions import db
+from app.utils.timeutil import utc_iso
 
 
 class AuditLog(db.Model):
@@ -42,6 +43,6 @@ class AuditLog(db.Model):
             "details": self.details,
             "ip_address": self.ip_address,
             "user_agent": self.user_agent,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "timestamp": self.created_at.isoformat() if self.created_at else None,
+            "created_at": utc_iso(self.created_at),
+            "timestamp": utc_iso(self.created_at),
         }

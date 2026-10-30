@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
 export const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, role, loading } = useAuth();
+  const { isAuthenticated, role, loading, user } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -19,6 +19,10 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (role === 'admin' && user && !user.otp_enabled && location.pathname !== '/secure-account') {
+    return <Navigate to="/secure-account" replace />;
+  }
+
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     // If authenticated but wrong role, redirect to appropriate home
     const fallbackPath =
@@ -26,7 +30,7 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
         ? '/admin/dashboard'
         : role === 'polling_officer'
         ? '/desk'
-        : '/voter/dashboard';
+        : '/kiosk/vote';
     return <Navigate to={fallbackPath} replace />;
   }
 

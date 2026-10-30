@@ -39,8 +39,6 @@ from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
 from app.models.ballot_entry import BallotEntry
 from app.services.vote_service import VoteService
-from app.services.otp_service import OTPService
-from app.services.auth_service import AuthService
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -310,74 +308,31 @@ class TestGetResults:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  OTP service tests
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestOTPService:
-    """Tests for OTPService helper utilities."""
-
-    def test_generate_secret_returns_base32_string(self):
-        """generate_secret() should return a valid base-32 string."""
-        secret = OTPService.generate_secret()
-        assert isinstance(secret, str)
-        assert len(secret) >= 16
-        assert all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567" for c in secret)
-
-    def test_verify_otp_accepts_current_code(self):
-        """verify_otp should return True for the code generated right now."""
-        secret = OTPService.generate_secret()
-        code = pyotp.TOTP(secret).now()
-        assert OTPService.verify_otp(secret, code) is True
-
-    def test_verify_otp_rejects_wrong_code(self):
-        """verify_otp should return False for a clearly invalid code."""
-        secret = OTPService.generate_secret()
-        assert OTPService.verify_otp(secret, "000000") is False
-
-    def test_verify_otp_rejects_empty_string(self):
-        """An empty OTP string should be rejected outright."""
-        secret = OTPService.generate_secret()
-        assert OTPService.verify_otp(secret, "") is False
-
-    def test_generate_provisioning_uri_contains_issuer(self):
-        """The provisioning URI should include the issuer name for QR codes."""
-        secret = OTPService.generate_secret()
-        uri = OTPService.provisioning_uri(secret, account_name="student@uni.edu")
-        assert "otpauth://totp/" in uri
-        assert "student%40uni.edu" in uri or "student@uni.edu" in uri
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  Password hashing (AuthService level)
+#  Password hashing
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestPasswordHashing:
-    """Verify that AuthService uses proper bcrypt hashing."""
+    """Passwords are stored as salted bcrypt hashes."""
 
-    def test_hash_password_is_not_plaintext(self):
-        """The hashed value must differ from the original password."""
-        hashed = AuthService.hash_password("MySecret@1")
-        assert hashed != "MySecret@1"
-        assert hashed.startswith("$2b$")
+    @staticmethod
+    def _hash(password):
+        user = User(student_id="X1", name="X", email="x@x.edu", role="admin")
+        user.set_password(password)
+        return user
 
-    def test_check_password_correct(self):
-        """check_password returns True for the matching password."""
-        hashed = AuthService.hash_password("MySecret@1")
-        assert AuthService.check_password("MySecret@1", hashed) is True
+    def test_check_password_right_and_wrong(self, app):
+        with app.app_context():
+            user = self._hash("MySecret@1")
+            assert user.check_password("MySecret@1") is True
+            assert user.check_password("WrongPassword") is False
+            assert user.check_password("") is False
 
-    def test_check_password_wrong(self):
-        """check_password returns False for a non-matching password."""
-        hashed = AuthService.hash_password("MySecret@1")
-        assert AuthService.check_password("WrongPassword", hashed) is False
+    def test_same_password_produces_different_hashes(self, app):
+        """Different salts each time (rainbow-table defence)."""
+        with app.app_context():
+            assert self._hash("SamePassword@1").password_hash != self._hash("SamePassword@1").password_hash
 
-    def test_same_password_produces_different_hashes(self):
-        """Bcrypt should generate different salts each time (rainbow-table defense)."""
-        h1 = AuthService.hash_password("SamePassword@1")
-        h2 = AuthService.hash_password("SamePassword@1")
-        assert h1 != h2
-
-    def test_hash_is_not_md5_or_sha1(self):
-        """Ensure we're not using a weak, fast hash algorithm."""
-        hashed = AuthService.hash_password("TestPass@99")
-        # MD5 hex = 32 chars, SHA-1 hex = 40 chars — both shorter than bcrypt
-        assert len(hashed) > 40, "Hash appears too short — possibly using a weak algorithm!"
+    def test_hash_is_bcrypt_not_a_fast_hash(self, app):
+        with app.app_context():
+            hashed = self._hash("TestPass@99").password_hash
+            assert hashed.startswith("$2") and len(hashed) == 60

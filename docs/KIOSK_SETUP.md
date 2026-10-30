@@ -1,138 +1,87 @@
-# Ubuntu 26.04 LTS Kiosk Setup & Operating System Hardening Guide
+# Voting booth setup (Ubuntu)
 
-## Overview
-This document specifies the exact installation, configuration, and operating-system-level hardening steps to transform a generic workstation running **Ubuntu 26.04 LTS (Noble Numbat)** into an examination-style locked-down physical voting booth terminal for the **Campus E-Voting System (CEVS)**.
+A **voting booth** is an Ubuntu computer locked down so that it can only show the voting page, `/kiosk/vote`. Votes are accepted only from computers set up this way. This page is also available in the officer panel under **Voting booths → Setup guide**.
 
----
+## 1. Requirements
 
-## 1. System Architecture & Boundaries
+- Ubuntu **24.04 or 26.04 LTS** with GNOME on Wayland, 4 GB RAM or more, a reliable network connection to the portal
+- An administrator account with `sudo`, and `openssh-server` so the booth can be managed remotely (the locked-down screen has no terminal)
+- The portal's HTTPS address, for example `https://evote.campus.internal`
+- Internet access during installation (the script installs the Firefox snap)
+- An Election Officer account with two-step verification, and the officer's phone with the authenticator app
 
-```
-[ Physical Terminal Hardware (UEFI Password & SecureBoot Enabled) ]
-   │
-   ▼
-[ Ubuntu 26.04 LTS Linux Kernel (Locked VTs, Blacklisted USB Storage) ]
-   │
-   ▼
-[ GDM3 Display Manager (Automatic Wayland Login for 'evote' User) ]
-   │
-   ▼
-[ GNOME Wayland Session (dconf Lockdown: No Hot Corners, No Alt+Tab) ]
-   │
-   ▼
-[ Systemd User Unit: evote-kiosk.service ]
-   │
-   ▼
-[ Watchdog Launcher: /usr/local/bin/kiosk-launcher.sh ]
-   │
-   ▼
-[ Snap Firefox in Strict Kiosk Mode (--kiosk --private-window) ]
-   │
-   ▼
-[ Enterprise Policies: Strict URL Allowlist, DevTools/Downloads Disabled ]
-   │
-   ▼
-[ HTTPS Campus Voting Web Application ]
+```bash
+sudo apt update
+sudo apt install -y git openssh-server
 ```
 
----
-
-## 2. Automated One-Command Installation
-
-The complete installation has been automated through `kiosk/ubuntu/setup-kiosk.sh`.
-
-### Step 1: Copy Kiosk Configuration to Target Terminal
-On the Ubuntu voting machine, clone the repository or transfer the `kiosk/ubuntu/` directory:
+## 2. Install the lock-down
 
 ```bash
 cd /opt
 sudo git clone https://github.com/s0n4jit/e-voting.git
 cd /opt/e-voting/kiosk/ubuntu
+sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh
+sudo reboot
 ```
 
-### Step 2: Set Voting Application URL & Execute Setup
-Run the setup script with root privileges:
+The installer:
 
-```bash
-# Provide the public HTTPS voting URL for this terminal
-sudo VOTING_URL="https://evote.campus.internal/kiosk" bash setup-kiosk.sh
-```
+1. creates a restricted user `evote` (locked password, no admin rights) that logs in automatically through GDM on Wayland;
+2. installs the Firefox snap with an enterprise policy that blocks every address except `…/kiosk/vote…`, with no address bar, tabs, downloads, developer tools or `about:config`;
+3. locks GNOME shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners, idle sleep) with dconf locks;
+4. disables USB mass storage and the Ctrl+Alt+F1–F12 text consoles;
+5. installs `evote-kiosk.service`, a user service with a crash watchdog that restarts the browser;
+6. installs a tightly limited sudoers file (`/etc/sudoers.d/evote-maintenance`) for restarting the service and checking the network.
 
-The script will automatically perform:
-1. **User Provisioning**: Creates an unprivileged, restricted system account `evote` without a login shell (`/bin/false`) and locks password access (`passwd -l evote`).
-2. **Wayland Auto-Login**: Configures `/etc/gdm3/custom.conf` to automatically launch a GNOME Wayland session as `evote`.
-3. **Snap Firefox Enterprise Policies**: Copies `policies/policies.json` to both `/etc/firefox/policies/` and `/var/snap/firefox/current/policies/`.
-4. **Desktop Environment Lockdown**: Compiles dconf database locks disabling hot corners, app switching (`Alt+Tab`), lock screen, idle dimming, screenshots, and terminal hotkeys.
-5. **Systemd Watchdog Service**: Installs and enables `evote-kiosk.service` under `~evote/.config/systemd/user/` with automatic restart and crash-loop backoff.
-6. **Privilege Separation**: Installs strictly allowlisted sudoers rules at `/etc/sudoers.d/evote-maintenance` for system restart and network diagnosis commands only.
+The booth address is stored in `/etc/default/evote-kiosk` (`VOTING_URL`). `/kiosk` and `/vote` redirect to `/kiosk/vote`, but the browser policy allows only `/kiosk/vote…`, so use that address.
 
----
+## 3. Turn the computer into a booth
 
-## 3. Firefox Enterprise Policies Verification
+1. In the officer panel open **Voting booths** and press **Generate booth token**. The token works once and expires after 15 minutes.
+2. On the booth computer, the screen shows **Set up this voting booth**. Enter the token and the **current 6-digit code from the Election Officer's authenticator app**. The code must belong to the officer who generated the token.
+3. The booth is created with an automatic ID for the running election (`BOOTH-01`, `BOOTH-02`, …). The browser keeps a booth token; only a hash of it is stored on the server.
 
-Inspect `/etc/firefox/policies/policies.json`:
+A booth takes votes only while its election is in **Voting active**, and only for that election. Deleting the booth in the panel revokes it immediately: within seconds the booth returns to the set-up screen, and a new token and code are needed to set it up again.
 
-```json
-{
-  "policies": {
-    "Kiosk": true,
-    "DisableDefaultBrowserAgent": true,
-    "DisableDeveloperTools": true,
-    "PromptForDownloadLocation": false,
-    "DefaultDownloadDirectory": "/dev/null",
-    "DisablePrivateBrowsing": false,
-    "PasswordManagerEnabled": false,
-    "SearchSuggestEnabled": false,
-    "SanitizeOnShutdown": {
-      "Cache": true,
-      "Cookies": true,
-      "History": true,
-      "Sessions": true,
-      "FormData": true,
-      "Downloads": true
-    },
-    "URLAllowlist": [
-      "https://evote.campus.internal/*",
-      "http://localhost:3000/*",
-      "http://127.0.0.1:3000/*"
-    ],
-    "URLBlocklist": ["*"],
-    "OverrideFirstRunPage": "",
-    "OverridePostUpdatePage": "",
-    "DontCheckDefaultBrowser": true,
-    "EnableTrackingProtection": {
-      "Value": true,
-      "Locked": true,
-      "Cryptomining": true,
-      "Fingerprinting": true
-    }
-  }
-}
-```
+## 4. What the booth can do
 
----
+| To do this | Use |
+|---|---|
+| Open the maintenance screen (unlock with an officer's authenticator code) | `Ctrl + Alt + Shift + M` |
+| Open network diagnostics | `Ctrl + Alt + Shift + N` |
+| Restart or shut down (asks to confirm) | `Ctrl + Alt + Shift + R` |
+| Return to the voting screen | `Ctrl + Alt + Shift + L` |
+| Re-run the network and server check | `Ctrl + Alt + Shift + T` |
+| Kiosk service status | `sudo systemctl --user -M evote@ status evote-kiosk.service` |
+| Restart the kiosk browser | `sudo systemctl --user -M evote@ restart evote-kiosk.service` |
+| Live service log | `sudo journalctl --user -M evote@ -u evote-kiosk.service -f` |
+| Network checks | `ip addr`, `ping -c 3 evote.campus.internal` |
+| Restart the computer | `sudo reboot` |
 
-## 4. Hardware and UEFI/BIOS Hardening Checklist
+Voters cannot reach a desktop, a terminal or other websites. A voter's screen clears itself after voting or after five minutes of inactivity.
 
-Software lockdown cannot defend against physical physical port tampering or BIOS override. Prior to opening the polling booth:
+## 5. Hardware checklist
 
-1. **Set Supervisor UEFI/BIOS Password**: Prevent unauthorized boot device selection.
-2. **Disable USB Boot & External Media Boot**: Ensure terminal only boots from internal signed NVMe/SSD.
-3. **Enable Secure Boot**: Enforce signed Linux kernel and module loading.
-4. **Physical Port Locks**: Insert physical RJ-45 and USB-A port blockers on unused ports.
-5. **Kensington Lock**: Physically secure computer chassis and monitor to the voting booth desk.
-6. **Privacy Screen Filter**: Affix optical privacy filter on the monitor to prevent shoulder surfing.
+Software lock-down does not stop someone with physical access. Before opening the polling station:
 
----
+1. Set a UEFI/BIOS supervisor password and disable booting from USB or external media.
+2. Enable Secure Boot.
+3. Block unused USB and network ports; secure the chassis (for example a Kensington lock).
+4. Fit a privacy filter on the monitor.
 
-## 5. Rollback & Emergency Recovery
+## 6. Remove a booth / use the computer normally again
 
-If you need to return the machine to standard desktop usage:
+1. **Revoke the booth.** In the officer panel press **Delete** next to it. Its token stops working at once.
+2. **Remove the lock-down** (only if the computer becomes a normal workstation), from an admin account such as over SSH:
 
-```bash
-# Run the automated rollback script
-sudo bash /opt/e-voting/kiosk/ubuntu/rollback-kiosk.sh
+   ```bash
+   cd /opt/e-voting/kiosk/ubuntu
+   sudo bash rollback-kiosk.sh                 # stops the service, restores login, shortcuts, USB, consoles, Firefox settings
+   sudo bash rollback-kiosk.sh --remove-user   # same, and deletes the 'evote' user
+   sudo reboot
+   ```
 
-# Or with complete removal of the evote user:
-sudo bash /opt/e-voting/kiosk/ubuntu/rollback-kiosk.sh --remove-user
-```
+3. Optional: `sudo snap remove firefox` if Firefox was installed only for the booth; delete `/opt/e-voting`.
+
+To use the computer as a booth again, run the installer again and set it up with a new booth token.

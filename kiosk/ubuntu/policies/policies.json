@@ -55,15 +55,15 @@
         "<all_urls>"
       ],
       "Exceptions": [
-        "https://evote.campus.internal/*",
-        "http://localhost:3000/*",
-        "http://127.0.0.1:3000/*"
+        "https://evote.campus.internal/kiosk/vote*",
+        "http://localhost:3000/kiosk/vote*",
+        "http://127.0.0.1:3000/kiosk/vote*"
       ]
     },
     "URLAllowlist": [
-      "https://evote.campus.internal/*",
-      "http://localhost:3000/*",
-      "http://127.0.0.1:3000/*"
+      "https://evote.campus.internal/kiosk/vote*",
+      "http://localhost:3000/kiosk/vote*",
+      "http://127.0.0.1:3000/kiosk/vote*"
     ],
     "URLBlocklist": [
       "*"

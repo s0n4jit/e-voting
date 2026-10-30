@@ -9,6 +9,7 @@ import pyotp
 from flask import current_app
 
 from app.extensions import db
+from app.utils.timeutil import utc_iso
 
 
 class User(db.Model):
@@ -24,6 +25,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    photo = db.Column(db.Text, nullable=True)  # small profile picture as a data URL (staff only)
+    programme_id = db.Column(db.Integer, db.ForeignKey("programmes.id", ondelete="SET NULL"), nullable=True, index=True)
+    registered_by = db.Column(db.Integer, nullable=True)
     otp_secret = db.Column(db.String(64), nullable=True)
     otp_enabled = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(
@@ -93,9 +97,11 @@ class User(db.Model):
             "role": self.role,
             "department": self.department,
             "year": self.year,
+            "programme_id": self.programme_id,
+            "photo": self.photo,
             "is_admin": self.is_admin or (self.role == "admin"),
             "is_active": self.is_active,
             "otp_enabled": self.otp_enabled,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_at": utc_iso(self.created_at),
+            "updated_at": utc_iso(self.updated_at),
         }

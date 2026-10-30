@@ -1,484 +1,161 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useSelectedElection } from '../../hooks/useSelectedElection';
+import { toast } from 'react-hot-toast';
+import { ClipboardDocumentIcon, EyeIcon, EyeSlashIcon, LinkIcon, PresentationChartBarIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { resultsApi } from '../../api/resultsApi';
-import { useAuth } from '../../context/AuthContext';
+import { ElectionPicker, EmptyState, errorMessage } from '../ui';
+import { usePolling } from '../../hooks/usePolling';
 import LoadingSpinner from '../common/LoadingSpinner';
-import StatusBadge from '../common/StatusBadge';
-import {
-  TrophyIcon,
-  ArrowLeftIcon,
-  ClockIcon,
-  ChartBarIcon,
-  CheckBadgeIcon,
-  LockClosedIcon,
-  UsersIcon,
-  ShieldCheckIcon,
-  NoSymbolIcon,
-  AcademicCapIcon,
-} from '@heroicons/react/24/outline';
+import Modal from '../common/Modal';
+import ResultsView from './ResultsView';
 
+/** Results inside the officer workspace: live counts, and the public link once published. */
 export const ResultsPage = () => {
-  const { electionId } = useParams();
-  const { role } = useAuth();
+  const { elections, electionId, select } = useSelectedElection();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [confirmShow, setConfirmShow] = useState(false);
 
-  const [loading, setLoading] = useState(true);
-  const [resultsData, setResultsData] = useState(null);
-  const [statsData, setStatsData] = useState(null);
-  const [unpublished, setUnpublished] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
-
-  // Position filter tab ('ALL' or specific position name)
-  const [selectedPositionTab, setSelectedPositionTab] = useState('ALL');
-
-  useEffect(() => {
-    const fetchResultsAndStats = async () => {
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-        setUnpublished(false);
-
-        const [resPromise, statsPromise] = await Promise.allSettled([
-          resultsApi.getElectionResults(electionId),
-          resultsApi.getElectionStats(electionId),
-        ]);
-
-        if (resPromise.status === 'fulfilled') {
-          const res = resPromise.value;
-          // Check if results were marked as pending/unpublished by backend
-          if (res.results_published === false || res.published === false || res.status === 'pending') {
-            setUnpublished(true);
-          }
-          setResultsData(res);
-        } else {
-          // If rejected with 403 or 400 because not published yet
-          const errStatus = resPromise.reason?.response?.status;
-          if (errStatus === 403 || errStatus === 400) {
-            setUnpublished(true);
-          } else {
-            throw resPromise.reason;
-          }
-        }
-
-        if (statsPromise.status === 'fulfilled') {
-          setStatsData(statsPromise.value);
-        }
-      } catch (err) {
-        console.error('Failed to load election results:', err);
-        const detail = err.response?.data?.message || err.response?.data?.error;
-        if (detail && detail.toLowerCase().includes('not published')) {
-          setUnpublished(true);
-        } else {
-          setErrorMessage('Unable to load certified election results.');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchResultsAndStats();
+  const load = useCallback(() => {
+    if (!electionId) return;
+    resultsApi.adminResults(electionId).then((d) => { setData(d); setError(''); }).catch((e) => setError(errorMessage(e)));
   }, [electionId]);
 
-  const backLink = role === 'admin' ? '/admin/elections' : '/voter/dashboard';
+  useEffect(() => {
+    setData(null);
+    setShowAll(false);
+    load();
+  }, [load]);
+  usePolling(load, 5000);
 
-  // Extract raw candidates or positions
-  const rawCandidateList = useMemo(() => {
-    if (!resultsData) return [];
-    if (resultsData.positions && Array.isArray(resultsData.positions)) {
-      const flattened = [];
-      resultsData.positions.forEach((pos) => {
-        const posName = pos.name || pos.title || 'General';
-        (pos.candidates || []).forEach((c) => {
-          flattened.push({ ...c, position: posName });
-        });
-        if (pos.nota_votes !== undefined || pos.nota_count !== undefined) {
-          flattened.push({
-            id: `nota-${posName}`,
-            name: 'None of the Above (NOTA)',
-            position: posName,
-            votes: pos.nota_votes ?? pos.nota_count ?? 0,
-            is_nota: true,
-          });
-        }
-      });
-      return flattened;
+  if (elections && elections.length === 0) {
+    return <div className="card"><EmptyState title="No elections yet">Results appear here once an election has run.</EmptyState></div>;
+  }
+  if (error && !data) return <p className="text-bad">{error}</p>;
+  if (!data) return <LoadingSpinner size="lg" />;
+
+  const createLink = async () => {
+    setBusy(true);
+    try {
+      await resultsApi.createPublicLink(electionId);
+      toast.success('Public link created');
+      load();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
     }
-    return resultsData.results || resultsData.candidates || [];
-  }, [resultsData]);
-
-  // Group candidate tallies by Position
-  const groupedByPosition = useMemo(() => {
-    const groups = {};
-
-    rawCandidateList.forEach((cand) => {
-      const pos = (cand.position || 'General Office').trim();
-      if (!groups[pos]) {
-        groups[pos] = [];
-      }
-
-      const votes = cand.votes ?? cand.vote_count ?? 0;
-      const isNota = Boolean(
-        cand.is_nota ||
-        cand.name?.toLowerCase().includes('none of the above') ||
-        cand.name?.toLowerCase().includes('nota')
-      );
-
-      groups[pos].push({
-        ...cand,
-        votes,
-        is_nota: isNota,
-      });
-    });
-
-    // Check if resultsData has standalone NOTA counts per position or global nota
-    if (resultsData?.nota_by_position) {
-      Object.entries(resultsData.nota_by_position).forEach(([pos, count]) => {
-        if (groups[pos]) {
-          const alreadyHasNota = groups[pos].some((c) => c.is_nota);
-          if (!alreadyHasNota) {
-            groups[pos].push({
-              id: `nota-${pos}`,
-              name: 'None of the Above (NOTA)',
-              position: pos,
-              votes: count,
-              is_nota: true,
-            });
-          }
-        }
-      });
+  };
+  const removeLink = async () => {
+    try {
+      await resultsApi.deletePublicLink(electionId);
+      toast.success('Public link deleted');
+      setConfirmDelete(false);
+      load();
+    } catch (e) {
+      toast.error(errorMessage(e));
     }
+  };
 
-    // For each position, sort candidates by votes descending & compute percentages & winner
-    const result = {};
-    Object.keys(groups).forEach((pos) => {
-      const list = [...groups[pos]].sort((a, b) => b.votes - a.votes);
-      const positionTotalVotes = list.reduce((acc, c) => acc + c.votes, 0);
-
-      // Find winner: highest votes if votes > 0
-      const leader = list.length > 0 && list[0].votes > 0 ? list[0] : null;
-
-      result[pos] = {
-        candidates: list,
-        totalVotes: positionTotalVotes,
-        winner: leader,
-      };
-    });
-
-    return result;
-  }, [rawCandidateList, resultsData]);
-
-  const positionsList = useMemo(() => Object.keys(groupedByPosition), [groupedByPosition]);
-
-  // Total votes cast across election
-  const totalVotesCast = useMemo(() => {
-    if (resultsData?.total_votes !== undefined) return resultsData.total_votes;
-    if (statsData?.total_votes !== undefined) return statsData.total_votes;
-    const posTotals = Object.values(groupedByPosition).map((p) => p.totalVotes);
-    return posTotals.length > 0 ? Math.max(...posTotals) : 0;
-  }, [resultsData, statsData, groupedByPosition]);
-
-  const totalEligibleVoters = statsData?.total_voters || statsData?.registered_voters || null;
-  const turnoutPercent = totalEligibleVoters && totalEligibleVoters > 0
-    ? ((totalVotesCast / totalEligibleVoters) * 100).toFixed(1)
-    : (statsData?.turnout_percentage || (totalVotesCast > 0 ? '100.0' : '0.0'));
-
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16 animate-fade-in">
-        <div className="card py-16">
-          <LoadingSpinner text="Computing certified cryptographic election tallies..." />
-        </div>
-      </div>
-    );
-  }
-
-  // Not published yet notice
-  if (unpublished) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center animate-fade-in">
-        <div className="card p-8 border-indigo-100 bg-white shadow-xl">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center mb-4">
-            <LockClosedIcon className="w-8 h-8" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">Election Tally in Progress</h2>
-          <p className="text-sm text-gray-600 mt-2 leading-relaxed">
-            Results for this election have not been officially published yet. Either polling is still open or the electoral committee is completing cryptographic audit verification.
-          </p>
-
-          <div className="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-center justify-center gap-2">
-            <ClockIcon className="w-4 h-4 text-slate-500" />
-            <span>Please check back once polling closes and results are certified by administrators.</span>
-          </div>
-
-          <div className="mt-8 flex justify-center gap-4">
-            <Link to={backLink} className="btn btn-secondary btn-sm gap-2">
-              <ArrowLeftIcon className="w-4 h-4" />
-              <span>Return to {role === 'admin' ? 'Elections' : 'Dashboard'}</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (errorMessage) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center animate-fade-in">
-        <div className="card p-8 border-rose-200 bg-rose-50/40">
-          <h2 className="text-xl font-bold text-rose-900">{errorMessage}</h2>
-          <div className="mt-6">
-            <Link to={backLink} className="btn btn-secondary btn-sm">
-              Back to Safety
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Filter positions to display based on selected tab
-  const displayedPositions = selectedPositionTab === 'ALL'
-    ? positionsList
-    : positionsList.filter((pos) => pos === selectedPositionTab);
+  const link = data.public_path ? `${window.location.origin}${data.public_path}` : '';
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Copy failed. Select the link and copy it manually.');
+    }
+  };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in space-y-8">
-      {/* Header and Back Link */}
-      <div>
-        <Link
-          to={backLink}
-          className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 font-medium mb-3 transition-colors"
-        >
-          <ArrowLeftIcon className="w-3.5 h-3.5" />
-          Back to {role === 'admin' ? 'Election Manager' : 'Voter Dashboard'}
-        </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-              {resultsData?.election?.title || resultsData?.title || 'Certified Election Results'}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Final verified ballot counts broken down by contested offices with cryptographic audit integrity.
-            </p>
-          </div>
-          <StatusBadge status="published" label="Official & Certified" variant="success" />
-        </div>
-      </div>
-
-      {/* Global Turnout Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="card p-4 border border-gray-100 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600">
-            <ChartBarIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-500 uppercase font-semibold">Ballots Cast</p>
-            <p className="text-xl font-extrabold text-gray-900">{totalVotesCast.toLocaleString()}</p>
-          </div>
-        </div>
-
-        <div className="card p-4 border border-gray-100 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-            <UsersIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-500 uppercase font-semibold">Voter Turnout</p>
-            <p className="text-xl font-extrabold text-emerald-700">{turnoutPercent}%</p>
-          </div>
-        </div>
-
-        <div className="card p-4 border border-gray-100 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
-            <AcademicCapIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-500 uppercase font-semibold">Contested Offices</p>
-            <p className="text-xl font-extrabold text-indigo-900">{positionsList.length}</p>
-          </div>
-        </div>
-
-        <div className="card p-4 border border-gray-100 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
-            <ShieldCheckIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[11px] text-gray-500 uppercase font-semibold">Ballot Box Audit</p>
-            <p className="text-xs font-mono font-bold text-purple-700">SHA-256 Intact</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Position Selector Tabs */}
-      {positionsList.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-200">
-          <button
-            onClick={() => setSelectedPositionTab('ALL')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-              selectedPositionTab === 'ALL'
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-            }`}
-          >
-            All Offices ({positionsList.length})
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <ElectionPicker elections={elections} value={electionId} onChange={select} />
+        <span />
+        {data.locked ? (
+          <button className="btn-primary" disabled title="Available after the results are published">
+            <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
           </button>
-          {positionsList.map((pos) => (
-            <button
-              key={pos}
-              onClick={() => setSelectedPositionTab(pos)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                selectedPositionTab === pos
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              {pos}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Position-by-Position Results Sections */}
-      <div className="space-y-10">
-        {displayedPositions.map((pos) => {
-          const { candidates: posCandidates, totalVotes: posTotalVotes, winner } = groupedByPosition[pos];
-
-          return (
-            <div
-              key={pos}
-              className="card overflow-hidden border border-gray-200 shadow-sm transition-all"
-            >
-              {/* Position Header & Winner Banner */}
-              <div className="p-6 bg-gradient-to-r from-slate-50 via-white to-amber-50/40 border-b border-gray-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600 block">
-                      Election Office
-                    </span>
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">{pos}</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Total Votes Cast in this Office: <span className="font-bold text-gray-800">{posTotalVotes.toLocaleString()}</span>
-                    </p>
-                  </div>
-
-                  {/* Declared Winner Pill / Card */}
-                  {winner ? (
-                    <div className="flex items-center gap-3 bg-white p-3 px-4 rounded-2xl border border-amber-200 shadow-xs">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-                        {winner.is_nota ? (
-                          <NoSymbolIcon className="w-6 h-6" />
-                        ) : (
-                          <TrophyIcon className="w-6 h-6" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.2 rounded-full ${
-                            winner.is_nota
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {winner.is_nota ? 'Abstention Plurality' : 'Declared Winner'}
-                          </span>
-                        </div>
-                        <p className="text-base font-extrabold text-gray-900 leading-tight mt-0.5">
-                          {winner.name || winner.candidate_name}
-                        </p>
-                        <p className="text-[11px] text-gray-500 font-medium">
-                          {winner.votes.toLocaleString()} votes ({posTotalVotes > 0 ? ((winner.votes / posTotalVotes) * 100).toFixed(1) : 0}%)
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-400">No votes recorded yet for this office</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Candidates & NOTA Vote Breakdown */}
-              <div className="p-6 space-y-5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 mb-2">
-                  <CheckBadgeIcon className="w-4 h-4 text-primary-600" />
-                  Candidate & NOTA Vote Tallies
-                </h3>
-
-                <div className="space-y-4">
-                  {posCandidates.map((cand, idx) => {
-                    const isWinner = winner && cand.id === winner.id && cand.votes > 0;
-                    const percentage = posTotalVotes > 0
-                      ? ((cand.votes / posTotalVotes) * 100).toFixed(1)
-                      : '0.0';
-
-                    return (
-                      <div
-                        key={cand.id || idx}
-                        className={`p-4 rounded-xl border transition-all ${
-                          isWinner
-                            ? 'bg-amber-50/50 border-amber-300 ring-1 ring-amber-400/20 shadow-xs'
-                            : cand.is_nota
-                            ? 'bg-slate-50 border-slate-200'
-                            : 'bg-white border-gray-100 hover:border-gray-200'
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            {cand.is_nota ? (
-                              <NoSymbolIcon className="w-4 h-4 text-slate-500 shrink-0" />
-                            ) : (
-                              <span className="font-mono text-xs font-semibold text-gray-400 w-5">
-                                #{idx + 1}
-                              </span>
-                            )}
-                            <span className="font-extrabold text-gray-900">
-                              {cand.name || cand.candidate_name}
-                            </span>
-                            {cand.party && !cand.is_nota && (
-                              <span className="text-xs text-gray-500 font-medium">
-                                ({cand.party})
-                              </span>
-                            )}
-                            {isWinner && (
-                              <span className="px-2 py-0.2 rounded text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900">
-                                Winner
-                              </span>
-                            )}
-                            {cand.is_nota && (
-                              <span className="px-2 py-0.2 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
-                                Formal Abstention
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-3 text-right self-end sm:self-auto">
-                            <span className="font-mono text-sm font-black text-gray-900">
-                              {cand.votes.toLocaleString()} votes
-                            </span>
-                            <span className="font-black text-sm text-primary-700 w-14 text-right">
-                              {percentage}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              isWinner
-                                ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                                : cand.is_nota
-                                ? 'bg-slate-500'
-                                : 'bg-primary-600'
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        ) : (
+          <Link to={`/admin/results/${electionId}/present`} className="btn-primary" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
+            <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
+          </Link>
+        )}
       </div>
+
+      <div className="card card-body mb-8">
+        <p className="font-medium">Public link</p>
+        {link ? (
+          <>
+            <p className="text-sm text-muted mt-1">Anyone with this link can view the results, without signing in. Delete it to make the results private again.</p>
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
+              <input className="input font-mono text-xs" readOnly value={link} aria-label="Public results link" onFocus={(e) => e.target.select()} />
+              <button className="btn-secondary shrink-0" onClick={copy}><ClipboardDocumentIcon className="w-4 h-4" /> Copy</button>
+              <a className="btn-secondary shrink-0" href={link} target="_blank" rel="noopener noreferrer">Open</a>
+              <button className="btn-danger shrink-0" onClick={() => setConfirmDelete(true)}><TrashIcon className="w-4 h-4" /> Delete link</button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1">
+            <p className="text-sm text-muted">
+              {data.published
+                ? 'The results are visible only to you. After the projector reveal, create a link to share them publicly.'
+                : 'A public link can be created after the results are published.'}
+            </p>
+            <button className="btn-primary shrink-0" onClick={createLink} disabled={!data.published || busy}>
+              <LinkIcon className="w-4 h-4" /> Create public link
+            </button>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete the public link?">
+        <p className="text-sm text-muted">The link stops working immediately. You can create a new one later; it will be a different address.</p>
+        <div className="flex justify-end gap-2 mt-5">
+          <button className="btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
+          <button className="btn-danger" onClick={removeLink}>Delete link</button>
+        </div>
+      </Modal>
+
+      <div className="card card-body mb-8">
+        <p className="font-medium">{data.locked ? 'Results are locked' : 'Results are hidden here'}</p>
+        <p className="text-sm text-muted mt-1">
+          {data.locked ? (
+            data.voting_over
+              ? 'Voting has closed. Publish the results on the Elections page to unlock the projector reveal, the report and the public link.'
+              : 'Voting is still in progress. Results stay hidden, for everyone, until voting has closed and you publish them.'
+          ) : (
+            <>So the surprise is kept for the announcement, only the turnout is shown. Use <strong>Present on projector</strong> to reveal the {data.by_position.length} positions one at a time.</>
+          )}
+        </p>
+        <p className="text-sm mt-3">{data.turnout.ballots_cast} of {data.turnout.total_registered} registered voters have voted ({data.turnout.turnout_percentage}% turnout).</p>
+        <ol className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm list-decimal pl-5">
+          {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
+        </ol>
+        {data.locked ? null : !showAll ? (
+          <button className="btn-ghost btn-sm mt-4 w-fit" onClick={() => setConfirmShow(true)}>
+            <EyeIcon className="w-4 h-4" /> Show full results on this screen
+          </button>
+        ) : (
+          <button className="btn-ghost btn-sm mt-4 w-fit" onClick={() => setShowAll(false)}>
+            <EyeSlashIcon className="w-4 h-4" /> Hide results
+          </button>
+        )}
+      </div>
+
+      <Modal isOpen={confirmShow} onClose={() => setConfirmShow(false)} title="Show the full results?">
+        <p className="text-sm text-muted">Anyone who can see this screen will see every winner and vote count.</p>
+        <div className="flex justify-end gap-2 mt-5">
+          <button className="btn-ghost" onClick={() => setConfirmShow(false)}>Cancel</button>
+          <button className="btn-primary" onClick={() => { setShowAll(true); setConfirmShow(false); }}>Show results</button>
+        </div>
+      </Modal>
+
+      {showAll && !data.locked && <ResultsView data={data} />}
     </div>
   );
 };

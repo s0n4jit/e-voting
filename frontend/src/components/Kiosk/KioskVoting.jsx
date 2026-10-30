@@ -1,61 +1,79 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { voterApi } from '../../api/voterApi';
+import { useBooth } from '../../hooks/useBooth';
+import { AnimatedCheck, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
+import Modal from '../common/Modal';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { toast } from 'react-hot-toast';
-import {
-  ShieldCheckIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  UserIcon,
-  AcademicCapIcon,
-  NoSymbolIcon,
-  CheckBadgeIcon,
-  ArrowRightIcon,
-  ArrowLeftIcon,
-  ClockIcon,
-  FingerPrintIcon,
-  LockClosedIcon,
-  DocumentCheckIcon,
-  SparklesIcon,
-  PencilSquareIcon,
-  ArrowPathIcon,
-  WrenchScrewdriverIcon,
-} from '@heroicons/react/24/outline';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
+const IDLE_RESET_MS = 5 * 60 * 1000;
+const RESET_AFTER_VOTE_S = 12;
+
+const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+const Avatar = ({ candidate, size = 'w-16 h-16', text = '', rounded = 'rounded-xl' }) => {
+  const [failed, setFailed] = useState(false);
+  return candidate.photo_url && !failed ? (
+    <img src={photoSrc(candidate.photo_url)} alt="" className={`${size} ${rounded} object-cover bg-recessed shrink-0`} onError={() => setFailed(true)} />
+  ) : (
+    <div className={`${size} ${rounded} bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0 ${text}`}>
+      {initials(candidate.name)}
+    </div>
+  );
+};
+
+/** Ballot dropping into a box while the vote is being recorded. */
+const SubmittingAnimation = () => (
+  <div className="fixed inset-0 z-50 bg-bg/95 flex flex-col items-center justify-center animate-fade-in" role="status" aria-live="polite">
+    <svg viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
+      <g className="animate-ballot-drop" style={{ transformOrigin: 'center' }}>
+        <rect x="40" y="10" width="40" height="52" rx="5" fill="rgb(var(--surface))" stroke="rgb(var(--brand))" strokeWidth="3" />
+        <path d="M49 26h22M49 36h22M49 46h13" stroke="rgb(var(--brand))" strokeWidth="3" strokeLinecap="round" />
+      </g>
+      <path d="M22 66h76l-8 40H30z" fill="rgb(var(--brand))" />
+      <rect x="44" y="62" width="32" height="6" rx="3" fill="rgb(var(--bg))" />
+    </svg>
+    <p className="mt-6 font-medium">Recording your vote…</p>
+    <p className="text-sm text-muted mt-1">Please don't close this screen.</p>
+  </div>
+);
+
 export const KioskVoting = () => {
   const { electionId } = useParams();
   const navigate = useNavigate();
-
-  const [loading, setLoading] = useState(true);
-  const [election, setElection] = useState(null);
-  const [positionsData, setPositionsData] = useState([]); // Array of { position, candidates, allow_nota }
-  const [errorMessage, setErrorMessage] = useState(null);
-
-  // Current wizard step index (0 to positionsData.length - 1 for positions; positionsData.length for Review)
-  const [currentStep, setCurrentStep] = useState(0);
-
-  // Selections state: { [position]: { candidateId: number | null, candidateName: string, party: string, isNota: boolean } }
-  const [selections, setSelections] = useState({});
-
-  // Submission state
-  const [submitting, setSubmitting] = useState(false);
-  const [submissionError, setSubmissionError] = useState(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [receiptData, setReceiptData] = useState(null);
-  const [countdown, setCountdown] = useState(10);
-
-  // Kiosk token from storage
   const kioskToken = localStorage.getItem('kiosk_token') || '';
-  const kioskName = localStorage.getItem('kiosk_name') || 'Lab Station';
+  const { state: boothState } = useBooth();
+  useEffect(() => {
+    if (boothState === 'setup') navigate('/kiosk/vote', { replace: true }); // booth deleted: back to set-up
+  }, [boothState, navigate]);
+  const voter = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
 
-  // Staff Maintenance Modal & Shortcuts
+  const [stage, setStage] = useState('loading'); // loading | error | intro | ballot | review | submitting | done
+  const [error, setError] = useState('');
+  const [election, setElection] = useState(null);
+  const [positions, setPositions] = useState([]);
+  const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState('next');
+  const [choices, setChoices] = useState({}); // position -> candidate | 'NOTA'  (memory only, never persisted)
+  const [profile, setProfile] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [alreadyRecorded, setAlreadyRecorded] = useState(false);
+  const [countdown, setCountdown] = useState(RESET_AFTER_VOTE_S);
+  const submitting = useRef(false);
+
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [maintenanceTab, setMaintenanceTab] = useState('overview');
-
   useMaintenanceShortcuts({
     onOpenMaintenance: (tab = 'overview') => {
       setMaintenanceTab(tab);
@@ -65,705 +83,311 @@ export const KioskVoting = () => {
     isMaintenanceOpen: maintenanceOpen,
   });
 
-  // 1. Fetch structured ballot from backend
+  const finish = useCallback(() => {
+    ['access_token', 'refresh_token', 'user'].forEach((k) => localStorage.removeItem(k));
+    navigate('/kiosk/vote', { replace: true });
+  }, [navigate]);
+
   useEffect(() => {
-    const fetchBallot = async () => {
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-
-        const data = await voterApi.getElectionBallot(electionId);
-
-        let positions = [];
-        let elec = data.election || { id: electionId, title: data.title || 'General Election' };
-
-        if (data.positions && Array.isArray(data.positions) && data.positions.length > 0) {
-          positions = data.positions;
-        } else if (data.candidates && Array.isArray(data.candidates)) {
-          // Group flat candidates by position if backend returned flat list
-          const map = {};
-          data.candidates.forEach((c) => {
-            const p = (c.position || 'Executive Member').trim();
-            if (!map[p]) map[p] = [];
-            map[p].push(c);
-          });
-          positions = Object.keys(map).map((p) => ({
-            position: p,
-            candidates: map[p],
-            allow_nota: true,
-          }));
+    voterApi
+      .getElectionBallot(electionId)
+      .then((data) => {
+        const list = (data.positions || []).filter((p) => p.candidates?.length);
+        if (!list.length) {
+          setError('There are no candidates on this ballot yet. Please speak to the desk.');
+          setStage('error');
+          return;
         }
-
-        if (positions.length === 0) {
-          setErrorMessage('No executive portfolios or candidates are registered for this election.');
-        } else {
-          setPositionsData(positions);
-          setElection(elec);
-        }
-      } catch (err) {
-        console.error('Failed to load election ballot:', err);
-        setErrorMessage(
-          err?.response?.data?.message ||
-            'Unable to load the election ballot. Please check with the polling desk official.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBallot();
+        setElection(data.election || { title: data.title });
+        setPositions(list);
+        setStage('intro');
+      })
+      .catch((err) => {
+        setError(errorMessage(err, 'The ballot could not be loaded. Please speak to the desk.'));
+        setStage('error');
+      });
   }, [electionId]);
 
-  // Total positions count
-  const totalPositions = positionsData.length;
-  const isReviewStep = currentStep === totalPositions;
-  const currentPositionObj = !isReviewStep ? positionsData[currentStep] : null;
-  const currentPositionName = currentPositionObj?.position || '';
-
-  // Completed positions count
-  const completedCount = useMemo(() => {
-    return positionsData.filter((p) => Boolean(selections[p.position])).length;
-  }, [positionsData, selections]);
-
-  // Current selection for the active step
-  const activeSelection = currentPositionName ? selections[currentPositionName] : null;
-
-  // Selection handlers
-  const handleSelectCandidate = (candidate) => {
-    if (!currentPositionName) return;
-    setSelections((prev) => ({
-      ...prev,
-      [currentPositionName]: {
-        candidateId: candidate.id,
-        candidateName: candidate.name,
-        party: candidate.party || 'Independent',
-        department: candidate.department || '',
-        photoUrl: candidate.photo_url,
-        isNota: false,
-      },
-    }));
-  };
-
-  const handleSelectNota = () => {
-    if (!currentPositionName) return;
-    setSelections((prev) => ({
-      ...prev,
-      [currentPositionName]: {
-        candidateId: null,
-        candidateName: 'None of the Above (NOTA)',
-        party: 'Neutral Abstention',
-        department: 'Campus Electoral Option',
-        photoUrl: null,
-        isNota: true,
-      },
-    }));
-  };
-
-  // Stepper navigation
-  const handleNext = () => {
-    if (!activeSelection) {
-      toast.error(`Please select a candidate or NOTA for ${currentPositionName} to proceed.`);
-      return;
-    }
-    if (currentStep < totalPositions) {
-      setCurrentStep((prev) => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const handleJumpToStep = (index) => {
-    if (index >= 0 && index <= totalPositions) {
-      setCurrentStep(index);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // 2. Submit complete ballot across all positions
-  const handleSubmitBallot = async () => {
-    // Validate all positions have been selected
-    const missing = positionsData.filter((p) => !selections[p.position]);
-    if (missing.length > 0) {
-      toast.error(`Missing choices for: ${missing.map((m) => m.position).join(', ')}`);
-      // Jump to the first missing step
-      const firstMissingIndex = positionsData.findIndex((p) => !selections[p.position]);
-      if (firstMissingIndex !== -1) {
-        setCurrentStep(firstMissingIndex);
-      }
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmissionError(null);
-
-    // Structure exact payload expected by backend VoteService
-    const formattedSelections = positionsData.map((p) => {
-      const sel = selections[p.position];
-      return {
-        position: p.position,
-        candidate_id: sel.isNota ? null : sel.candidateId,
-        is_nota: Boolean(sel.isNota),
-      };
-    });
-
-    try {
-      const response = await voterApi.castMultiPositionBallot(
-        electionId,
-        formattedSelections,
-        kioskToken
-      );
-
-      setReceiptData({
-        message: response.message || 'Ballot successfully cast and sealed anonymously.',
-        receipts: response.receipts || response.data?.receipts || [],
-        votedAt: new Date().toLocaleTimeString(),
-      });
-      setIsSuccess(true);
-      toast.success('Your secret ballot has been cast and recorded!');
-    } catch (err) {
-      console.error('Vote submission error:', err);
-      const errMsg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        'Ballot submission failed. Please verify with the polling desk.';
-      setSubmissionError(errMsg);
-      toast.error(errMsg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // 3. Auto-countdown on success screen to reset booth for next voter
+  // Shared booth: return to the start page when left unattended.
   useEffect(() => {
-    if (!isSuccess) return;
+    if (stage === 'done' || stage === 'submitting') return undefined;
+    let timer;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(finish, IDLE_RESET_MS);
+    };
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, arm));
+    arm();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, arm));
+    };
+  }, [stage, finish]);
 
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleDoneAndReset();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  useEffect(() => {
+    if (stage !== 'done') return undefined;
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [stage]);
+  useEffect(() => {
+    if (stage === 'done' && countdown <= 0) finish();
+  }, [stage, countdown, finish]);
 
-    return () => clearInterval(timer);
-  }, [isSuccess]);
+  const total = positions.length;
+  const current = positions[step];
+  const answered = positions.filter((p) => choices[p.position]).length;
 
-  const handleDoneAndReset = () => {
-    // Clear voter tokens, preserving kiosk token
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    navigate('/kiosk', { replace: true });
+  const go = (to, dir) => {
+    setDirection(dir || (to > step ? 'next' : 'prev'));
+    setStep(to);
+    setStage(to >= total ? 'review' : 'ballot');
   };
 
-  // Loading State
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <LoadingSpinner size="lg" text="Loading official Student Union ballot..." />
-      </div>
-    );
-  }
+  const select = (value) => setChoices((c) => ({ ...c, [current.position]: value }));
 
-  // Error State
-  if (errorMessage) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-white">
-        <div className="max-w-md w-full bg-slate-900 border border-red-500/30 rounded-2xl p-8 text-center shadow-2xl">
-          <ExclamationCircleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Ballot Slate Unavailable</h2>
-          <p className="text-sm text-slate-400 mb-6">{errorMessage}</p>
-          <button
-            onClick={() => navigate('/kiosk')}
-            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl transition"
-          >
-            Return to Booth Terminal Login
-          </button>
+  const submit = async () => {
+    if (submitting.current) return; // guards against double taps
+    submitting.current = true;
+    setConfirmOpen(false);
+    setSubmitError('');
+    setStage('submitting');
+    const selections = positions.map((p) => {
+      const c = choices[p.position];
+      return { position: p.position, candidate_id: c === 'NOTA' ? null : c.id, is_nota: c === 'NOTA' };
+    });
+    const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
+    try {
+      await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
+      setChoices({});
+      setStage('done');
+    } catch (err) {
+      await minimum;
+      const msg = errorMessage(err, 'Your vote could not be recorded. Please try again or ask the desk.');
+      if (/already voted/i.test(msg)) {
+        setAlreadyRecorded(true);
+        setChoices({});
+        setStage('done');
+      } else {
+        setSubmitError(msg);
+        setStage('review');
+      }
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  const chrome = (children, { progress = true } = {}) => (
+    <div className="min-h-screen bg-bg flex flex-col select-none">
+      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur border-b border-line">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <BrandMark />
+          <ThemeToggle />
         </div>
-      </div>
-    );
-  }
-
-  // ── SUCCESS / CONFIRMATION RECEIPT SCREEN ───────────────────────────────────
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full bg-slate-900 border border-emerald-500/30 rounded-3xl p-8 md:p-10 text-center shadow-2xl animate-fade-in relative overflow-hidden">
-          {/* Decorative background glow */}
-          <div className="absolute -top-24 -left-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Success Icon */}
-          <div className="w-20 h-20 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 mx-auto flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
-            <CheckBadgeIcon className="w-12 h-12" />
+        {progress && (
+          <div className="h-1 bg-recessed" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={answered}>
+            <div className="h-full bg-brand transition-[width] duration-500 ease-out" style={{ width: `${(answered / total) * 100}%` }} />
           </div>
-
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
-            Secret Ballot Sealed & Cast!
-          </h1>
-          <p className="text-emerald-400 font-medium text-sm mb-6">
-            Official General Election of the Student Union 2026–27
-          </p>
-
-          {/* Cryptographic Privacy Notice */}
-          <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 text-left mb-6 space-y-3">
-            <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-              <ShieldCheckIcon className="w-5 h-5 text-emerald-400" />
-              <span>Cryptographic Ballot Separation Proof</span>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Your 6-digit Voting PIN has been burned. Your student identity has been isolated from your ballot
-              choices via zero-correlation blind tokens. Your vote is recorded anonymously into the immutable tally.
-            </p>
-
-            {receiptData?.receipts && receiptData.receipts.length > 0 && (
-              <div className="pt-3 border-t border-slate-700/60">
-                <span className="text-[11px] font-mono text-slate-500 block mb-1 uppercase tracking-wider">
-                  Confirmed Portfolios ({receiptData.receipts.length}):
-                </span>
-                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                  {receiptData.receipts.map((r, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1 text-[11px] font-mono bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-md text-emerald-300"
-                    >
-                      <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-400" />
-                      {r.position}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Countdown & Reset Button */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <button
-              onClick={handleDoneAndReset}
-              className="w-full sm:w-auto px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Exit Booth for Next Voter ({countdown}s)
-            </button>
-          </div>
-
-          <p className="text-xs text-slate-500 mt-4">
-            Terminal resets automatically in {countdown} seconds to prevent unauthorized inspection.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── MAIN GUIDED VOTING WIZARD ──────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none">
-      {/* Top Kiosk Header Bar */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-              <ShieldCheckIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Student Union Election 2026–27</span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Secret Ballot
-                </span>
-              </h2>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                Authorized Booth: {kioskName}
-              </p>
-            </div>
-          </div>
-
-          {/* Stepper Progress Pill */}
-          <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-3.5 py-1.5 rounded-full text-xs">
-            <span className="text-slate-400 font-medium">Progress:</span>
-            <span className="font-bold text-emerald-400">
-              {completedCount} / {totalPositions}
-            </span>
-            <span className="text-slate-400 hidden sm:inline">Portfolios Decided</span>
-          </div>
-        </div>
-
-        {/* Stepper Navigation Pills Bar */}
-        <div className="max-w-6xl mx-auto mt-3 pt-2 border-t border-slate-800/70 overflow-x-auto no-scrollbar pb-1">
-          <div className="flex items-center gap-2 min-w-max">
-            {positionsData.map((p, idx) => {
-              const isSelected = Boolean(selections[p.position]);
-              const isCurrent = idx === currentStep;
-
-              return (
-                <button
-                  key={idx}
-                  onClick={() => handleJumpToStep(idx)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    isCurrent
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40'
-                      : isSelected
-                      ? 'bg-slate-800 text-emerald-400 border border-emerald-500/30 hover:bg-slate-750'
-                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  {isSelected ? (
-                    <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <span className="w-3.5 h-3.5 rounded-full bg-slate-700 text-[10px] flex items-center justify-center text-slate-300">
-                      {idx + 1}
-                    </span>
-                  )}
-                  <span>{p.position}</span>
-                </button>
-              );
-            })}
-
-            {/* Review Step Button */}
-            <button
-              onClick={() => handleJumpToStep(totalPositions)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                isReviewStep
-                  ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/40'
-                  : completedCount === totalPositions
-                  ? 'bg-slate-800 text-indigo-400 border border-indigo-500/40 hover:bg-slate-750'
-                  : 'bg-slate-900 text-slate-500 border border-slate-800'
-              }`}
-            >
-              <DocumentCheckIcon className="w-3.5 h-3.5" />
-              <span>Final Review</span>
-            </button>
-          </div>
-        </div>
+        )}
       </header>
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <StaffMaintenanceModal isOpen={maintenanceOpen} onClose={() => setMaintenanceOpen(false)} initialTab={maintenanceTab} />
+      <NetworkOfflineOverlay onOpenMaintenance={() => { setMaintenanceTab('network'); setMaintenanceOpen(true); }} />
+    </div>
+  );
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 flex flex-col justify-between">
-        {!isReviewStep ? (
-          /* ── POSITION CANDIDATES SELECTION SCREEN ── */
-          <div className="space-y-6 animate-fade-in">
-            {/* Position Title Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-4 mb-4">
-                <div>
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest block mb-1">
-                    Step {currentStep + 1} of {totalPositions} • Executive Portfolio
-                  </span>
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    {currentPositionName}
-                  </h1>
-                </div>
-                <div className="text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 self-start sm:self-auto">
-                  {activeSelection ? (
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                      <CheckCircleIcon className="w-4 h-4" />
-                      Choice Selected
-                    </span>
-                  ) : (
-                    <span className="text-amber-400 font-medium">Select 1 option below</span>
-                  )}
-                </div>
-              </div>
-              <p className="text-sm text-slate-300">
-                Vote for one candidate to serve as the student union's {currentPositionName}, or select NOTA to
-                record a neutral abstention.
-              </p>
-            </div>
+  if (stage === 'loading') return chrome(<LoadingSpinner size="lg" />, { progress: false });
 
-            {/* Candidates Selection Cards Grid */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
-                Nominated Candidates
-              </h3>
+  if (stage === 'error') {
+    return chrome(
+      <div className="text-center py-16 animate-page-in">
+        <ExclamationCircleIcon className="w-12 h-12 text-bad mx-auto" />
+        <h1 className="text-xl font-semibold mt-4">Ballot unavailable</h1>
+        <p className="text-muted mt-2">{error}</p>
+        <button className="btn-primary mt-6" onClick={finish}>Back to start</button>
+      </div>,
+      { progress: false }
+    );
+  }
 
-              <div className="grid grid-cols-1 gap-3.5">
-                {currentPositionObj?.candidates?.map((candidate) => {
-                  const isSelected = activeSelection?.candidateId === candidate.id && !activeSelection?.isNota;
+  if (stage === 'intro') {
+    return chrome(
+      <div className="max-w-xl mx-auto text-center py-8 animate-page-in">
+        <p className="text-sm text-muted">Welcome{voter.name ? `, ${voter.name.split(' ')[0]}` : ''}</p>
+        <h1 className="text-3xl font-semibold tracking-tight mt-2">{election.title}</h1>
+        {election.description && <p className="text-muted mt-3">{election.description}</p>}
+        <div className="card card-body text-left mt-8 space-y-3 text-sm">
+          <p className="font-medium">How voting works</p>
+          <ul className="space-y-2 text-muted">
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />There {total === 1 ? 'is' : 'are'} {total} {total === 1 ? 'position' : 'positions'} on your ballot.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Choose one candidate for each, or abstain.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />You will review everything before you submit.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Once submitted, your vote cannot be changed.</li>
+          </ul>
+        </div>
+        <button className="btn-primary btn-lg mt-8" onClick={() => go(0, 'next')} autoFocus>
+          Start voting <ArrowRightIcon className="w-5 h-5" />
+        </button>
+      </div>,
+      { progress: false }
+    );
+  }
 
-                  return (
-                    <div
-                      key={candidate.id}
-                      onClick={() => handleSelectCandidate(candidate)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all flex items-start gap-4 ${
-                        isSelected
-                          ? 'bg-emerald-950/40 border-emerald-500 shadow-lg shadow-emerald-950/50 ring-2 ring-emerald-500/40'
-                          : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                      }`}
-                    >
-                      {/* Selection Radio Indicator */}
-                      <div className="mt-1">
-                        <div
-                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-                            isSelected
-                              ? 'border-emerald-500 bg-emerald-500 text-slate-950 font-bold'
-                              : 'border-slate-600 bg-slate-800'
-                          }`}
-                        >
-                          {isSelected && <CheckBadgeIcon className="w-5 h-5 text-slate-950" />}
-                        </div>
-                      </div>
+  if (stage === 'done') {
+    return chrome(
+      <div className="max-w-md mx-auto text-center py-16 flex flex-col items-center animate-page-in">
+        <AnimatedCheck size={96} />
+        <h1 className="text-3xl font-semibold tracking-tight mt-8">{alreadyRecorded ? 'Your vote is already recorded' : 'Your vote has been recorded'}</h1>
+        <p className="text-muted mt-3">Thank you for taking part in {election.title}.</p>
+        <button className="btn-primary btn-lg mt-10" onClick={finish}>Finish</button>
+        <p className="text-xs text-muted mt-4">This screen clears itself in {Math.max(countdown, 0)}s for the next voter.</p>
+      </div>,
+      { progress: false }
+    );
+  }
 
-                      {/* Candidate Avatar */}
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex-shrink-0">
-                        {candidate.photo_url ? (
-                          <img
-                            src={candidate.photo_url}
-                            alt={candidate.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                        ) : null}
-                        <div
-                          className="w-full h-full flex items-center justify-center text-slate-500 font-bold text-lg"
-                          style={{ display: candidate.photo_url ? 'none' : 'flex' }}
-                        >
-                          {candidate.name.charAt(0)}
-                        </div>
-                      </div>
+  const animation = direction === 'next' ? 'animate-step-next' : 'animate-step-prev';
 
-                      {/* Candidate Information */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                          <h4 className="text-base font-bold text-white tracking-tight">
-                            {candidate.name}
-                          </h4>
-                          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 w-fit">
-                            {candidate.party || 'Independent'}
-                          </span>
-                        </div>
-                        <p className="text-xs font-medium text-emerald-400/90 mb-1.5 flex items-center gap-1.5">
-                          <AcademicCapIcon className="w-3.5 h-3.5" />
-                          <span>{candidate.department || 'Department of General Studies'}</span>
-                        </p>
-                        {candidate.bio && (
-                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                            "{candidate.bio}"
-                          </p>
-                        )}
-                      </div>
+  return (
+    <>
+      {chrome(
+        stage === 'review' || stage === 'submitting' ? (
+          <div key="review" className={animation}>
+            <p className="text-sm text-muted">Final step</p>
+            <h1 className="text-2xl font-semibold tracking-tight mt-1">Review your choices</h1>
+            <p className="text-muted mt-1 text-sm">Check each choice. You can change any of them before submitting.</p>
+
+            <ul className="card divide-y divide-line mt-6">
+              {positions.map((p, i) => {
+                const c = choices[p.position];
+                return (
+                  <li key={p.position} className="flex items-center gap-4 p-4">
+                    {c && c !== 'NOTA' ? <Avatar candidate={c} size="w-12 h-12" /> : <div className="w-12 h-12 rounded-xl bg-recessed shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted">{p.position}</p>
+                      <p className="font-medium truncate">{c === 'NOTA' ? 'Abstain — none of the above' : c ? c.name : 'Not selected'}</p>
                     </div>
-                  );
-                })}
-              </div>
+                    <button className="btn-ghost btn-sm" onClick={() => go(i, 'prev')}>Change</button>
+                  </li>
+                );
+              })}
+            </ul>
 
-              {/* Dedicated NOTA (None of the Above) Card */}
-              {currentPositionObj?.allow_nota !== false && (
-                <div className="pt-2">
-                  <div
-                    onClick={handleSelectNota}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center gap-4 ${
-                      activeSelection?.isNota
-                        ? 'bg-amber-950/40 border-amber-500 shadow-lg shadow-amber-950/40 ring-2 ring-amber-500/40'
-                        : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-850'
-                    }`}
-                  >
-                    <div className="mt-0.5">
-                      <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-                          activeSelection?.isNota
-                            ? 'border-amber-500 bg-amber-500 text-slate-950 font-bold'
-                            : 'border-slate-600 bg-slate-800'
-                        }`}
-                      >
-                        {activeSelection?.isNota && <CheckBadgeIcon className="w-5 h-5 text-slate-950" />}
-                      </div>
-                    </div>
-
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
-                      <NoSymbolIcon className="w-5 h-5" />
-                    </div>
-
-                    <div className="flex-1">
-                      <h4 className="text-sm font-bold text-slate-200">
-                        None of the Above (NOTA)
-                      </h4>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Vote for none of the listed candidates for {currentPositionName} (Neutral Abstention).
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+            {submitError && (
+              <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 mt-4 animate-pop-in" role="alert">{submitError}</p>
+            )}
+            <div className="flex items-center justify-between mt-8">
+              <button className="btn-secondary" onClick={() => go(total - 1, 'prev')}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
+              <button className="btn-primary btn-lg" disabled={answered < total} onClick={() => setConfirmOpen(true)}>Submit my vote</button>
             </div>
           </div>
         ) : (
-          /* ── STEP 10: COMPREHENSIVE FINAL REVIEW & BALLOT SEAL SCREEN ── */
-          <div className="space-y-6 animate-fade-in">
-            {/* Review Title Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest block mb-1">
-                Final Step • Complete Ballot Verification
+          <div key={step} className={animation}>
+            <div className="flex items-center justify-between text-sm text-muted">
+              <span>Position {step + 1} of {total}</span>
+              <span className="flex gap-1.5" aria-hidden="true">
+                {positions.map((p, i) => (
+                  <span key={p.position} className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-brand' : choices[p.position] ? 'w-1.5 bg-brand/60' : 'w-1.5 bg-line'}`} />
+                ))}
               </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Review Your Executive Ballot
-              </h1>
-              <p className="text-sm text-slate-300 mt-1">
-                Verify your choice for each of the {totalPositions} Student Union executive portfolios. Click{' '}
-                <strong className="text-white">"Modify"</strong> on any position to adjust your selection before final submission.
-              </p>
             </div>
+            <h1 className="text-3xl font-semibold tracking-tight mt-2">{current.position}</h1>
+            <p className="text-muted mt-1 text-sm">Choose one candidate.</p>
 
-            {/* Submission Error Banner */}
-            {submissionError && (
-              <div className="p-4 rounded-xl bg-red-950/60 border border-red-500/60 text-red-200 text-sm flex items-start gap-3">
-                <ExclamationCircleIcon className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-red-100">Submission Error</p>
-                  <p className="text-xs text-red-300/90 mt-0.5">{submissionError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Portfolios Selections Summary List */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800 overflow-hidden shadow-lg">
-              {positionsData.map((p, idx) => {
-                const sel = selections[p.position];
-
+            <div role="radiogroup" aria-label={current.position} className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 mt-6">
+              {current.candidates.map((c) => {
+                const on = choices[current.position]?.id === c.id;
                 return (
                   <div
-                    key={idx}
-                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/50 transition"
+                    key={c.id}
+                    role="radio"
+                    aria-checked={on}
+                    aria-label={c.name}
+                    tabIndex={0}
+                    onClick={() => select(c)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select(c))}
+                    className={`relative flex flex-col rounded-2xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 active:scale-[0.98] ${
+                      on ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
+                    }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-400 block font-medium">
-                          {p.position}
-                        </span>
-                        {sel ? (
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {sel.isNota ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                <NoSymbolIcon className="w-3.5 h-3.5" />
-                                None of the Above (NOTA)
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-white">
-                                  {sel.candidateName}
-                                </span>
-                                <span className="text-xs text-slate-400">
-                                  ({sel.party})
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs font-semibold text-red-400 flex items-center gap-1 mt-0.5">
-                            <ExclamationCircleIcon className="w-3.5 h-3.5" />
-                            Not Selected
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleJumpToStep(idx)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition self-end sm:self-auto"
+                    <Avatar candidate={c} size="w-full aspect-square" rounded="rounded-none" text="text-7xl sm:text-8xl" />
+                    <span
+                      className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                        on ? 'bg-brand border-brand scale-100' : 'bg-surface/90 border-line'
+                      }`}
                     >
-                      <PencilSquareIcon className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Modify</span>
-                    </button>
+                      {on && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
+                    </span>
+                    <div className={`px-4 py-4 text-center flex-1 ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-xl sm:text-2xl font-bold leading-tight break-words">{c.name}</p>
+                      {c.department && <p className="text-sm text-muted mt-1">{c.department}</p>}
+                      {c.bio && (
+                        <button
+                          type="button"
+                          className="text-sm text-brand-fg font-medium mt-2 inline-flex items-center gap-1 hover:underline"
+                          onClick={(e) => { e.stopPropagation(); setProfile(c); }}
+                        >
+                          <InformationCircleIcon className="w-4 h-4" /> View profile
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
+
+              <div
+                role="radio"
+                aria-checked={choices[current.position] === 'NOTA'}
+                tabIndex={0}
+                onClick={() => select('NOTA')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select('NOTA'))}
+                className={`relative flex flex-col items-center justify-center text-center rounded-2xl border-2 border-dashed cursor-pointer p-6 min-h-[8rem] transition-all duration-200 ${
+                  choices[current.position] === 'NOTA' ? 'border-brand bg-brand-soft/60 ring-4 ring-brand/25' : 'border-line hover:border-brand/40'
+                }`}
+              >
+                <span className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'border-line'}`}>
+                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
+                </span>
+                <p className="text-xl font-bold">Abstain</p>
+                <p className="text-sm text-muted mt-1">None of the above</p>
+              </div>
             </div>
 
-            {/* Cryptographic Zero-Knowledge Notice */}
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs flex items-start gap-3">
-              <LockClosedIcon className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
-              <p className="leading-relaxed">
-                By clicking <strong className="text-slate-200">"Confirm & Cast Secret Ballot"</strong>, your choices will be
-                encrypted and recorded anonymously. Your physical voting token will be burned, and no one (including administrators)
-                can correlate your choices to your student identity.
-              </p>
+            <div className="flex items-center justify-between mt-8">
+              <button className="btn-secondary" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
+              <button className="btn-primary btn-lg" onClick={() => go(step + 1, 'next')} disabled={!choices[current.position]}>
+                {step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
+              </button>
             </div>
           </div>
+        )
+      )}
+
+      <Modal isOpen={Boolean(profile)} onClose={() => setProfile(null)} title={profile?.name}>
+        {profile && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Avatar candidate={profile} size="w-20 h-20" />
+              <div>
+                <p className="text-sm text-muted">{profile.position}</p>
+                <p className="text-sm">{profile.department}</p>
+              </div>
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-line">{profile.bio}</p>
+          </div>
         )}
+      </Modal>
 
-        {/* Bottom Wizard Navigation Control Bar */}
-        <div className="pt-8 border-t border-slate-800/80 mt-8 flex items-center justify-between gap-4">
-          <button
-            onClick={handleBack}
-            disabled={currentStep === 0 || submitting}
-            className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold border transition ${
-              currentStep === 0 || submitting
-                ? 'opacity-40 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500'
-                : 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 hover:text-white'
-            }`}
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span>Previous</span>
-          </button>
-
-          {!isReviewStep ? (
-            <button
-              onClick={handleNext}
-              disabled={!activeSelection}
-              className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold shadow-lg transition ${
-                activeSelection
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25 hover:scale-[1.02] active:scale-[0.98]'
-                  : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed'
-              }`}
-            >
-              <span>{currentStep === totalPositions - 1 ? 'Go to Final Review' : 'Next Portfolio'}</span>
-              <ArrowRightIcon className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmitBallot}
-              disabled={submitting || completedCount < totalPositions}
-              className={`inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl text-sm font-bold shadow-xl transition ${
-                completedCount === totalPositions && !submitting
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 hover:scale-[1.02] active:scale-[0.98]'
-                  : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-              }`}
-            >
-              {submitting ? (
-                <>
-                  <ArrowPathIcon className="w-4 h-4 animate-spin text-white" />
-                  <span>Sealing Secret Ballot...</span>
-                </>
-              ) : (
-                <>
-                  <LockClosedIcon className="w-4 h-4 text-emerald-300" />
-                  <span>Confirm & Cast Secret Ballot</span>
-                </>
-              )}
-            </button>
-          )}
+      <Modal isOpen={confirmOpen} onClose={() => setConfirmOpen(false)} title="Submit your vote?">
+        <p className="text-sm text-muted">You are voting for {total} {total === 1 ? 'position' : 'positions'}. After you submit, your vote can't be changed.</p>
+        <div className="flex justify-end gap-2 mt-6">
+          <button className="btn-ghost" onClick={() => setConfirmOpen(false)}>Go back</button>
+          <button className="btn-primary" onClick={submit} autoFocus>Yes, submit my vote</button>
         </div>
-      </main>
+      </Modal>
 
-      {/* Staff Maintenance Dashboard Modal */}
-      <StaffMaintenanceModal
-        isOpen={maintenanceOpen}
-        onClose={() => setMaintenanceOpen(false)}
-        initialTab={maintenanceTab}
-      />
-
-      {/* Real-time Network Disconnection Protection Overlay */}
-      <NetworkOfflineOverlay
-        onOpenMaintenance={() => {
-          setMaintenanceTab('network');
-          setMaintenanceOpen(true);
-        }}
-      />
-    </div>
+      {stage === 'submitting' && <SubmittingAnimation />}
+    </>
   );
 };
 

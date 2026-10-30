@@ -53,6 +53,11 @@ class VoteResult(dict):
         yield self
 
 
+def _at_booth(booth) -> str:
+    """Audit wording for where a ballot was cast: the booth and its token session."""
+    return f" at booth {booth.booth_id} (session {booth.ref})" if booth else ""
+
+
 class VoteService:
     @classmethod
     def cast_multi_position_vote(
@@ -61,6 +66,7 @@ class VoteService:
         election_id: Optional[int] = None,
         selections: Optional[List[Dict[str, Any]]] = None,
         kiosk_token: Optional[str] = None,
+        booth=None,
         voter_id: Optional[int] = None,
         db=None,
         ip_address: str = "127.0.0.1",
@@ -118,19 +124,16 @@ class VoteService:
 
         # 3. Optional kiosk device verification
         if kiosk_token:
-            clean_kiosk_token = str(kiosk_token).strip()
-            kiosk = session.query(KioskDevice).filter_by(
-                kiosk_token=clean_kiosk_token, is_active=True
-            ).first()
-            if not kiosk:
+            valid, booth = KioskDevice.verify_token(kiosk_token)
+            if not valid:
                 raise VotingError("Invalid or unauthorized kiosk terminal.")
-            kiosk.last_heartbeat = now
 
         # 4. Check voter registration & double-vote prevention
         voter_hash = User.hash_student_id(voter_user.student_id)
         voter_record = (
             session.query(VoterRecord)
             .filter_by(election_id=election.id, voter_hash=voter_hash)
+            .with_for_update()  # serialises concurrent submissions for the same voter on PostgreSQL
             .first()
         )
         if not voter_record:
@@ -240,7 +243,7 @@ class VoteService:
         audit_entry = AuditLog(
             user_id=voter_user.id,
             action="VOTE_CAST",
-            details=f"Multi-position ballot submitted for election {election.id} ({len(validated_entries)} positions)",
+            details=f"Cast a ballot in \u201c{election.title}\u201d ({len(validated_entries)} positions){_at_booth(booth)}.",
             ip_address=ip_address,
             user_agent=user_agent,
             created_at=now,
@@ -268,6 +271,7 @@ class VoteService:
         db=None,
         ip_address="127.0.0.1",
         user_agent="internal",
+        booth=None,
     ) -> VoteResult:
         """
         Atomically cast a single candidate vote (supports backwards compatibility).
@@ -321,6 +325,7 @@ class VoteService:
         voter_record = (
             session.query(VoterRecord)
             .filter_by(election_id=election.id, voter_hash=voter_hash)
+            .with_for_update()
             .first()
         )
         if not voter_record:
@@ -361,7 +366,7 @@ class VoteService:
         audit_entry = AuditLog(
             user_id=voter_user.id,
             action="VOTE_CAST",
-            details=f"Ballot submitted for election {election.id}",
+            details=f"Cast a ballot in \u201c{election.title}\u201d{_at_booth(booth)}.",
             ip_address=ip_address,
             user_agent=user_agent,
             created_at=now,
@@ -429,7 +434,9 @@ class VoteService:
             .all()
             if r[0]
         ]
-        all_positions = sorted(list(set(cand_positions + ballot_positions)))
+        # Officer-defined order first (senior positions first); anything else alphabetically after.
+        order = {pos.name: pos.sort_order for pos in election.positions}
+        all_positions = sorted(set(cand_positions + ballot_positions), key=lambda n: (order.get(n, 10_000), n))
         if not all_positions:
             all_positions = ["General Secretary"]
 
@@ -500,29 +507,35 @@ class VoteService:
                     "votes": votes,
                     "percentage": pct,
                     "is_winner": False,
+                    "is_tied": False,
                 }
                 candidates_for_pos.append(c_dict)
 
             nota_pct = round((nota_votes / pos_total * 100), 2) if pos_total > 0 else 0.0
-            winner_name = None
+            # The result of a position depends only on the vote counts: the highest count wins; if
+            # two or more (candidates, or a candidate and NOTA) share it, the position is a draw.
+            top = max(max_cand_votes, nota_votes)
             winner_details = None
-
-            if pos_total == 0:
-                winner_name = "No votes cast"
-            elif nota_votes > max_cand_votes:
-                winner_name = "NOTA - Position Unfilled"
-            elif max_cand_votes > nota_votes:
-                top_cands = [c for c in candidates_for_pos if c["votes"] == max_cand_votes]
-                if len(top_cands) == 1:
-                    top_cand = top_cands[0]
-                    top_cand["is_winner"] = True
-                    winner_name = top_cand["name"]
-                    winner_details = top_cand
-                else:
-                    winner_name = f"Tie between {', '.join(c['name'] for c in top_cands)}"
+            if pos_total == 0 or top == 0:
+                outcome = {"type": "none", "label": "No votes cast", "names": []}
             else:
-                # Tie between candidate and NOTA
-                winner_name = "NOTA - Position Unfilled"
+                leaders = [c for c in candidates_for_pos if c["votes"] == top]
+                names = [c["name"] for c in leaders] + (["None of the Above"] if nota_votes == top else [])
+                if len(names) > 1:
+                    outcome = {
+                        "type": "draw",
+                        "label": f"Draw between {', '.join(names[:-1])} and {names[-1]}",
+                        "names": names,
+                    }
+                    for c in leaders:
+                        c["is_tied"] = True
+                elif nota_votes == top:
+                    outcome = {"type": "nota", "label": "None of the Above won. Position unfilled", "names": names}
+                else:
+                    leaders[0]["is_winner"] = True
+                    winner_details = leaders[0]
+                    outcome = {"type": "winner", "label": leaders[0]["name"], "names": names}
+            winner_name = outcome["label"]
 
             pos_data = {
                 "position": pos,
@@ -530,6 +543,7 @@ class VoteService:
                 "nota_count": nota_votes,
                 "nota_percentage": nota_pct,
                 "winner": winner_name,
+                "outcome": outcome,
                 "winner_details": winner_details,
                 "candidates": candidates_for_pos,
             }

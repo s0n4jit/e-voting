@@ -1,0 +1,225 @@
+\chapter{Software Requirements Specification}
+\label{chap:srs}
+
+\section{Introduction}
+
+\subsection{Purpose}
+This chapter specifies the requirements of the Campus E-Voting System: what the system must do and the qualities it must have. It follows the structure of IEEE 830.
+
+\subsection{Product scope}
+A web application and booth kit for running one student election at a time on campus hardware, from installation to the announcement of results.
+
+\subsection{Definitions}
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Term} & \textbf{Meaning} \\
+\midrule
+Election Officer & Administrator who installs, configures and runs the election (role \code{admin}) \\
+Desk Officer & Staff who register students and issue PINs (role \code{polling\_officer}) \\
+Voter & A registered student who votes at a booth \\
+Voter Slip ID & Generated identifier printed on the voter's slip, e.g.\ \code{SUE26-E1-483920} \\
+PIN & Single-use six-digit code issued by a Desk Officer, valid 20 minutes \\
+Booth & A locked-down computer authorised to accept votes \\
+Booth token & Secret kept by a booth after set-up \\
+NOTA & ``None of the Above'' (abstain) \\
+TOTP & Time-based one-time password (authenticator app code) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Overall description}
+
+\subsection{Product perspective}
+A client--server system (Figure~\ref{fig:arch}): a React single-page application, a Flask API and a PostgreSQL database, plus Ubuntu scripts that lock down booth computers.
+
+\subsection{User classes}
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Class} & \textbf{Characteristics} \\
+\midrule
+Election Officer & Trusted, uses a laptop; must use two-step verification \\
+Desk Officer & Volunteer or staff; limited permissions; works at a registration desk \\
+Voter & Student; uses a booth for a few minutes; no training \\
+Technician & Sets up booths and servers (optional role, not an account) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Operating environment}
+Server: any host running Docker, or a hosted API plus managed PostgreSQL. Clients: current Chrome, Edge, Firefox or Safari. Booths: Ubuntu 24.04/26.04 LTS with GNOME on Wayland and Firefox.
+
+\subsection{Constraints and assumptions}
+\begin{itemize}
+  \item One election at a time per installation.
+  \item The institution provides HTTPS in front of the portal for production.
+  \item Booth computers are physically supervised.
+  \item The Election Officer has a smartphone with an authenticator app.
+\end{itemize}
+
+\section{Functional requirements}
+
+\newcommand{\req}[3]{#1 & #2 & #3 \\}
+
+\subsection{Installation and configuration}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-1}{The system shall show an installation wizard only until installation is completed; afterwards the wizard shall be unavailable.}{High}
+\req{FR-2}{The wizard shall collect institution name, system name, optional logo, timezone, language and slip ID letters.}{High}
+\req{FR-3}{The wizard shall create the first Election Officer, validate the account and hash the password.}{High}
+\req{FR-4}{The wizard shall create the first election with date, voting start and end times, positions, and optional programmes.}{High}
+\req{FR-5}{Two-step verification shall be mandatory for every Election Officer.}{High}
+\req{FR-6}{The uploaded logo shall be used as the browser favicon; otherwise a default logo shall be used.}{Low}
+\req{FR-7}{The Election Officer shall manage programmes, departments and streams, including CSV import.}{High}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Election management}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-8}{The system shall enforce the lifecycle Setup, Registration, Ready, Voting active, Voting closed, Results published, Archived on the server.}{High}
+\req{FR-9}{Only one non-archived election shall exist at a time.}{High}
+\req{FR-10}{Voting shall be accepted only in the Voting active stage and inside the configured time window.}{High}
+\req{FR-11}{Positions, candidates and the voting period shall be locked once voting opens.}{High}
+\req{FR-12}{Opening voting shall require at least one candidate for every position.}{Medium}
+\req{FR-13}{Candidates shall have a name, position, department from the programme list and a photo.}{High}
+\req{FR-14}{The Election Officer shall create and manage Desk Officer accounts.}{High}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Registration}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-15}{A Desk Officer shall register a student with name, programme, department or stream and semester or year.}{High}
+\req{FR-16}{The system shall generate a unique Voter Slip ID automatically; officers shall not type it.}{High}
+\req{FR-17}{The system shall warn about a possible duplicate and require confirmation.}{Medium}
+\req{FR-18}{Desk Officers shall search, filter, edit (until voted), print and export registrations.}{High}
+\req{FR-19}{A Desk Officer shall issue a single-use PIN, valid 20 minutes, to a registered voter who has not voted.}{High}
+\req{FR-20}{Registration statuses shall update without page refresh.}{Low}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Booths and voting}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-21}{The Election Officer shall generate a one-time booth token; a computer becomes a booth by entering the token and the officer's authenticator code.}{High}
+\req{FR-22}{Booth IDs shall be generated automatically per election (BOOTH-01, BOOTH-02, \ldots).}{Medium}
+\req{FR-23}{Deleting a booth shall revoke it immediately; the booth shall return to the set-up screen.}{High}
+\req{FR-24}{PIN login, ballot retrieval and ballot casting shall require a valid booth, and the voting session shall belong to that booth and its election.}{High}
+\req{FR-25}{A voter shall choose one candidate or abstain for each position, review the choices and confirm before submission.}{High}
+\req{FR-26}{A voter shall be able to cast one valid ballot per election; duplicate and concurrent submissions shall be rejected.}{High}
+\req{FR-27}{Choices shall not be stored in the browser; the voter session shall be cleared after voting or inactivity.}{High}
+\req{FR-28}{The audit log shall record the booth and session of each ballot, but never the choices.}{High}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Results and audit}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-29}{Counts and winners shall not be available to any user before the Election Officer publishes the results.}{High}
+\req{FR-30}{Equal top vote counts shall result in a draw; no winner shall be chosen by time.}{High}
+\req{FR-31}{The Election Officer shall be able to reveal results on a projector one position at a time.}{Medium}
+\req{FR-32}{The Election Officer shall be able to create and delete a public link to the published results.}{Medium}
+\req{FR-33}{The system shall provide a filterable, searchable audit log and CSV export for the Election Officer.}{High}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Accounts}
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Priority} \\
+\midrule
+\req{FR-34}{Staff shall sign in with email or username and password, and with a TOTP code where enabled.}{High}
+\req{FR-35}{Staff shall change their password with the current password, or reset it with an authenticator code.}{Medium}
+\req{FR-36}{Deactivating or deleting an account shall end its sessions on the next request.}{High}
+\req{FR-37}{Role permissions shall be enforced on the server for every endpoint.}{High}
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{External interface requirements}
+
+\begin{itemize}
+  \item \textbf{User interface:} responsive web interface, light and dark themes, keyboard accessible, English.
+  \item \textbf{Software interface:} JSON over HTTPS (\code{/api}); PostgreSQL via SQLAlchemy.
+  \item \textbf{Hardware interface:} booths are standard PCs with keyboard and display; a printer for voter slips.
+  \item \textbf{Communications:} HTTPS; the booth polls the API every three seconds.
+\end{itemize}
+
+\section{Non-functional requirements}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Quality} & \textbf{Requirement} \\
+\midrule
+Security & Passwords and PINs hashed with bcrypt; booth tokens hashed; rate limits on sign-in, PIN login, booth set-up; secrets only from environment variables; no default secrets in production \\
+Integrity & Ballot and voter record written in one transaction; foreign keys and uniqueness constraints \\
+Privacy & No link between voter identity and ballot; minimal personal data \\
+Reliability & Idempotent database migrations; health endpoint; watchdog restarts the booth browser \\
+Performance & Typical page actions under one second for a campus-sized electorate (thousands of voters) \\
+Usability & A voter completes voting without training; officers are guided by a wizard and checklists \\
+Portability & Docker Compose on Linux, Windows or macOS; PostgreSQL configurable \\
+Maintainability & Layered code, automated tests (146), documented operations \\
+Accessibility & Keyboard navigation, visible focus, sufficient contrast, reduced-motion support \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Use cases}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[uc/.style={ellipse, draw=indigo, fill=softindigo, align=center, font=\scriptsize, inner sep=2pt, minimum width=3.4cm}, node distance=0.45cm]
+  \node[actor] (eo) at (-5.6,0) {Election\\Officer};
+  \node[actor] (do) at (-5.6,-4.6) {Desk\\Officer};
+  \node[actor] (vo) at (5.6,-3.0) {Voter};
+  \node[uc] (u1) at (0,1.8) {Install and configure};
+  \node[uc] (u2) at (0,0.8) {Run election lifecycle};
+  \node[uc] (u3) at (0,-0.2) {Manage candidates, programmes};
+  \node[uc] (u4) at (0,-1.2) {Approve booths};
+  \node[uc] (u5) at (0,-2.2) {Publish and reveal results};
+  \node[uc] (u6) at (0,-3.2) {Register students};
+  \node[uc] (u7) at (0,-4.2) {Check in and issue PIN};
+  \node[uc] (u8) at (0,-5.2) {Cast a ballot at a booth};
+  \foreach \u in {u1,u2,u3,u4,u5} {\draw[thick, color=navy] (eo) -- (\u);}
+  \foreach \u in {u6,u7} {\draw[thick, color=navy] (do) -- (\u);}
+  \draw[thick, color=navy] (vo) -- (u8);
+  \draw[thick, color=navy] (eo) -- (u6);
+  \draw[thick, color=navy] (eo) -- (u7);
+\end{tikzpicture}
+\caption{Use case overview}
+\end{figure}
+
+\section{Traceability}
+
+Each functional requirement is covered by at least one automated test or documented manual check; see the traceability matrix in Chapter~\ref{chap:test}.

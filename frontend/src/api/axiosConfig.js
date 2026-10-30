@@ -1,9 +1,9 @@
 import axios from 'axios';
 
+// Same-origin "/api" by default (nginx / Vite proxy). Set VITE_API_URL at build time when the API
+// lives on another host (e.g. Vercel frontend + Render backend).
 const rawApiUrl =
-  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) ||
-  (typeof window !== 'undefined' && window.__API_URL__) ||
-  '/api';
+  (typeof window !== 'undefined' && window.__API_URL__) || import.meta.env.VITE_API_URL || '/api';
 export const API_BASE_URL = rawApiUrl.endsWith('/api')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/+$/, '')}/api`;
@@ -23,6 +23,8 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const booth = localStorage.getItem('kiosk_token');
+    if (booth) config.headers['X-Kiosk-Token'] = booth;
     return config;
   },
   (error) => Promise.reject(error)
@@ -35,7 +37,7 @@ apiClient.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // If unauthorized on auth check or protected route (except login attempt itself), clear token
       const requestUrl = error.config?.url || '';
-      if (!requestUrl.includes('/auth/login') && !requestUrl.includes('/auth/verify-otp')) {
+      if (!requestUrl.includes('/auth/login') && !requestUrl.includes('/auth/verify-otp') && !requestUrl.includes('/auth/voter-pin-login')) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');

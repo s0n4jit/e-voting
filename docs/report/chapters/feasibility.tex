@@ -1,0 +1,95 @@
+\chapter{Introduction and Feasibility Study}
+\label{chap:intro}
+
+\section{Background}
+
+Student-union and class elections in colleges are still commonly run with paper ballots. Counting is slow, errors and disputes are common, and every election repeats the same manual work: preparing rolls, issuing slips, supervising booths and tallying results. Commercial online voting services exist, but they are expensive, host the data on third-party servers, and are not built around the way a campus election is actually run: a physical registration desk, supervised booths and an announcement of results.
+
+\section{Problem statement}
+
+A college needs a way to run its student election that is
+
+\begin{itemize}
+  \item \textbf{trustworthy}: one voter, one vote, and a ballot that cannot be traced to the voter;
+  \item \textbf{controlled}: votes are cast only on supervised, authorised computers, and only while the election officer has opened voting;
+  \item \textbf{simple for non-technical staff}: installation, registration, running and results without command-line work;
+  \item \textbf{owned by the institution}: deployable on the college's own server and database, without depending on the developer's hosting.
+\end{itemize}
+
+\section{Objectives}
+
+\begin{enumerate}
+  \item Provide an installation wizard that creates the institution's configuration, the first Election Officer and the first election.
+  \item Manage the election lifecycle on the server: setup, registration, ready, voting, closed, results published, archived.
+  \item Register students at a desk and generate unique Voter Slip IDs and single-use PINs automatically.
+  \item Provide a distraction-free, animated voting experience on locked-down booths, and accept votes only from booths approved by the Election Officer.
+  \item Keep results secret until the officer publishes them; support a projector reveal and an optional public link.
+  \item Record an audit trail of important actions.
+  \item Package the system for self-hosting with Docker Compose, and keep it compatible with a hosted setup.
+\end{enumerate}
+
+\section{Scope}
+
+\textbf{In scope:} one election at a time per installation; three roles (Election Officer, Desk Officer, Voter); single-choice voting per position with an ``abstain'' option; Ubuntu booth lock-down scripts; documentation.
+
+\textbf{Out of scope:} remote (home) voting; ranked or multi-choice ballots; multiple simultaneous elections; paper-ballot reconciliation; mobile applications.
+
+\section{Feasibility}
+
+\subsection{Technical feasibility}
+
+The system uses mature, open-source technology: Python/Flask, PostgreSQL, React, Docker and Ubuntu. All required capabilities (relational transactions and row locks for duplicate-vote prevention, bcrypt and TOTP libraries, browser enterprise policies for lock-down) exist and are documented. A working implementation with an automated test suite of 146 tests demonstrates feasibility.
+
+\subsection{Economic feasibility}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lXr@{}}
+\toprule
+\textbf{Item} & \textbf{Note} & \textbf{Cost} \\
+\midrule
+Software licences & All components are open source & 0 \\
+Server & One small VM or an existing campus server (1 vCPU, 2 GB RAM is sufficient) & existing \\
+Booth computers & Existing computer-lab machines are reused; Ubuntu is free & existing \\
+Database & PostgreSQL in Docker, or a free managed tier & 0 \\
+HTTPS certificate & Let's Encrypt & 0 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Compared with paper elections, printing, counting staff and re-count disputes are reduced. Compared with commercial services, there are no per-voter fees.
+
+\subsection{Operational feasibility}
+
+The Election Officer works through a guided wizard and a dashboard. Desk Officers use three screens (register, registrations, check-in). Voters type two short numbers and click candidates. Booth setup is a one-time token plus an authenticator code. The documentation covers each role.
+
+\subsection{Schedule feasibility}
+
+The work was split into short, testable phases (Chapter~\ref{chap:plan}); each phase delivered a working increment, so the project could be completed within the academic term.
+
+\subsection{Legal and ethical considerations}
+
+The system stores the minimum personal data (name, programme, semester; no government or college ID number). The ballot is stored separately from identity. The institution is the data controller and decides retention; database backups must be protected. Access is limited by role and recorded in the audit log.
+
+\section{Risk analysis}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{3.6cm} c X@{}}
+\toprule
+\textbf{Risk} & \textbf{Level} & \textbf{Mitigation} \\
+\midrule
+Duplicate voting & High & Database row lock inside the vote transaction; tested with concurrent submissions \\
+Votes from unauthorised computers & High & Booth token required for PIN login, ballot and casting; instant revocation \\
+Results leak before announcement & Medium & Server withholds counts until publication \\
+Brute-forcing PINs or codes & Medium & Rate limits, PIN cancellation after five wrong entries \\
+Loss of the officer's authenticator & Medium & Operator recovery commands (\code{set-password}, \code{reset-2fa}) run on the server \\
+Booth tampering & Medium & Browser policy, desktop lock-down, BIOS password, port blockers \\
+Network failure during voting & Low & Offline notice on the booth; booth resumes automatically \\
+Database access by an insider & Medium & Restrict access; known time-correlation limitation documented \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Conclusion of the study}
+
+The project is technically, economically and operationally feasible. The recommended approach is a self-hosted web application with locked-down booths, as implemented in the following chapters.

@@ -11,17 +11,15 @@ from http import HTTPStatus
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify
-from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 
 from config import get_config
 
-from app.extensions import db, jwt, bcrypt, mail, limiter, token_blacklist
+from app.extensions import db, jwt, limiter, token_blacklist
 
 _token_blacklist = token_blacklist
 
@@ -54,14 +52,22 @@ def create_app(config_object=None) -> Flask:
         engine_opts["connect_args"] = {"check_same_thread": False}
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_opts
 
+    _check_production_secrets(app)
+
+    # Behind a reverse proxy request.remote_addr is the proxy; trust its X-Forwarded-* headers so rate
+    # limits and audit entries use the real client address. PROXY_HOPS = number of proxies in front.
+    hops = int(os.environ.get("PROXY_HOPS", "1"))
+    if hops > 0 and not app.config.get("TESTING"):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
+
     # ── Logging ──────────────────────────────────────────────────────────────
     _configure_logging(app)
 
     # ── Extensions ───────────────────────────────────────────────────────────
     db.init_app(app)
     jwt.init_app(app)
-    bcrypt.init_app(app)
-    mail.init_app(app)
     limiter.init_app(app)
 
     # ── CORS ─────────────────────────────────────────────────────────────────
@@ -83,9 +89,19 @@ def create_app(config_object=None) -> Flask:
     # ── Health check ──────────────────────────────────────────────────────────
     @app.route("/api/health")
     @app.route("/health")
+    @app.route("/healthz")  # also the self-ping target; never rate limited
     @limiter.exempt
     def health():
-        return jsonify({"status": "healthy", "service": "campus-evoting-api"}), 200
+        try:
+            db.session.execute(db.text("SELECT 1"))
+        except Exception:
+            return jsonify({"status": "unhealthy"}), 503
+        return jsonify({"status": "healthy"}), 200
+
+    if not app.config.get("TESTING"):
+        from app.keepalive import start_self_ping
+
+        start_self_ping(app)
 
     # ── Database tables ───────────────────────────────────────────────────────
     with app.app_context():
@@ -99,10 +115,16 @@ def create_app(config_object=None) -> Flask:
             audit_log,
             voting_token,
             kiosk_device,
+            system_setting,
+            programme,
+            election_position,
+            candidate_photo,
+            booth_create_token,
         )
+        from app.migrations import run_migrations
 
-        db.create_all()
-        app.logger.info("Database tables created/verified.")
+        applied = run_migrations()
+        app.logger.info("Database ready (applied migrations: %s).", ", ".join(applied) or "none")
 
     return app
 
@@ -110,6 +132,18 @@ def create_app(config_object=None) -> Flask:
 # ─────────────────────────────────────────────────────────────────────────────
 #  Private helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _check_production_secrets(app: Flask) -> None:
+    """Refuse to start in production with the well-known development secrets."""
+    if app.config.get("TESTING") or os.environ.get("FLASK_ENV", "").lower() != "production":
+        return
+    defaults = {"SECRET_KEY": "dev-secret-change-me", "JWT_SECRET_KEY": "jwt-dev-secret-change-me"}
+    bad = [k for k, v in defaults.items() if app.config.get(k) == v]
+    if bad:
+        raise RuntimeError(f"Set {' and '.join(bad)} to long random values before running in production.")
+    if "sqlite" in str(app.config.get("SQLALCHEMY_DATABASE_URI", "")):
+        raise RuntimeError("DATABASE_URL must point to PostgreSQL in production.")
+
 
 def _configure_logging(app: Flask) -> None:
     """Set up rotating-file + console logging."""
@@ -145,8 +179,16 @@ def _register_jwt_callbacks(app: Flask) -> None:
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        jti = jwt_payload.get("jti")
-        return jti in _token_blacklist
+        if jwt_payload.get("jti") in _token_blacklist:
+            return True
+        # A deactivated or removed account loses its session on the very next request.
+        from app.models.user import User
+
+        sub = str(jwt_payload.get("sub", ""))
+        if not sub.isdigit():  # booth maintenance sessions are not user accounts
+            return False
+        user = db.session.get(User, int(sub))
+        return user is None or not user.is_active
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
@@ -175,12 +217,22 @@ def _register_blueprints(app: Flask) -> None:
     from app.routes.voter import voter_bp
     from app.routes.results import results_bp
     from app.routes.maintenance import maintenance_bp
+    from app.routes.setup import setup_bp
+    from app.routes.desk import desk_bp
+    from app.routes.manage import manage_bp
+    from app.routes.photos import photos_bp
+    from app.routes.booth import booth_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(voter_bp, url_prefix="/api/voter")
     app.register_blueprint(results_bp, url_prefix="/api/results")
     app.register_blueprint(maintenance_bp, url_prefix="/api/maintenance")
+    app.register_blueprint(setup_bp, url_prefix="/api/setup")
+    app.register_blueprint(desk_bp, url_prefix="/api/desk")
+    app.register_blueprint(manage_bp, url_prefix="/api/admin")
+    app.register_blueprint(photos_bp, url_prefix="/api/photos")
+    app.register_blueprint(booth_bp, url_prefix="/api/booth")
 
 
 def _register_error_handlers(app: Flask) -> None:

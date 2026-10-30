@@ -31,20 +31,7 @@ export const voterApi = {
   },
 
   // Multi-position ballot & Kiosk casting
-  getElectionBallot: async (electionId) => {
-    try {
-      const response = await apiClient.get(`/voter/elections/${electionId}/ballot`);
-      return response.data;
-    } catch (err) {
-      // Fallback: fetch candidate list and group if ballot route is not yet deployed
-      const candidates = await apiClient.get(`/voter/elections/${electionId}/candidates`);
-      const list = Array.isArray(candidates.data) ? candidates.data : (candidates.data?.candidates || []);
-      return {
-        election_id: electionId,
-        candidates: list,
-      };
-    }
-  },
+  getElectionBallot: async (electionId) => (await apiClient.get(`/voter/elections/${electionId}/ballot`)).data,
 
   castMultiPositionBallot: async (electionId, selections, kioskToken) => {
     const response = await apiClient.post(`/voter/elections/${electionId}/cast-ballot`, {

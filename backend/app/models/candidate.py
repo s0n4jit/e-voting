@@ -29,6 +29,7 @@ class Candidate(db.Model):
     )
 
     # Relationships
+    photo = db.relationship("CandidatePhoto", uselist=False, cascade="all, delete-orphan")
     ballot_entries = db.relationship(
         "BallotEntry",
         backref="candidate",
@@ -42,7 +43,6 @@ class Candidate(db.Model):
             "id": self.id,
             "election_id": self.election_id,
             "name": self.name,
-            "party": self.party,
             "position": self.position,
             "department": self.department,
             "bio": self.bio,

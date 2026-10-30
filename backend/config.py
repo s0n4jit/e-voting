@@ -49,17 +49,6 @@ class Config:
     JWT_BLACKLIST_ENABLED: bool = True
     JWT_BLACKLIST_TOKEN_CHECKS: list = ["access", "refresh"]
 
-    # ── Flask-Mail ───────────────────────────────────────────────────────────
-    MAIL_SERVER: str = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
-    MAIL_PORT: int = int(os.environ.get("MAIL_PORT", 587))
-    MAIL_USE_TLS: bool = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
-    MAIL_USE_SSL: bool = os.environ.get("MAIL_USE_SSL", "false").lower() == "true"
-    MAIL_USERNAME: str = os.environ.get("MAIL_USERNAME", "")
-    MAIL_PASSWORD: str = os.environ.get("MAIL_PASSWORD", "")
-    MAIL_DEFAULT_SENDER: str = os.environ.get(
-        "MAIL_DEFAULT_SENDER", "Campus eVoting <noreply@university.edu>"
-    )
-
     # ── OTP ──────────────────────────────────────────────────────────────────
     OTP_SECRET_LENGTH: int = int(os.environ.get("OTP_SECRET_LENGTH", 32))
     OTP_VALID_WINDOW: int = int(os.environ.get("OTP_VALID_WINDOW", 1))
@@ -70,8 +59,9 @@ class Config:
     VOTING_WINDOW_BUFFER: int = int(os.environ.get("VOTING_WINDOW_BUFFER", 30))
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
-    RATELIMIT_DEFAULT: str = os.environ.get("RATELIMIT_DEFAULT", "200 per day;50 per hour")
+    RATELIMIT_DEFAULT: str = os.environ.get("RATELIMIT_DEFAULT", "30000 per hour")
     RATELIMIT_STORAGE_URL: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
+    RATELIMIT_STORAGE_URI: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")  # name Flask-Limiter 3 reads
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list = [
@@ -89,14 +79,9 @@ class Config:
 
     # ── Kiosk & Staff Maintenance ────────────────────────────────────────────
     BOOTH_ID: str = os.environ.get("BOOTH_ID", "BOOTH-LAB-01")
-    # Default salted scrypt hash for default PIN "948201"
-    STAFF_MAINTENANCE_PIN_HASH: str = os.environ.get(
-        "STAFF_MAINTENANCE_PIN_HASH",
-        "scrypt:32768:8:1$xnWbTNWX6Sm4euD0$f37b88d47c52160b673a4cc9bcd75ef494e71bca551131001230d1129843032cd319c45f87b9bd98b22a81e4978f9630ca28b58f37bd026bf9b3c46a6284d281",
-    )
     MAINTENANCE_MAX_ATTEMPTS: int = int(os.environ.get("MAINTENANCE_MAX_ATTEMPTS", 5))
     MAINTENANCE_LOCKOUT_SECONDS: int = int(os.environ.get("MAINTENANCE_LOCKOUT_SECONDS", 900))
-    VOTING_APP_URL: str = os.environ.get("VOTING_APP_URL", "http://localhost:3000/kiosk")
+    VOTING_APP_URL: str = os.environ.get("VOTING_APP_URL", "http://localhost:3000/kiosk/vote")
 
 
 class DevelopmentConfig(Config):
@@ -122,8 +107,7 @@ class TestingConfig(Config):
     RATELIMIT_ENABLED = False
     # Use a short-lived token for test speed
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=5)
-    # Suppress real email sending
-    MAIL_SUPPRESS_SEND = True
+    DEMO_OTP_CODE = "123456"  # tests only; never set outside TestingConfig
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,

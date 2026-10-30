@@ -10,6 +10,11 @@ from app.models.ballot_entry import BallotEntry
 from app.models.audit_log import AuditLog
 from app.models.voting_token import VotingToken
 from app.models.kiosk_device import KioskDevice
+from app.models.system_setting import SystemSetting
+from app.models.programme import Programme
+from app.models.candidate_photo import CandidatePhoto
+from app.models.booth_create_token import BoothCreateToken
+from app.models.election_position import ElectionPosition
 
 __all__ = [
     "User",
@@ -20,4 +25,9 @@ __all__ = [
     "AuditLog",
     "VotingToken",
     "KioskDevice",
+    "SystemSetting",
+    "Programme",
+    "CandidatePhoto",
+    "BoothCreateToken",
+    "ElectionPosition",
 ]

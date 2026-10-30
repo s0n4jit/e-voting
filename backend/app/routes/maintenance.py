@@ -56,6 +56,12 @@ def _get_client_ip() -> str:
     return request.remote_addr or "127.0.0.1"
 
 
+def _this_booth():
+    """The booth making this request (valid booth token header), or None."""
+    ok, device = KioskDevice.verify_token(request.headers.get("X-Kiosk-Token") or request.headers.get("X-Kiosk-Device"))
+    return device if ok else None
+
+
 def _is_maintenance_authorized() -> bool:
     """
     Verify that request contains either a valid staff maintenance JWT or an authorized kiosk header.
@@ -105,24 +111,19 @@ def staff_pin_auth():
         )
 
     payload = request.get_json(silent=True) or {}
-    pin = sanitize_input(payload.get("pin"))
+    pin = sanitize_input(payload.get("code"))
 
     if not pin:
-        return jsonify({"error": "PIN is required.", "message": "Please enter the staff security PIN."}), 400
+        return jsonify({"error": "Code is required.", "message": "Enter the Election Officer's authenticator code."}), 400
 
-    configured_hash = current_app.config.get("STAFF_MAINTENANCE_PIN_HASH")
     max_attempts = current_app.config.get("MAINTENANCE_MAX_ATTEMPTS", 5)
     lockout_seconds = current_app.config.get("MAINTENANCE_LOCKOUT_SECONDS", 900)
 
-    # Verify PIN against salted hash
-    is_valid = False
-    if configured_hash:
-        try:
-            is_valid = check_password_hash(configured_hash, pin)
-        except Exception:
-            is_valid = False
-    if not is_valid and pin == "948201":
-        is_valid = True
+    # The code is the current authenticator code of an Election Officer (set up in the wizard / profile)
+    from app.models.user import User
+
+    officers = User.query.filter_by(role="admin", is_active=True, otp_enabled=True).all()
+    is_valid = any(u.verify_otp(pin) for u in officers)
 
     if not is_valid:
         ip_state["attempts"] += 1
@@ -144,7 +145,7 @@ def staff_pin_auth():
         return (
             jsonify({
                 "error": "Authentication Failed",
-                "message": f"Invalid Staff PIN. {remaining_attempts} attempts remaining before lockout.",
+                "message": f"Invalid code. {remaining_attempts} attempts remaining before lockout.",
                 "remaining_attempts": remaining_attempts,
             }),
             401,
@@ -168,7 +169,7 @@ def staff_pin_auth():
         audit = AuditLog(
             user_id=None,
             action="STAFF_MAINTENANCE_AUTH",
-            details=f"Staff maintenance terminal unlocked from IP {client_ip}",
+            details=f"Opened the booth maintenance screen (from {client_ip}).",
             ip_address=client_ip,
             user_agent=request.user_agent.string if request.user_agent else "kiosk-client",
             created_at=datetime.now(timezone.utc),
@@ -212,7 +213,8 @@ def get_diagnostics():
             401,
         )
 
-    booth_id = current_app.config.get("BOOTH_ID", "BOOTH-LAB-01")
+    booth = _this_booth()
+    booth_id = booth.booth_id if booth else current_app.config.get("BOOTH_ID", "BOOTH-LAB-01")
 
     # 1. Interface & IP Resolution
     interfaces = []
@@ -329,6 +331,9 @@ def get_diagnostics():
     return (
         jsonify({
             "booth_id": booth_id,
+            "election_title": booth.election.title if booth and booth.election else None,
+            "voting_open": bool(booth and booth.election and booth.election.is_ongoing),
+            "session_ref": booth.ref if booth else None,
             "os_info": platform.platform(),
             "uptime_seconds": uptime_seconds,
             "interfaces": interfaces,
@@ -469,7 +474,7 @@ def execute_action():
         audit = AuditLog(
             user_id=None,
             action="STAFF_MAINTENANCE_ACTION",
-            details=f"Maintenance action '{action}' executed from IP {client_ip}",
+            details=f"Ran the booth maintenance action \u201c{action}\u201d (from {client_ip}).",
             ip_address=client_ip,
             user_agent=request.user_agent.string if request.user_agent else "kiosk-client",
             created_at=datetime.now(timezone.utc),

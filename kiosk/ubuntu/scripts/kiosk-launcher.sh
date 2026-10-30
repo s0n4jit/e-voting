@@ -18,7 +18,7 @@ elif [[ -f "${HOME}/.config/evote/kiosk.env" ]]; then
 fi
 
 # Fallback Voting URL if not configured via environment
-VOTING_URL="${VOTING_URL:-http://localhost:3000/kiosk}"
+VOTING_URL="${VOTING_URL:-http://localhost:3000/kiosk/vote}"
 
 # Wayland display enforcement
 export MOZ_ENABLE_WAYLAND=1

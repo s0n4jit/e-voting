@@ -1,0 +1,108 @@
+\chapter{Conclusion and Future Scope}
+
+\section{Conclusion}
+
+The project turned an existing prototype into a complete election platform for a college: a guided installation, a server-controlled election lifecycle, desk registration with automatic Voter Slip IDs, supervised booths that are approved by the Election Officer, an animated voting experience, results that stay hidden until published, a projector reveal, a revocable public link and a readable audit log. The ballot is stored apart from the voter's identity, and one voter can cast only one ballot even when submissions arrive at the same moment. The system can be hosted by any institution with Docker Compose, and 146 automated tests together with manual checks on PostgreSQL support its correctness.
+
+\section{Future scope}
+
+\begin{itemize}
+  \item Removal of the time-correlation limitation by storing ballots without a precise time stamp or by batching writes.
+  \item Shared rate-limit storage (Redis) for deployments with several API processes.
+  \item Automated browser tests and a load test for large electorates.
+  \item Ranked and multiple-choice ballots, and more than one election at a time.
+  \item Printed paper receipts and verifiable counting for stronger audits.
+  \item Translations of the interface into regional languages.
+  \item Upgrade of the front-end routing library to the current major version.
+\end{itemize}
+
+\appendix
+
+\chapter{Installation and Hosting Summary}
+\label{app:hosting}
+
+\section{Requirements}
+
+A computer or server with Docker and Docker Compose; for the booths, Ubuntu 22.04 or newer computers in the same network. Full guides are provided in the repository (\code{docs/INSTALLATION.md}, \code{docs/DEPLOYMENT.md}, \code{docs/KIOSK\_SETUP.md}).
+
+\section{Start the system}
+
+\begin{lstlisting}[language=bash]
+git clone https://github.com/s0n4jit/e-voting.git
+cd e-voting
+cp .env.example .env        # set POSTGRES_PASSWORD, SECRET_KEY, JWT_SECRET_KEY
+docker compose up -d --build
+# open http://<server> and complete the installation wizard
+\end{lstlisting}
+
+\section{Operator commands}
+
+\begin{lstlisting}[language=bash]
+docker compose exec backend python manage.py status
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py set-password <username>
+docker compose exec backend python manage.py reset-2fa <username>
+\end{lstlisting}
+
+\section{Important environment variables}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}l X@{}}
+\toprule
+\textrm{\textbf{Variable}} & \textbf{Purpose} \\
+\midrule
+POSTGRES\_PASSWORD & Database password \\
+SECRET\_KEY, JWT\_SECRET\_KEY & Long random secrets; the application refuses to start in production with development values \\
+CORS\_ORIGINS & Allowed browser origins when the frontend is on another host \\
+PROXY\_HOPS & Number of reverse proxies in front of the application \\
+SETUP\_TOKEN & Optional token required to run the installation wizard \\
+RATELIMIT\_STORAGE\_URL & Shared rate-limit store for several API processes \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\chapter{Interface Summary}
+
+The browser communicates with the server through a JSON interface under \code{/api}. Every request except the public ones needs a signed session token; booth requests additionally carry the booth token.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}l X l@{}}
+\toprule
+\textrm{\textbf{Prefix}} & \textbf{Purpose} & \textbf{Access} \\
+\midrule
+/api/setup & Installation status and installation wizard & Public until installed \\
+/api/auth & Sign-in, two-step verification, password change and reset, profile & Staff, voters \\
+/api/desk & Registration, search, check-in, PIN issue & Desk, Election Officer \\
+/api/admin & Elections, candidates, programmes, officers, booths, audit & Election Officer \\
+/api/booth & Booth activation and status & Booth \\
+/api/voter & Ballot and casting & Voter at a booth \\
+/api/results & Results, publication state, public results & Officer; public with link \\
+/api/maintenance & Booth maintenance unlock and actions & Booth with officer code \\
+/api/photos & Candidate and profile photos & Authenticated \\
+/api/health & Health check & Public \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\chapter{Glossary}
+
+\begin{description}[leftmargin=3.2cm, style=nextline]
+  \item[Booth] A supervised computer approved by the Election Officer for voting.
+  \item[Booth token] A one-time code, valid for fifteen minutes, used together with the officer's authenticator code to approve a booth.
+  \item[Voter Slip ID] The identifier printed on a student's slip, for example \code{SUE26-E1-483920}.
+  \item[PIN] A single-use six-digit code, valid for twenty minutes, issued at check-in.
+  \item[TOTP] Time-based one-time password produced by an authenticator application.
+  \item[Audit log] Chronological list of important actions.
+  \item[Lifecycle] The ordered stages of an election.
+\end{description}
+
+\begin{thebibliography}{9}
+\bibitem{flask} Flask documentation. \url{https://flask.palletsprojects.com/}
+\bibitem{react} React documentation. \url{https://react.dev/}
+\bibitem{pg} PostgreSQL documentation. \url{https://www.postgresql.org/docs/}
+\bibitem{rfc6238} M'Raihi, D. et al. \emph{RFC 6238: TOTP: Time-Based One-Time Password Algorithm}, IETF, 2011.
+\bibitem{owasp} OWASP Application Security Verification Standard. \url{https://owasp.org/www-project-application-security-verification-standard/}
+\bibitem{docker} Docker documentation. \url{https://docs.docker.com/}
+\end{thebibliography}

@@ -167,7 +167,7 @@ fi
 if [[ ! -f "/etc/default/evote-kiosk" ]]; then
     cat <<'EOF' > /etc/default/evote-kiosk
 # Campus E-Voting System (CEVS) - Kiosk Configuration
-VOTING_URL="http://localhost:3000/kiosk"
+VOTING_URL="http://localhost:3000/kiosk/vote"
 EOF
     chmod 644 /etc/default/evote-kiosk
     log_info "Created default configuration file: /etc/default/evote-kiosk"

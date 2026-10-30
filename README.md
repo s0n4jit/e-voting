@@ -1,137 +1,85 @@
-# Campus E-Voting System (CEVS)
+<p align="center">
+  <img src="docs/assets/logo.svg" width="96" alt="Campus E-Voting logo">
+</p>
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://python.org)
-[![Flask](https://img.shields.io/badge/Flask-3.0-lightgrey.svg)](https://flask.palletsprojects.com/)
-[![React](https://img.shields.io/badge/React-18.2-blue.svg)](https://reactjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
-[![Ubuntu](https://img.shields.io/badge/Ubuntu-26.04%20LTS-E95420.svg)](https://ubuntu.com/)
+<h1 align="center">Campus E-Voting</h1>
 
-A secure, verifiable, and confidential Campus E-Voting System designed for college and university student union elections. Features a physical registration desk with single-use PIN slips, examination-style locked-down physical booth kiosks, staff-only maintenance controls, and an isolated Windows testing lab.
-
----
-
-## 🏛️ System Architecture
-
-```
-                               ┌──────────────────────────────────────────────┐
-                               │       PHYSICAL REGISTRATION DESK            │
-                               │  - Student shows physical ID card            │
-                               │  - Polling Desk Officer verifies roster      │
-                               │  - Issues single-use 6-digit Voting PIN slip │
-                               └──────────────────────┬───────────────────────┘
-                                                      │ (Voter walks to booth)
-                                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│                          EXAMINATION-STYLE COMPUTER LAB VOTING BOOTH                        │
-│  - Ubuntu 26.04 LTS (Noble Numbat) with GNOME Wayland & Snap Firefox                        │
-│  - Dedicated restricted 'evote' account with locked shell & autologin                       │
-│  - Enterprise Policies: DevTools, downloads, tabs, about:config, and non-whitelisted URLs   │
-│  - 9-Portfolio guided balloting stepper with NOTA (None of the Above) on each position      │
-│  - Atomic burn-on-cast with zero relational linkage between voter identity and vote         │
-│  - Concealed Staff Maintenance shortcuts (Ctrl+Alt+Shift+M/N/R/L/T) with salted PIN auth    │
-└──────────────────────────────────────────────┬──────────────────────────────────────────────┘
-                                               │ (Encrypted JSON over HTTPS)
-                                               ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│                             CENTRAL HIGH-INTEGRITY E-VOTING API                             │
-│  - Flask application factory with PostgreSQL 15 & Redis cache                               │
-│  - Decoupled VoterRecord (SHA-256 voter hash) & BallotEntry (SHA-256 HMAC blind token)     │
-│  - Append-only cryptographic security audit trail                                           │
-└─────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  A secure, self-hostable election platform for colleges and universities:
+  desk registration, locked-down voting booths, a secret ballot and a projector-ready results reveal.
+</p>
 
 ---
 
-## 🚀 Quick Start
+## What it is
 
-### 1. Production / Campus Deployment (Docker Compose)
+Campus E-Voting runs a complete student-union election on campus hardware:
+
+1. An **Election Officer** installs the portal with a first-run wizard, configures the election, positions, programmes and candidates, and controls the election lifecycle.
+2. **Desk Officers** register students. Each student gets an automatically generated **Voter Slip ID** (for example `SUE26-E1-483920`) and, when they come to vote, a single-use **voting PIN**.
+3. Students vote on **locked-down Ubuntu booths** that can only open one page. Votes are accepted only from booths approved by the Election Officer.
+4. Results stay hidden for everyone until the Election Officer publishes them, can be revealed one position at a time on a projector, and can optionally be shared through a public link.
+
+| Role | Does |
+|---|---|
+| Election Officer | Installs, configures, runs and closes the election, approves booths, publishes results |
+| Desk Officer | Registers students, checks voters in, issues PINs |
+| Voter | Enters slip ID and PIN at a booth, chooses candidates, reviews and submits |
+
+## Highlights
+
+- **First-run installation wizard** (like CTFd): institution, logo (also used as the favicon), first officer, mandatory two-step verification, first election.
+- **Secret ballot**: who voted and what was chosen live in separate tables with no link between them. Duplicate votes are blocked in a locked database transaction.
+- **Booth security**: booth set-up needs a one-time token from the officer panel *and* the officer's authenticator code. Booth tokens are stored hashed, can be revoked instantly, and a booth serves only its own election.
+- **Election lifecycle enforced by the server**: Setup → Registration → Ready → Voting active → Voting closed → Results published → Archived. One election at a time.
+- **Results kept secret** until published; projector reveal with confetti; public link created and deleted by the officer.
+- **Audit log** of every important action, including the booth and session of each ballot.
+- Light and dark themes, responsive, keyboard accessible, `prefers-reduced-motion` respected.
+- Runs with **Docker Compose** on your own server and your own PostgreSQL. No dependency on any hosting account.
+
+## Quick start (self-hosting)
+
 ```bash
-# Clone the repository
 git clone https://github.com/s0n4jit/e-voting.git
 cd e-voting
-
-# Start services
+cp .env.example .env        # set POSTGRES_PASSWORD, SECRET_KEY, JWT_SECRET_KEY
 docker compose up -d --build
-
-# Seed active Student Union election & candidates
-docker exec evoting_backend python migrations/seed_data.py
 ```
 
-* **Voting Kiosk**: [http://localhost:3000/kiosk](http://localhost:3000/kiosk)
-* **Polling Desk**: [http://localhost:3000/desk](http://localhost:3000/desk)
-* **Election Admin**: [http://localhost:3000/login](http://localhost:3000/login)
+Open `http://localhost/` and complete the installation wizard. See the [installation guide](docs/INSTALLATION.md) for HTTPS, reverse proxies and your own PostgreSQL, and the [deployment guide](docs/DEPLOYMENT.md) for Render + Supabase + Vercel.
 
----
+## Repository layout
 
-### 2. Windows Testing Lab (`testing/kiosk-lab/`)
-Test the complete kiosk booth experience and staff maintenance shortcuts on Windows without rebooting into Ubuntu or running heavy VMs:
+| Path | Contents |
+|---|---|
+| `backend/` | Flask API, models, migrations, `manage.py` |
+| `frontend/` | React + Vite + Tailwind web app |
+| `kiosk/ubuntu/` | Lock-down scripts and policies for Ubuntu voting booths |
+| `tests/` | Backend test suite (pytest) |
+| `docs/` | Guides, security notes, landing page and the LaTeX report |
+| `docker-compose.yml` | Self-hosted stack: PostgreSQL, API, web |
 
-```powershell
-cd testing/kiosk-lab
-.\start.ps1
-```
+## Documentation
 
-* **Web Kiosk Terminal**: [http://localhost:3001/kiosk](http://localhost:3001/kiosk)
-* **Linux noVNC Kiosk Simulator**: [http://localhost:8080](http://localhost:8080)
-* **Staff Maintenance Shortcut**: `Ctrl + Alt + Shift + M` (PIN: `948201`)
+- [Installation (self-hosting)](docs/INSTALLATION.md) · [Deployment](docs/DEPLOYMENT.md) · [Backup, restore, upgrade](docs/OPERATIONS.md)
+- [Voting booth setup on Ubuntu](docs/KIOSK_SETUP.md) · [Booth maintenance](docs/KIOSK_MAINTENANCE.md)
+- [User guide](docs/USER_GUIDE.md) · [Security](docs/SECURITY.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Changelog](docs/CHANGELOG.md)
+- [Project report (LaTeX, for Overleaf)](docs/report/README.md)
+- Landing page: `docs/index.html` (GitHub Pages)
 
-To stop or reset:
-```powershell
-.\stop.ps1    # Stops containers safely
-.\reset.ps1   # Resets test data to clean state (zero impact on production)
-```
-
----
-
-### 3. Physical Ubuntu 26.04 LTS Kiosk Booth Setup
-To configure a physical terminal machine in the computer lab:
+## Development
 
 ```bash
-cd kiosk/ubuntu
-sudo VOTING_URL="https://evote.campus.internal/kiosk" bash setup-kiosk.sh
+# backend tests
+pip install -r backend/requirements-dev.txt
+python -m pytest tests -q            # run from the repository root
+
+# frontend
+cd frontend && npm install && npm run dev
 ```
 
----
+Set `DATABASE_URL` to a PostgreSQL URL, or leave it unset to use a local SQLite file for development. `python backend/manage.py migrate | seed | reset | status | programmes | set-password` are the operational commands.
 
-## 🔐 Staff Maintenance Shortcuts
+## License
 
-| Shortcut | Description |
-| :--- | :--- |
-| `Ctrl + Alt + Shift + M` | Open Staff Maintenance Panel (PIN challenge) |
-| `Ctrl + Alt + Shift + N` | Open directly to Network Diagnostics |
-| `Ctrl + Alt + Shift + R` | Reboot Terminal prompt |
-| `Ctrl + Alt + Shift + L` | Return to clean Voting Kiosk interface |
-| `Ctrl + Alt + Shift + T` | Re-run network and API health probe |
-
----
-
-## 📚 Technical Documentation
-
-* [Ubuntu Kiosk Setup Guide](docs/KIOSK_SETUP.md)
-* [Staff Maintenance Runbook](docs/KIOSK_MAINTENANCE.md)
-* [Network Diagnostics Architecture](docs/NETWORK_DIAGNOSTICS.md)
-* [Windows Testing Environment](docs/WINDOWS_TESTING.md)
-* [Security & Threat Model](docs/SECURITY.md)
-* [Operational Troubleshooting](docs/TROUBLESHOOTING.md)
-
----
-
-## 🧪 Testing
-
-```bash
-# Run backend pytest suite (93 tests)
-pytest tests/
-
-# Run end-to-end campus kiosk integration test
-python scripts/test_campus_kiosk_workflow.py
-
-# Run Playwright automated browser tests
-cd testing/kiosk-lab && npx playwright test
-```
-
----
-
-## 📄 License
-Academic Software Project — Minor Project 8 for B.Sc. Computer Science (NEP 2020).
-All rights reserved.
+Academic software project. All rights reserved by the author unless a licence file is added.

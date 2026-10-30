@@ -6,6 +6,7 @@ import csv
 import io
 from datetime import datetime, timezone
 from dateutil import parser as date_parser
+from PIL import Image
 from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import get_jwt_identity
 
@@ -13,19 +14,53 @@ from app.extensions import db, commit_or_flush
 from app.models.user import User
 from app.models.election import Election
 from app.models.candidate import Candidate
+from app.models.candidate_photo import CandidatePhoto
+from app.models.election_position import ElectionPosition
+from app.models.programme import Programme
 from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
 from app.models.voting_token import VotingToken
 from app.models.kiosk_device import KioskDevice
-from app.services.otp_service import OTPService
 from app.utils.decorators import admin_required, desk_required
+from app.audit_categories import ACTIONS, ALIASES, CATEGORIES, action_label, category_of
+from app.routes.manage import election_locked, transition
 from app.utils.validators import (
     sanitize_input,
     validate_email,
+    validate_password,
     validate_student_id,
 )
 
 admin_bp = Blueprint("admin", __name__)
+
+def _audit(action, details):
+    ident = get_jwt_identity()
+    db.session.add(AuditLog(
+        user_id=int(ident) if ident and str(ident).isdigit() else None, action=action, details=details,
+        ip_address=request.remote_addr or "", user_agent=(request.user_agent.string or "")[:255],
+    ))
+
+
+MAX_PHOTO_BYTES = 2 * 1024 * 1024
+PHOTO_TYPES = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
+
+
+def read_photo(upload):
+    """Validate an uploaded candidate photo. Returns ((content_type, bytes), None) or (None, error)."""
+    data = upload.stream.read(MAX_PHOTO_BYTES + 1) if upload else b""
+    if not data:
+        return None, "A candidate photo is required."
+    if len(data) > MAX_PHOTO_BYTES:
+        return None, "The photo must be 2 MB or smaller."
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            img.verify()  # content is decoded, not trusted from the file name or client header
+            kind = PHOTO_TYPES.get(img.format)
+    except Exception:
+        kind = None
+    if not kind:
+        return None, "Upload a PNG, JPEG or WebP image."
+    return (kind, data), None
 
 
 # ── Elections CRUD ────────────────────────────────────────────────────────────
@@ -42,6 +77,8 @@ def list_elections():
 @admin_required
 def create_election():
     """Create a new election."""
+    if any(e.effective_status != "archived" for e in Election.query.all()):
+        return jsonify({"error": "Only one election can run at a time. Archive the current election first."}), 409
     payload = request.get_json(silent=True) or {}
     title = sanitize_input(payload.get("title"))
     description = sanitize_input(payload.get("description", ""))
@@ -78,6 +115,17 @@ def create_election():
         created_by=int(admin_id) if admin_id and str(admin_id).isdigit() else None,
     )
     db.session.add(election)
+    db.session.flush()
+    election.ensure_slip_prefix()
+    _audit("ELECTION_CREATED", f"Created the election \u201c{election.title}\u201d.")
+    names, seen = [], set()
+    for raw in payload.get("positions") or []:
+        n = sanitize_input(" ".join(str(raw).split()))
+        if n and len(n) <= 100 and n.lower() not in seen:
+            seen.add(n.lower())
+            names.append(n)
+    for i, n in enumerate(names):
+        db.session.add(ElectionPosition(election_id=election.id, name=n, sort_order=i))
     commit_or_flush()
 
     return jsonify(election.to_dict()), 201
@@ -106,6 +154,8 @@ def update_election(election_id):
         election.title = sanitize_input(payload["title"])
     if "description" in payload:
         election.description = sanitize_input(payload["description"])
+    if ("start_time" in payload or "end_time" in payload) and election_locked(election):
+        return jsonify({"error": "The voting period cannot be changed once voting has opened."}), 409
     if "start_time" in payload:
         try:
             st = date_parser.parse(payload["start_time"])
@@ -118,11 +168,11 @@ def update_election(election_id):
             election.end_time = et if et.tzinfo else et.replace(tzinfo=timezone.utc)
         except Exception as exc:
             return jsonify({"error": f"Invalid end_time: {exc}"}), 400
-    if "is_active" in payload:
-        election.is_active = bool(payload["is_active"])
-    if "results_published" in payload:
-        election.results_published = bool(payload["results_published"])
+    # Status changes go through /elections/<id>/status so the lifecycle stays consistent.
+    if election.start_time and election.end_time and election.end_time <= election.start_time:
+        return jsonify({"error": "End time must be after start time."}), 400
 
+    _audit("ELECTION_UPDATED", f"Updated the details of \u201c{election.title}\u201d.")
     commit_or_flush()
     return jsonify(election.to_dict(include_candidates=True)), 200
 
@@ -135,6 +185,7 @@ def delete_election(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
+    _audit("ELECTION_DELETED", f"Deleted the election \u201c{election.title}\u201d.")
     db.session.delete(election)
     commit_or_flush()
     return jsonify({"message": f"Election {election_id} deleted successfully."}), 200
@@ -148,7 +199,12 @@ def activate_election(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
-    election.is_active = True
+    # Walk the lifecycle forward to "voting active" (legacy one-click activation).
+    while election.effective_status != "voting_active":
+        nxt = Election.STATUSES[Election.STATUSES.index(election.effective_status) + 1]
+        err = transition(election, nxt)
+        if err:
+            return jsonify({"error": err}), 409
     commit_or_flush()
     return jsonify({"message": "Election activated.", "election": election.to_dict()}), 200
 
@@ -161,7 +217,9 @@ def close_election(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
-    election.is_active = False
+    err = transition(election, "voting_closed") if election.effective_status == "voting_active" else None
+    if err:
+        return jsonify({"error": err}), 409
     commit_or_flush()
     return jsonify({"message": "Election closed.", "election": election.to_dict()}), 200
 
@@ -174,7 +232,13 @@ def publish_results(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
-    election.results_published = True
+    err = None
+    if election.effective_status == "voting_active":
+        err = transition(election, "voting_closed")
+    if not err and election.effective_status == "voting_closed":
+        election.set_status("results_published")
+    if err or election.effective_status != "results_published":
+        return jsonify({"error": err or "Close voting before publishing results."}), 409
     commit_or_flush()
     return jsonify({"message": "Results published.", "election": election.to_dict()}), 200
 
@@ -189,28 +253,39 @@ def add_candidate(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
-    payload = request.get_json(silent=True) or {}
+    payload = request.form  # multipart: fields plus the photo file
     name = sanitize_input(payload.get("name"))
     position = sanitize_input(payload.get("position", "General Secretary"))
-    party = sanitize_input(payload.get("party", ""))
-    department = sanitize_input(payload.get("department", ""))
+    department = str(payload.get("department") or "").strip()
     bio = sanitize_input(payload.get("bio", ""))
-    photo_url = sanitize_input(payload.get("photo_url", ""))
+    upload = request.files.get("photo")
 
     if not name:
         return jsonify({"error": "Candidate name is required."}), 400
+    if not Programme.query.filter_by(name=department, is_active=True).first():
+        return jsonify({"error": "Choose the candidate's department from the list."}), 400
+    photo, photo_error = read_photo(upload)
+    if photo_error:
+        return jsonify({"error": photo_error}), 400
+    if election_locked(election):
+        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
+    allowed = [p.name for p in election.positions]
+    if allowed and position not in allowed:
+        return jsonify({"error": "Choose one of the election's positions."}), 400
 
     candidate = Candidate(
         election_id=election.id,
         name=name,
         position=position,
-        party=party,
         department=department,
         bio=bio,
-        photo_url=photo_url,
     )
+    candidate.photo = CandidatePhoto(content_type=photo[0], data=photo[1])
     db.session.add(candidate)
-    commit_or_flush()
+    db.session.flush()
+    candidate.photo_url = f"/api/photos/{candidate.id}"
+    _audit("CANDIDATE_ADDED", f"Added {name} as a candidate for {position} in \u201c{election.title}\u201d.")
+    commit_or_flush()  # one transaction: if anything fails above, no photo is stored either
 
     return jsonify(candidate.to_dict()), 201
 
@@ -222,7 +297,10 @@ def delete_candidate(election_id, candidate_id):
     candidate = db.session.get(Candidate, candidate_id)
     if not candidate or candidate.election_id != election_id:
         return jsonify({"error": "Candidate not found in this election."}), 404
+    if election_locked(candidate.election):
+        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 
+    _audit("CANDIDATE_REMOVED", f"Removed {candidate.name} (candidate for {candidate.position}) from \u201c{candidate.election.title}\u201d.")
     db.session.delete(candidate)
     commit_or_flush()
     return jsonify({"message": "Candidate removed successfully."}), 200
@@ -241,141 +319,15 @@ def list_voters():
 @admin_bp.post("/voters")
 @admin_required
 def add_single_voter():
-    """Create a single voter and optionally whitelist them for an election."""
-    payload = request.get_json(silent=True) or {}
-    student_id = sanitize_input(payload.get("student_id"))
-    name = sanitize_input(payload.get("name"))
-    email = sanitize_input(payload.get("email"))
-    department = sanitize_input(payload.get("department", ""))
-    year = payload.get("year")
-    election_id = payload.get("election_id")
-    password = payload.get("password", "Student@1234")
-
-    if not student_id or not name or not email:
-        return jsonify({"error": "student_id, name, and email are required."}), 400
-
-    if not validate_student_id(student_id):
-        return jsonify({"error": "Invalid student ID format."}), 400
-
-    if not validate_email(email):
-        return jsonify({"error": "Invalid email address format."}), 400
-
-    if User.query.filter((User.student_id == student_id) | (User.email == email)).first():
-        return jsonify({"error": "User with this student_id or email already exists."}), 409
-
-    user = User(
-        student_id=student_id,
-        name=name,
-        email=email,
-        department=department,
-        year=int(year) if year else None,
-        role="voter",
-        otp_secret=OTPService.generate_secret(),
-        otp_enabled=True,
-    )
-    user.set_password(password)
-    db.session.add(user)
-    db.session.flush()
-
-    if election_id:
-        voter_hash = User.hash_student_id(student_id)
-        existing_record = VoterRecord.query.filter_by(
-            election_id=election_id, voter_hash=voter_hash
-        ).first()
-        if not existing_record:
-            vr = VoterRecord(election_id=election_id, voter_hash=voter_hash, has_voted=False)
-            db.session.add(vr)
-
-    commit_or_flush()
-    return jsonify(user.to_dict()), 201
+    """Superseded by Desk Officer registration (/api/desk/registrations)."""
+    return jsonify({"error": "Voters are registered at the desk, which generates their Voter Slip ID."}), 410
 
 
 @admin_bp.post("/voters/import")
 @admin_required
 def import_voters():
-    """
-    Bulk import voters via CSV file upload or JSON body.
-    Format expected:
-      CSV header: student_id,name,email,department,year
-      or JSON: {"election_id": 1, "voters": [{"student_id": "...", ...}]}
-    """
-    election_id = request.form.get("election_id") or request.args.get("election_id")
-    records = []
-
-    if "file" in request.files:
-        file = request.files["file"]
-        stream = io.StringIO(file.stream.read().decode("utf-8-sig", errors="ignore"))
-        reader = csv.DictReader(stream)
-        for row in reader:
-            records.append({
-                "student_id": row.get("student_id", "").strip(),
-                "name": row.get("name", "").strip(),
-                "email": row.get("email", "").strip(),
-                "department": row.get("department", "").strip(),
-                "year": row.get("year", "").strip(),
-            })
-    else:
-        payload = request.get_json(silent=True) or {}
-        if "election_id" in payload and not election_id:
-            election_id = payload["election_id"]
-        records = payload.get("voters", [])
-
-    if not records:
-        return jsonify({"error": "No voter records supplied."}), 400
-
-    imported_count = 0
-    whitelisted_count = 0
-    errors = []
-
-    for idx, rec in enumerate(records):
-        sid = sanitize_input(rec.get("student_id"))
-        name = sanitize_input(rec.get("name", f"Student {sid}"))
-        email = sanitize_input(rec.get("email"))
-
-        if not sid or not email:
-            errors.append(f"Row {idx + 1}: missing student_id or email.")
-            continue
-
-        user = User.query.filter_by(student_id=sid).first()
-        if not user:
-            user = User(
-                student_id=sid,
-                name=name,
-                email=email,
-                department=sanitize_input(rec.get("department", "")),
-                year=int(rec.get("year")) if rec.get("year") and str(rec.get("year")).isdigit() else None,
-                role="voter",
-                otp_secret=OTPService.generate_secret(),
-                otp_enabled=True,
-            )
-            user.set_password(rec.get("password", "Student@1234"))
-            db.session.add(user)
-            db.session.flush()
-            imported_count += 1
-
-        if election_id:
-            v_hash = User.hash_student_id(sid)
-            existing_vr = VoterRecord.query.filter_by(
-                election_id=int(election_id), voter_hash=v_hash
-            ).first()
-            if not existing_vr:
-                vr = VoterRecord(
-                    election_id=int(election_id), voter_hash=v_hash, has_voted=False
-                )
-                db.session.add(vr)
-                whitelisted_count += 1
-
-    commit_or_flush()
-
-    return (
-        jsonify({
-            "message": "Import finished.",
-            "imported_users": imported_count,
-            "whitelisted_voters": whitelisted_count,
-            "errors": errors,
-        }),
-        200,
-    )
+    """Superseded by Desk Officer registration (/api/desk/registrations)."""
+    return jsonify({"error": "Voters are registered at the desk, which generates their Voter Slip ID."}), 410
 
 
 # ── Audit Trail ───────────────────────────────────────────────────────────────
@@ -396,14 +348,8 @@ def get_audit_logs():
 
     query = AuditLog.query
 
-    # Category filters
-    CATEGORY_ACTIONS = {
-        "ballot": ["BALLOT_CAST", "VOTE_CAST", "BALLOT_SEALED"],
-        "pin": ["PIN_ISSUED", "PIN_LOGIN_SUCCESS", "VOTING_TOKEN_GENERATED"],
-        "auth": ["LOGIN_SUCCESS", "LOGIN_FAILED", "MFA_VERIFIED", "LOGOUT", "TOTP_2FA_ENABLED", "TOTP_2FA_DISABLED"],
-        "kiosk": ["STAFF_MAINTENANCE_ACTION", "KIOSK_REGISTERED", "KIOSK_AUTHENTICATED"],
-        "enroll": ["STUDENT_AUTO_ENROLLED_AT_DESK", "VOTER_REGISTERED", "VOTER_IMPORT"],
-    }
+    category = ALIASES.get(category, category)
+    CATEGORY_ACTIONS = ACTIONS
 
     if category in CATEGORY_ACTIONS:
         query = query.filter(AuditLog.action.in_(CATEGORY_ACTIONS[category]))
@@ -434,13 +380,15 @@ def get_audit_logs():
         "total_records": AuditLog.query.count(),
         "ballots_cast": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS["ballot"])).count(),
         "pins_issued": AuditLog.query.filter(AuditLog.action == "PIN_ISSUED").count(),
-        "desk_enrollments": AuditLog.query.filter(AuditLog.action == "STUDENT_AUTO_ENROLLED_AT_DESK").count(),
-        "kiosk_actions": AuditLog.query.filter(AuditLog.action == "STAFF_MAINTENANCE_ACTION").count(),
+        "desk_enrollments": AuditLog.query.filter(AuditLog.action.in_(["DESK_CHECKIN", "STUDENT_REGISTERED"])).count(),
+        "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS["booth"])).count(),
     }
 
     serialized = []
     for log in logs:
         item = log.to_dict()
+        item["category"] = category_of(log.action)
+        item["action_label"] = action_label(log.action)
         actor = actors.get(log.user_id)
         if actor:
             item["actor_name"] = actor.name
@@ -458,6 +406,7 @@ def get_audit_logs():
             "limit": limit,
             "offset": offset,
             "category": category,
+            "categories": [{"id": cid, "label": label} for cid, label, _ in CATEGORIES],
             "stats": stats,
             "logs": serialized,
         }),
@@ -550,38 +499,17 @@ def issue_desk_pin():
     if not election:
         return jsonify({"error": "No active election found."}), 404
 
-    user = User.query.filter_by(student_id=student_id).first()
+    user = User.query.filter(
+        db.func.upper(User.student_id) == student_id.strip().upper(), User.role == "voter"
+    ).first()
+    if not user:
+        return jsonify({
+            "error": "Not registered",
+            "message": "No registration found for this Voter Slip ID. Register the student first.",
+        }), 404
     is_new_registration = False
     admin_identity = get_jwt_identity()
     admin_id = int(admin_identity) if str(admin_identity).isdigit() else None
-
-    # On-the-spot voter registration at the Polling Desk
-    if not user:
-        name = sanitize_input(payload.get("name")) or f"Student {student_id}"
-        department = sanitize_input(payload.get("department")) or "General"
-        user = User(
-            student_id=student_id,
-            name=name,
-            email=f"{student_id.lower()}@campus.local",
-            role="voter",
-            is_active=True,
-            department=department,
-            otp_secret=OTPService.generate_secret(),
-            otp_enabled=False,
-        )
-        user.set_password(f"Voter@{student_id[-4:] if len(student_id) >= 4 else '2026'}")
-        db.session.add(user)
-        db.session.flush()
-        is_new_registration = True
-
-        audit_enroll = AuditLog(
-            user_id=admin_id,
-            action="STUDENT_AUTO_ENROLLED_AT_DESK",
-            details=f"Student {student_id} ({name}, Dept: {department}) enrolled on-the-spot at polling desk for election {election.id}",
-            ip_address=request.remote_addr or "127.0.0.1",
-            user_agent=request.user_agent.string if request.user_agent else "desk",
-        )
-        db.session.add(audit_enroll)
 
     # Check if voter has already cast a ballot in this election
     voter_hash = User.hash_student_id(user.student_id)
@@ -620,7 +548,7 @@ def issue_desk_pin():
     audit_pin = AuditLog(
         user_id=admin_id,
         action="PIN_ISSUED",
-        details=f"Single-use voting PIN generated for student {user.student_id} in election {election.id} by officer {admin_id}",
+        details=f"Issued a voting PIN to {user.name} ({user.student_id}) for \u201c{election.title}\u201d.",
         ip_address=request.remote_addr or "127.0.0.1",
         user_agent=request.user_agent.string if request.user_agent else "desk",
     )
@@ -742,33 +670,31 @@ def get_desk_voters():
     }), 200
 
 
-# ── Authorized Computer Lab Kiosks ───────────────────────────────────────────
+# ── Voting booths (created on the booth itself, see routes/booth.py) ───────────────────────────────────────────
 
-@admin_bp.post("/kiosk/register")
+@admin_bp.post("/booth-tokens")
 @admin_required
-def register_kiosk():
-    """Register a new computer terminal as an authorized lab kiosk."""
-    payload = request.get_json(silent=True) or {}
-    device_name = sanitize_input(payload.get("device_name"))
+def create_booth_token():
+    """Generate a one-time token (shown once, valid 15 minutes) for setting up a voting booth."""
+    from app.models.booth_create_token import TOKEN_LIFETIME, BoothCreateToken
+    from app.routes.booth import _hash, new_create_token
 
-    if not device_name:
-        return jsonify({"error": "device_name is required."}), 400
+    officer = db.session.get(User, int(get_jwt_identity()))
+    election = Election.current()
+    if not election or election.effective_status == "archived":
+        return jsonify({"error": "There is no election to set booths up for."}), 409
+    if not officer.otp_enabled:
+        return jsonify({"error": "Turn on two-step verification first; booths are approved with your authenticator code."}), 409
 
-    ip_addr = request.remote_addr or "127.0.0.1"
-    kiosk = KioskDevice.register_device(device_name=device_name, ip_address=ip_addr)
+    token = new_create_token()
+    expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
+    db.session.add(BoothCreateToken(token_hash=_hash(token.replace("-", "")), election_id=election.id,
+                                    created_by=officer.id, expires_at=expires))
+    db.session.add(AuditLog(user_id=officer.id, action="BOOTH_TOKEN_CREATED",
+                            details=f"Generated a booth token for \u201c{election.title}\u201d.", ip_address=request.remote_addr or ""))
     db.session.commit()
-
-    return (
-        jsonify({
-            "message": "Kiosk terminal registered successfully.",
-            "kiosk_token": kiosk.kiosk_token,
-            "kiosk": kiosk.to_dict(),
-            "id": kiosk.id,
-            "device_name": kiosk.device_name,
-            "created_at": kiosk.created_at.isoformat() if kiosk.created_at else None,
-        }),
-        201,
-    )
+    from app.utils.timeutil import utc_iso
+    return jsonify({"token": token, "expires_at": utc_iso(expires), "election_title": election.title}), 201
 
 
 @admin_bp.get("/kiosk/list")
@@ -787,9 +713,14 @@ def delete_kiosk(kiosk_id):
     if not kiosk:
         return jsonify({"error": "Kiosk terminal not found."}), 404
 
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()), action="BOOTH_REMOVED",
+        details=f"Deleted booth {kiosk.booth_id} (session {kiosk.ref}). Its token no longer works.",
+        ip_address=request.remote_addr or "",
+    ))
     db.session.delete(kiosk)
     db.session.commit()
-    return jsonify({"message": f"Kiosk terminal {kiosk_id} revoked successfully."}), 200
+    return jsonify({"message": f"Booth {kiosk.booth_id} was deleted and signed out."}), 200
 
 
 # ── Polling Desk Officers Management ──────────────────────────────────────────
@@ -829,6 +760,13 @@ def create_officer():
             400,
         )
 
+    ok, msg = validate_password(password)
+    if not ok or not validate_email(email) or not validate_student_id(student_id):
+        return jsonify({
+            "error": "Invalid fields",
+            "message": msg if not ok else "Enter a valid email and a username of 3-32 letters, digits, dashes or underscores.",
+        }), 400
+
     # Check for existing user
     if User.query.filter_by(student_id=student_id).first():
         return (
@@ -856,11 +794,14 @@ def create_officer():
         department=department,
         is_admin=False,
         is_active=True,
-        otp_secret=OTPService.generate_secret(),
-        otp_enabled=True,
+        otp_enabled=False,
     )
     officer.set_password(password)
     db.session.add(officer)
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()), action="DESK_OFFICER_CREATED",
+        details=f"Created a Desk Officer account for {name} (username {student_id}).", ip_address=request.remote_addr or "",
+    ))
     db.session.commit()
 
     return (
@@ -880,9 +821,40 @@ def delete_officer(officer_id):
     if not officer or officer.role != "polling_officer":
         return jsonify({"error": "Polling desk officer not found."}), 404
 
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()), action="DESK_OFFICER_REMOVED",
+        details=f"Removed the Desk Officer account of {officer.name} (username {officer.student_id}).", ip_address=request.remote_addr or "",
+    ))
     db.session.delete(officer)
     db.session.commit()
     return (
         jsonify({"message": f"Polling desk officer '{officer.name}' removed successfully."}),
         200,
     )
+
+
+@admin_bp.patch("/officers/<int:officer_id>")
+@admin_required
+def update_officer(officer_id):
+    """Deactivate/reactivate a Desk Officer or reset their password."""
+    officer = db.session.get(User, officer_id)
+    if not officer or officer.role != "polling_officer":
+        return jsonify({"error": "Polling desk officer not found."}), 404
+    payload = request.get_json(silent=True) or {}
+    changes = []
+    if "is_active" in payload:
+        officer.is_active = bool(payload["is_active"])
+        changes.append("account activated" if officer.is_active else "account deactivated")
+    if payload.get("password"):
+        changes.append("password reset")
+    if payload.get("password"):
+        ok, msg = validate_password(payload["password"])
+        if not ok:
+            return jsonify({"error": "Invalid fields", "message": msg}), 400
+        officer.set_password(payload["password"])
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()), action="DESK_OFFICER_UPDATED",
+        details=f"Updated the Desk Officer account of {officer.name} ({', '.join(changes)}).", ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+    return jsonify(officer.to_dict()), 200

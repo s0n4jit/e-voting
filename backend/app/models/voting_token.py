@@ -47,6 +47,7 @@ class VotingToken(db.Model):
     pin_hash = db.Column(db.String(255), nullable=False)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     is_used = db.Column(db.Boolean, default=False, nullable=False)
+    failed_attempts = db.Column(db.Integer, default=0, nullable=False, server_default="0")
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

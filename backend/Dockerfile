@@ -34,5 +34,7 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:5000/api/health || exit 1
 
+# One process with several threads: rate limits are counted in memory, so a single process keeps them
+# exact. To run more processes set RATELIMIT_STORAGE_URL to a shared Redis instance.
 # Production server command
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "--timeout", "120", "run:app"]

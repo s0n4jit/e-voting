@@ -1,0 +1,155 @@
+\chapter{Test Plan and Test Report}
+\label{chap:test}
+
+\section{Strategy}
+
+Testing combines three levels.
+
+\begin{itemize}
+  \item \textbf{Unit tests} of models, validators, password hashing and the vote service.
+  \item \textbf{Integration tests} that call the real HTTP endpoints against an in-memory database: installation, registration, booth set-up, voting, results, audit.
+  \item \textbf{Security tests} for authentication bypass, role escalation, injection, cross-site scripting, rate limiting, duplicate ballots and election isolation.
+\end{itemize}
+
+Selected behaviour was additionally checked manually in a browser against a PostgreSQL-backed Docker stack that is isolated from any production database.
+
+\section{Environment}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Item} & \textbf{Setting} \\
+\midrule
+Automated tests & Python 3.13, pytest, SQLite in memory, fast bcrypt rounds \\
+Manual and concurrency checks & Docker Compose: PostgreSQL 16, Flask with gunicorn, nginx; separate database volume and ports \\
+Browsers used & Chromium-based and Firefox, desktop and phone width \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Results}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lrX@{}}
+\toprule
+\textbf{Test module} & \textbf{Tests} & \textbf{Covers} \\
+\midrule
+\code{test\_setup\_registration} & 48 & Installation, registration, booths, voting, results, audit, security \\
+\code{test\_auth\_routes} & 24 & Sign-in, two-step verification, tokens, protection of admin endpoints \\
+\code{test\_maintenance\_routes} & 15 & Maintenance unlock, lockout, diagnostics, allowed actions \\
+\code{test\_voting\_routes} & 5 & Casting, duplicate vote, closed and unstarted elections \\
+\code{test\_security} & 12 & Anonymity of ballots, injection, escalation, secrecy \\
+\code{test\_models} & 26 & Models, election window, relations \\
+\code{test\_vote\_service} & 12 & Vote service, results, password hashing \\
+\code{test\_keepalive} & 4 & Health endpoint, self-ping and database ping \\
+\midrule
+\textbf{Total} & \textbf{146} & \textbf{all passed} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Functional test cases}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}p{4.6cm} X l@{}}
+\toprule
+\textbf{ID} & \textbf{Scenario} & \textbf{Expected result} & \textbf{Result} \\
+\midrule
+T-01 & Install on a clean database & Officer, settings and election created; wizard closes & Pass \\
+T-02 & Second installation attempt & Rejected; only one officer exists & Pass \\
+T-03 & Weak or mismatched passwords, bad schedule, non-image logo & Field errors; nothing created & Pass \\
+T-04 & Register 15 students & 15 unique slip IDs with the election prefix & Pass \\
+T-05 & Forced slip ID collision & New ID generated automatically & Pass \\
+T-06 & Possible duplicate student & Warning; saved only after confirmation & Pass \\
+T-07 & Opening voting without candidates & Refused with the missing positions listed & Pass \\
+T-08 & Add or change candidates after voting opens & Refused & Pass \\
+T-09 & Candidate without a photo or valid department & Refused; no photo stored & Pass \\
+T-10 & Second election while one is not archived & Refused & Pass \\
+T-11 & Generate booth token; use it with the officer's code & Booth \code{BOOTH-01} created; token works once & Pass \\
+T-12 & Wrong code, expired token, used token, Desk Officer's code & Rejected & Pass \\
+T-13 & Delete a booth & Token invalid at once; same number reusable & Pass \\
+T-14 & PIN login without a booth or with a built-in token & Rejected & Pass \\
+T-15 & Vote from another booth or a plain browser & Rejected & Pass \\
+T-16 & Complete vote and repeat it & First accepted, second rejected & Pass \\
+T-17 & Tampered selections (missing, duplicate, unknown position or candidate) & Rejected & Pass \\
+T-18 & Vote before start or after end & Rejected & Pass \\
+T-19 & Vote in another election & Rejected & Pass \\
+T-20 & Five wrong PIN attempts & PIN cancelled & Pass \\
+T-21 & Results during voting, after closing and before publishing & Counts not returned & Pass \\
+T-22 & Equal top votes; candidate versus NOTA tie & Draw, no winner & Pass \\
+T-23 & Public link before publishing; after publishing; after deleting & Refused; works; stops working & Pass \\
+T-24 & Deactivate or delete an officer with a live session & Next request rejected & Pass \\
+T-25 & Password change and reset with authenticator code & Works; wrong inputs rejected & Pass \\
+T-26 & Lockout of the maintenance screen & Locks after five wrong codes & Pass \\
+T-27 & Audit log filters and new events & Groups return the right events & Pass \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Security tests}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{4.2cm} X l@{}}
+\toprule
+\textbf{Test} & \textbf{Result} & \textbf{Outcome} \\
+\midrule
+Authentication bypass & Unauthenticated calls to every protected route return 401; removed the universal two-step code & Pass \\
+Role escalation / IDOR & Desk and voter tokens receive 403 on officer endpoints; staff cannot cast ballots & Pass \\
+SQL injection & Injection strings in search and slip lookup return no data and cause no error & Pass \\
+Cross-site scripting & Script in names, biographies and photo fields is rejected or stripped; images are verified & Pass \\
+Rate limiting & Sign-in returns 429 after ten attempts per minute (checked on the Docker stack) & Pass \\
+Duplicate ballot & Six concurrent submissions on PostgreSQL: exactly one accepted & Pass \\
+Session security & Deactivated accounts lose sessions at once; tokens expire & Pass \\
+Election isolation & A booth and voter cannot act in another election & Pass \\
+Ballot anonymity & Ballot rows carry no user reference & Pass \\
+Spreadsheet formula injection & Exports prefix dangerous cells & Pass \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Traceability}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Requirements} & \textbf{Verified by} \\
+\midrule
+FR-1 to FR-7 & T-01 to T-03, wizard and programme tests \\
+FR-8 to FR-14 & T-07 to T-10 \\
+FR-15 to FR-20 & T-04 to T-06, T-20, registration and search tests \\
+FR-21 to FR-24 & T-11 to T-15 \\
+FR-25 to FR-28 & T-16 to T-19, audit test \\
+FR-29 to FR-32 & T-21 to T-23 \\
+FR-33 & T-27 \\
+FR-34 to FR-37 & T-24, T-25, authentication and role tests \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Defects found and fixed during testing and review}
+
+\begin{itemize}
+  \item A fixed two-step code accepted for every account, a fixed maintenance PIN and built-in booth tokens were removed.
+  \item A database lock taken during migrations was never released and could freeze start-up; it is now taken on its own connection.
+  \item Rate limits were counted separately by each server process; the container now runs a single process with threads.
+  \item The default global rate limit would have throttled a whole campus behind one address.
+  \item A stacking problem hid the backdrop of pop-ups behind the sidebar; a focus problem made forms lose focus after one character.
+  \item Results were readable by officers before publication and during voting; they are now withheld by the server.
+\end{itemize}
+
+\section{Known limitations and untested areas}
+
+\begin{itemize}
+  \item No automated browser tests and no frame-rate measurements for animations; these were checked by eye.
+  \item The booth lock-down scripts were not executed on physical hardware as part of the automated tests.
+  \item Ballot rows and voter records both store the time of casting, so someone with direct database access could correlate them.
+  \item A front-end routing dependency has a moderate advisory that needs a major upgrade.
+  \item A load test with thousands of concurrent voters was not performed.
+\end{itemize}
+
+\section{Conclusion}
+
+All 146 automated tests pass. The critical properties (one vote per voter, booth-only voting, hidden results, role enforcement) are covered by tests and were confirmed on PostgreSQL.

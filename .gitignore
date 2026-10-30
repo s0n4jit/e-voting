@@ -82,3 +82,13 @@ yarn-error.log*
 *.sublime-workspace
 .DS_Store
 Thumbs.db
+
+# Local-only test environments and their notes (not part of a production deployment)
+testing/
+
+# Local reference material
+docs/INSTRUCTIONS.md
+docs/PHASES.md
+
+# Course reference material (not part of the product)
+docs/*.pdf

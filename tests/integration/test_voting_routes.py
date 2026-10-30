@@ -27,6 +27,18 @@ from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
 from app.models.ballot_entry import BallotEntry
+from app.models.kiosk_device import KioskDevice
+
+BOOTH = {}
+
+
+@pytest.fixture(autouse=True)
+def _booth(app, db):
+    """Votes are only accepted from a booth; every test runs against one."""
+    with app.app_context():
+        device, raw = KioskDevice.activate("TEST-BOOTH")
+        db.session.commit()
+        BOOTH["token"], BOOTH["ref"] = raw, device.ref
 
 
 def _make_voter_with_token(app, db, student_id, name="Test Voter"):
@@ -44,7 +56,7 @@ def _make_voter_with_token(app, db, student_id, name="Test Voter"):
 
         token = create_access_token(
             identity=str(user.id),
-            additional_claims={"role": "voter", "student_id": user.student_id},
+            additional_claims={"role": "voter", "student_id": user.student_id, "booth_ref": BOOTH["ref"]},
         )
         return user.id, token
 
@@ -99,10 +111,10 @@ class TestVotingRoutes:
 
             token = create_access_token(
                 identity=str(voter.id),
-                additional_claims={"role": "voter", "student_id": stu_id},
+                additional_claims={"role": "voter", "student_id": stu_id, "booth_ref": BOOTH["ref"]},
             )
 
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {"Authorization": f"Bearer {token}", "X-Kiosk-Token": BOOTH["token"]}
 
         # Step 1: Check initial status
         status_resp = client.get(f"/api/voter/status/{election_id}", headers=headers)
@@ -183,10 +195,10 @@ class TestVotingRoutes:
 
             token = create_access_token(
                 identity=str(voter.id),
-                additional_claims={"role": "voter", "student_id": stu_id},
+                additional_claims={"role": "voter", "student_id": stu_id, "booth_ref": BOOTH["ref"]},
             )
 
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {"Authorization": f"Bearer {token}", "X-Kiosk-Token": BOOTH["token"]}
         resp = client.post(
             f"/api/voter/elections/{election_id}/vote",
             json={"candidate_id": cand_id},
@@ -227,10 +239,10 @@ class TestVotingRoutes:
 
             token = create_access_token(
                 identity=str(voter.id),
-                additional_claims={"role": "voter", "student_id": stu_id},
+                additional_claims={"role": "voter", "student_id": stu_id, "booth_ref": BOOTH["ref"]},
             )
 
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {"Authorization": f"Bearer {token}", "X-Kiosk-Token": BOOTH["token"]}
         resp = client.post(
             f"/api/voter/elections/{election_id}/vote",
             json={"candidate_id": cand_id},
@@ -271,10 +283,10 @@ class TestVotingRoutes:
 
             token = create_access_token(
                 identity=str(voter.id),
-                additional_claims={"role": "voter", "student_id": stu_id},
+                additional_claims={"role": "voter", "student_id": stu_id, "booth_ref": BOOTH["ref"]},
             )
 
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {"Authorization": f"Bearer {token}", "X-Kiosk-Token": BOOTH["token"]}
         resp = client.post(
             f"/api/voter/elections/{election_id}/vote",
             json={"candidate_id": cand_id},

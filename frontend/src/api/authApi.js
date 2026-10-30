@@ -62,7 +62,17 @@ export const authApi = {
     return response.data;
   },
 
-  // RFC 6238 TOTP Authenticator 2FA
+  forgotPassword: async (identifier, code, newPassword) =>
+    (await apiClient.post('/auth/forgot-password', { identifier, code, new_password: newPassword })).data,
+
+  getLastLogin: async () => (await apiClient.get('/auth/last-login')).data,
+
+  setPhoto: async (photo) => (await apiClient.put('/auth/photo', { photo })).data,
+
+  changePassword: async (currentPassword, newPassword, code) =>
+    (await apiClient.post('/auth/change-password', code ? { code, new_password: newPassword } : { current_password: currentPassword, new_password: newPassword })).data,
+
+  // Two-step verification (authenticator app)
   setupTotp: async () => {
     const response = await apiClient.get('/auth/totp/setup');
     return response.data;

@@ -1,0 +1,43 @@
+# Render Blueprint: backend (Docker) + frontend (static site). The database lives in Supabase.
+# See docs/FREE_HOSTING.md. Values marked sync:false are asked for in the Render dashboard.
+services:
+  - type: web
+    name: evoting-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: PROXY_HOPS
+        value: "1"
+      - key: DATABASE_URL        # Supabase session-pooler connection string
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS        # URL of the frontend below, e.g. https://evoting-web.onrender.com
+        sync: false
+      - key: APP_URL             # URL of this service, e.g. https://evoting-api.onrender.com
+        sync: false
+      - key: SETUP_TOKEN
+        sync: false
+
+  - type: web
+    name: evoting-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL        # URL of the API above
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

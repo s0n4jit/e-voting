@@ -1,0 +1,390 @@
+\chapter{System Design}
+\label{chap:design}
+
+This chapter describes how the system is built: the architecture, the data model, and the main workflows as flowcharts.
+
+\section{Architecture}
+
+The system is a three-tier web application. Browsers talk to a web server (nginx) that serves the single-page application and forwards \code{/api} requests to a Flask API. The API is the only component that reads or writes the PostgreSQL database.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.9cm and 1.4cm]
+  \node[actor] (off) {Election\\Officer};
+  \node[actor, right=0.5cm of off] (desk) {Desk\\Officer};
+  \node[actor, right=0.5cm of desk] (voter) {Voter at\\booth};
+  \node[proc, below=1.4cm of desk, minimum width=9.6cm, text width=9.2cm] (web)
+        {\textbf{Web server (nginx)} -- serves the React single-page application and proxies \code{/api}};
+  \node[proc, below=1.0cm of web, minimum width=9.6cm, text width=9.2cm] (api)
+        {\textbf{Flask API} -- authentication, role checks, election lifecycle, registration, booths, voting, results, audit};
+  \node[store, below=1.0cm of api] (db) {PostgreSQL};
+  \draw[flow] (off.south) -- ++(0,-0.5) -| ([xshift=-3.6cm]web.north);
+  \draw[flow] (desk.south) -- (desk.south |- web.north);
+  \draw[flow] (voter.south) -- ++(0,-0.5) -| ([xshift=3.6cm]web.north);
+  \draw[flow] (web) -- node[lbl, right]{HTTP \code{/api}} (api);
+  \draw[flow] (api) -- node[lbl, right]{SQL} (db);
+\end{tikzpicture}
+\caption{Overall architecture}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Technology stack}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Layer} & \textbf{Technology} \\
+\midrule
+Frontend & React 18, Vite, Tailwind CSS (design tokens, light and dark themes), React Router \\
+Backend & Python 3.11, Flask 3, Flask-SQLAlchemy, Flask-JWT-Extended, Flask-Limiter, Flask-CORS \\
+Database & PostgreSQL (SQLite for development and tests) \\
+Security libraries & bcrypt (passwords, PINs), pyotp (two-step verification), bleach (input sanitising), Pillow (image validation) \\
+Packaging & Docker, Docker Compose, gunicorn \\
+Booths & Ubuntu LTS, GNOME on Wayland, Firefox (snap) with enterprise policy, systemd user service \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Backend structure}
+
+The API is organised in blueprints, one per concern.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Blueprint} & \textbf{Responsibility} \\
+\midrule
+\code{setup} & First-run installation wizard, one-time and race-free \\
+\code{auth} & Sign-in, two-step verification, password change/reset, voter PIN login, profile photo \\
+\code{admin}, \code{manage} & Elections, candidates, positions, programmes, lifecycle, settings, Desk Officers, booth tokens, audit log, results, reports \\
+\code{desk} & Student registration, search, check-in, voter slips \\
+\code{booth} & Booth activation and status polling \\
+\code{voter} & Ballot retrieval and casting (booth-only) \\
+\code{results}, \code{photos} & Public results by link, candidate photos \\
+\code{maintenance} & Booth diagnostics and restricted actions \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Deployment}
+
+The same code runs in two ways.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.8cm]
+  \node[font=\small\bfseries, color=navy] (t1) {Self-hosted (Docker Compose)};
+  \node[proc, below=0.4cm of t1] (a1) {nginx + React\\(\code{frontend})};
+  \node[proc, below=0.7cm of a1] (a2) {Flask + gunicorn\\(\code{backend})};
+  \node[store, below=0.7cm of a2] (a3) {PostgreSQL\\(\code{db}, volume)};
+  \draw[flow] (a1) -- (a2); \draw[flow] (a2) -- (a3);
+  \node[font=\small\bfseries, color=navy, right=5.2cm of t1] (t2) {Hosted};
+  \node[proc, below=0.4cm of t2] (b1) {Static hosting\\(e.g.\ Vercel)};
+  \node[proc, below=0.7cm of b1] (b2) {API service\\(e.g.\ Render)};
+  \node[store, below=0.7cm of b2] (b3) {Managed PostgreSQL\\(e.g.\ Supabase)};
+  \draw[flow] (b1) -- node[lbl, right]{\code{VITE\_API\_URL}} (b2); \draw[flow] (b2) -- node[lbl, right]{\code{DATABASE\_URL}} (b3);
+\end{tikzpicture}
+\caption{Deployment options}
+\end{figure}
+
+All addresses and credentials come from environment variables; nothing refers to a particular hosting account. Database schema creation and upgrades run automatically at start-up and are recorded in a \code{schema\_migrations} table.
+
+\section{Data model}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[ent/.style={rectangle, draw=indigo, fill=softindigo, rounded corners=0.05cm, align=center, font=\footnotesize, minimum width=2.5cm, minimum height=0.8cm, inner sep=3pt},
+                    rel/.style={-, thick, color=navy}, node distance=0.9cm and 1.2cm]
+  \node[ent] (elec) {elections};
+  \node[ent, left=of elec] (pos) {election\_positions};
+  \node[ent, right=of elec] (cand) {candidates};
+  \node[ent, right=of cand] (photo) {candidate\_photos};
+  \node[ent, below=1.3cm of elec] (vr) {voter\_records\\{\scriptsize who voted}};
+  \node[ent, below=1.3cm of cand] (ballot) {ballot\_entries\\{\scriptsize what was chosen}};
+  \node[ent, left=of vr] (user) {users\\{\scriptsize staff and voters}};
+  \node[ent, below=1.3cm of user] (prog) {programmes};
+  \node[ent, below=1.3cm of vr] (tok) {voting\_tokens\\{\scriptsize PIN slips}};
+  \node[ent, right=of tok] (booth) {kiosk\_devices\\{\scriptsize booths}};
+  \node[ent, right=of booth] (bct) {booth\_create\_tokens};
+  \node[ent, above=1.3cm of user] (audit) {audit\_logs};
+  \node[ent, above=1.3cm of pos] (set) {system\_settings};
+  \draw[rel] (elec) -- node[lbl, above]{1..n} (pos);
+  \draw[rel] (elec) -- node[lbl, above]{1..n} (cand);
+  \draw[rel] (cand) -- (photo);
+  \draw[rel] (elec) -- (vr);
+  \draw[rel] (cand) -- (ballot);
+  \draw[rel] (user) -- (prog);
+  \draw[rel] (user) -- (tok);
+  \draw[rel] (elec) -- (booth);
+  \draw[rel] (booth) -- (bct);
+  \draw[rel] (user) -- (audit);
+  \draw[rel, dashed, color=badred] (vr) -- node[lbl, right, color=badred]{no link} (ballot);
+\end{tikzpicture}
+\caption{Main tables and their relations. The dashed red line marks the deliberate absence of any link between voter records and ballots.}
+\label{fig:er}
+\end{figure}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}l X@{}}
+\toprule
+\textnormal{\textbf{Table}} & \textbf{Purpose and key fields} \\
+\midrule
+users & Staff and voters. A voter's \code{student\_id} is the generated Voter Slip ID; staff have a bcrypt password hash and optional TOTP secret; \code{role} is \code{admin}, \code{polling\_officer} or \code{voter} \\
+elections & Title, voting window, lifecycle \code{status}, \code{slip\_prefix}, optional \code{public\_token} \\
+election\_positions & Ordered positions of an election (unique per election) \\
+candidates, candidate\_photos & Candidate details; the photo is stored in the database and removed with the candidate \\
+programmes & Level (degree or higher secondary), programme, department or stream, number of terms \\
+voter\_records & One row per voter per election: SHA-256 hash of the slip ID and a \code{has\_voted} flag. Unique per election and voter \\
+ballot\_entries & One row per position per ballot: candidate or NOTA and a random blind token. \emph{No user reference} \\
+voting\_tokens & Single-use PIN slips (bcrypt hash, expiry, failed attempts) \\
+kiosk\_devices & Booths: Booth ID, SHA-256 of the booth token, election, last-seen time \\
+booth\_create\_tokens & One-time tokens created in the officer panel (hashed, 15 minute expiry) \\
+audit\_logs & Who did what, when, from where \\
+system\_settings & Key/value settings, including the \code{installed} flag \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Workflows}
+
+\subsection{Installation wizard}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.7cm]
+  \node[term] (s) {Open portal};
+  \node[dec, below=of s] (d1) {Installed?};
+  \node[proc, right=1.6cm of d1] (login) {Show sign-in};
+  \node[proc, below=of d1] (w1) {1 Welcome};
+  \node[proc, below=of w1] (w2) {2 System: name, logo, timezone, slip letters};
+  \node[proc, below=of w2] (w3) {3 Officer account};
+  \node[proc, below=of w3] (w4) {4 Election and positions, programmes};
+  \node[proc, below=of w4] (w5) {5 Review and install};
+  \node[proc, below=of w5] (tx) {Create settings, officer, election in \textbf{one transaction}};
+  \node[dec, right=1.6cm of tx] (d2) {Second request?};
+  \node[fail, right=1.2cm of d2] (rej) {Rejected: already installed};
+  \node[proc, below=of tx] (tfa) {Turn on two-step verification (mandatory)};
+  \node[term, below=of tfa] (e) {Officer dashboard};
+  \draw[flow] (s) -- (d1);
+  \draw[flow] (d1) -- node[lbl, above]{yes} (login);
+  \draw[flow] (d1) -- node[lbl, right]{no} (w1);
+  \foreach \a/\b in {w1/w2, w2/w3, w3/w4, w4/w5, w5/tx, tx/tfa, tfa/e} {\draw[flow] (\a) -- (\b);}
+  \draw[flow, dashed] (d2) -- (tx);
+  \draw[flow] (d2) -- node[lbl, above]{yes} (rej);
+\end{tikzpicture}
+\caption{First-run installation}
+\end{figure}
+
+The wizard validates each step on the server. The \code{installed} setting is a primary-key row, so two simultaneous installations cannot both succeed. An optional \code{SETUP\_TOKEN} protects the wizard until installation finishes.
+
+\subsection{Election lifecycle}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.35cm]
+  \node[stage] (a) {Setup};
+  \node[stage, right=of a] (b) {Registration};
+  \node[stage, right=of b] (c) {Ready};
+  \node[stage, right=of c, fill=softgreen, draw=okgreen] (d) {Voting active};
+  \node[stage, below=1.1cm of a] (e) {Voting closed};
+  \node[stage, right=of e] (f) {Results published};
+  \node[stage, right=of f] (g) {Archived};
+  \foreach \x/\y in {a/b, b/c, c/d} {\draw[flow] (\x) -- (\y);}
+  \foreach \x/\y in {e/f, f/g} {\draw[flow] (\x) -- (\y);}
+  \draw[flow] (d.south) -- ++(0,-0.45) -| (e.north);
+  \draw[flow, dashed, color=mutedgray] (b.north) to[bend right=35] (a.north);
+  \draw[flow, dashed, color=mutedgray] (c.north) to[bend right=35] (b.north);
+  \node[lbl, below=0.2cm of g, text width=3.2cm, align=center]{a new election can be created only after the previous one is archived};
+\end{tikzpicture}
+\caption{Election lifecycle. Dashed arrows: before voting opens, an officer may step back.}
+\label{fig:lifecycle}
+\end{figure}
+
+Opening voting requires every position to have at least one candidate and an end time in the future. From \emph{Voting active} onward, positions, candidates and the voting period are locked. The voting window is enforced independently of the stage.
+
+\subsection{Student registration and PIN issue}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.65cm]
+  \node[term] (s) {Desk Officer};
+  \node[io, below=of s] (in) {Name, programme, department, semester};
+  \node[dec, below=of in] (val) {Valid?};
+  \node[fail, right=1.5cm of val] (err) {Show message};
+  \node[dec, below=of val] (dup) {Possible duplicate?};
+  \node[proc, right=1.5cm of dup] (conf) {Officer confirms it is a different student};
+  \node[proc, below=1.0cm of dup] (gen) {Generate slip ID \code{SUE26-E1-483920}; retry on collision};
+  \node[proc, below=of gen] (save) {Save voter and enrol in the election};
+  \node[proc, below=of save] (print) {Print slip};
+  \node[proc, below=of print] (chk) {At voting time: check in, verify status};
+  \node[dec, below=of chk] (voted) {Already voted?};
+  \node[fail, right=1.5cm of voted] (no) {No PIN issued};
+  \node[term, below=1.0cm of voted] (pin) {Issue single-use PIN (20 min)};
+  \draw[flow] (s) -- (in); \draw[flow] (in) -- (val);
+  \draw[flow] (val) -- node[lbl, above]{no} (err);
+  \draw[flow] (val) -- node[lbl, right]{yes} (dup);
+  \draw[flow] (dup) -- node[lbl, above]{yes} (conf);
+  \draw[flow] (dup) -- node[lbl, right]{no} (gen);
+  \draw[flow] (conf) |- (gen);
+  \foreach \a/\b in {gen/save, save/print, print/chk, chk/voted} {\draw[flow] (\a) -- (\b);}
+  \draw[flow] (voted) -- node[lbl, above]{yes} (no);
+  \draw[flow] (voted) -- node[lbl, right]{no} (pin);
+\end{tikzpicture}
+\caption{Registration and check-in}
+\end{figure}
+
+The Voter Slip ID has the form \code{<letters><yy>-E<n>-<6 digits>}: letters chosen at installation (default \code{SUE}), the election's two-digit year, the election number, and six random digits. A database uniqueness constraint guarantees that no two voters share an ID. The original college student ID is never collected.
+
+\subsection{Setting up a voting booth}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.65cm]
+  \node[actor] (o) {Election Officer};
+  \node[actor, right=5cm of o] (k) {Booth computer};
+  \node[proc, below=0.9cm of o] (g) {Generate booth token (one-time, 15 min)};
+  \node[proc, below=of g] (show) {Token shown once};
+  \node[io, below=0.9cm of k] (e) {Enter token and the officer's authenticator code};
+  \node[dec, below=of e] (v) {Token and code valid?};
+  \node[fail, right=1.2cm of v] (rej) {Rejected};
+  \node[proc, below=of v] (c) {Create booth \code{BOOTH-0n} for the election; token used up};
+  \node[proc, below=of c] (t) {Return booth token (stored hashed)};
+  \node[term, below=of t] (r) {Booth ready};
+  \draw[flow] (o) -- (g); \draw[flow] (g) -- (show);
+  \draw[flow] (k) -- (e); \draw[flow] (e) -- (v);
+  \draw[flow, dashed] (show.east) -- ++(1.2,0) |- node[lbl, above, pos=0.2]{officer reads it out} (e.west);
+  \draw[flow] (v) -- node[lbl, above]{no} (rej);
+  \draw[flow] (v) -- node[lbl, right]{yes} (c);
+  \draw[flow] (c) -- (t); \draw[flow] (t) -- (r);
+\end{tikzpicture}
+\caption{Booth set-up}
+\end{figure}
+
+Deleting a booth in the officer panel removes its record, so its token stops working immediately. Booths check their status with the server every three seconds and return to the set-up screen when revoked.
+
+\subsection{Voting at a booth}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.6cm]
+  \node[term] (s) {Voter at booth};
+  \node[io, below=of s] (in) {Type 6 digits of slip ID and PIN};
+  \node[dec, below=of in] (b) {Valid booth?};
+  \node[dec, below=of b] (p) {PIN valid?};
+  \node[dec, below=of p] (o) {Voting open now?};
+  \node[fail, right=1.6cm of b] (f1) {Refused};
+  \node[fail, right=1.6cm of p] (f2) {Error; 5 wrong PINs cancel it};
+  \node[fail, right=1.6cm of o] (f3) {Voting not open};
+  \node[proc, below=of o] (ch) {Choose one candidate or abstain, per position};
+  \node[proc, below=of ch] (rv) {Review choices};
+  \node[proc, below=of rv] (cf) {Confirm and submit};
+  \node[proc, below=of cf] (tx) {\textbf{One transaction:} lock voter record, check not voted, write ballot rows, mark voted, burn PIN, audit};
+  \node[term, below=of tx] (d) {Confirmation; booth resets};
+  \draw[flow] (s) -- (in); \draw[flow] (in) -- (b);
+  \draw[flow] (b) -- node[lbl, right]{yes} (p);
+  \draw[flow] (p) -- node[lbl, right]{yes} (o);
+  \draw[flow] (o) -- node[lbl, right]{yes} (ch);
+  \draw[flow] (b) -- node[lbl, above]{no} (f1);
+  \draw[flow] (p) -- node[lbl, above]{no} (f2);
+  \draw[flow] (o) -- node[lbl, above]{no} (f3);
+  \foreach \a/\b in {ch/rv, rv/cf, cf/tx, tx/d} {\draw[flow] (\a) -- (\b);}
+\end{tikzpicture}
+\caption{Casting a vote}
+\label{fig:vote}
+\end{figure}
+
+\subsubsection{Why a vote cannot be cast twice}
+
+The voter record row is selected with a row lock inside the submission transaction. A second, simultaneous submission waits for the first and then finds the voter already marked. A test submits one ballot six times concurrently on PostgreSQL: exactly one is accepted.
+
+\subsection{Secret ballot}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=2.2cm]
+  \node[store] (vr) {voter\_records\\{\scriptsize voter hash, has voted}};
+  \node[store, right=4.2cm of vr] (be) {ballot\_entries\\{\scriptsize candidate or NOTA, blind token}};
+  \draw[thick, dashed, color=badred] (vr) -- node[above, font=\small, color=badred]{no key, no foreign key} (be);
+  \node[proc, below=1.2cm of vr] (who) {answers\\``\textbf{who} has voted?''};
+  \node[proc, below=1.2cm of be] (what) {answers\\``\textbf{what} was chosen?''};
+  \draw[flow] (vr) -- (who); \draw[flow] (be) -- (what);
+\end{tikzpicture}
+\caption{Separation of identity and choice}
+\end{figure}
+
+\notebox{\textbf{Known limitation.} Both tables record the time of casting. Someone with direct database access could correlate the two by time. Database access and backups must therefore be restricted; the application never exposes the correlation.}
+
+\subsection{Results and publishing}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.65cm]
+  \node[term] (s) {Voting closed};
+  \node[proc, below=of s] (lock) {Results \textbf{locked}: only turnout is visible; counts are not sent to any browser};
+  \node[proc, below=of lock] (pub) {Officer presses \textbf{Publish results}};
+  \node[proc, below=of pub] (rev) {Projector reveal, one position at a time, in ballot order};
+  \node[dec, below=of rev] (tie) {Equal top votes?};
+  \node[proc, right=1.6cm of tie] (draw) {Show \textbf{Draw}, no winner};
+  \node[proc, below=1.0cm of tie] (win) {Show winner with confetti};
+  \node[dec, below=of win] (lnk) {Share publicly?};
+  \node[proc, right=1.6cm of lnk] (mk) {Create public link; can be deleted any time};
+  \node[term, below=of lnk] (e) {Archive election};
+  \draw[flow] (s) -- (lock); \draw[flow] (lock) -- (pub); \draw[flow] (pub) -- (rev); \draw[flow] (rev) -- (tie);
+  \draw[flow] (tie) -- node[lbl, above]{yes} (draw);
+  \draw[flow] (tie) -- node[lbl, right]{no} (win);
+  \draw[flow] (win) -- (lnk);
+  \draw[flow] (lnk) -- node[lbl, above]{yes} (mk);
+  \draw[flow] (lnk) -- node[lbl, right]{no} (e);
+  \draw[flow] (mk) |- (e);
+  \draw[flow] (draw) |- (lnk.north east);
+\end{tikzpicture}
+\caption{Results workflow}
+\end{figure}
+
+The winner of a position depends only on vote counts. If two candidates, or a candidate and ``None of the Above'', share the top count, the position is a draw. Time of voting plays no part.
+
+\subsection{Sign-in and password recovery}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.65cm]
+  \node[term] (s) {Staff sign-in};
+  \node[io, below=of s] (c) {Username or email and password};
+  \node[dec, below=of c] (ok) {Correct and active?};
+  \node[fail, right=1.5cm of ok] (no) {Rejected, rate-limited};
+  \node[dec, below=of ok] (tf) {Two-step verification on?};
+  \node[io, right=1.5cm of tf] (code) {Authenticator code};
+  \node[term, below=1.0cm of tf] (in) {Signed in};
+  \draw[flow] (s) -- (c); \draw[flow] (c) -- (ok);
+  \draw[flow] (ok) -- node[lbl, above]{no} (no);
+  \draw[flow] (ok) -- node[lbl, right]{yes} (tf);
+  \draw[flow] (tf) -- node[lbl, above]{yes} (code);
+  \draw[flow] (tf) -- node[lbl, right]{no} (in);
+  \draw[flow] (code) |- (in);
+\end{tikzpicture}
+\caption{Staff sign-in. Election Officers must have two-step verification; a forgotten password can be reset with an authenticator code.}
+\end{figure}
+
+\section{Security design}
+
+\begin{itemize}
+  \item \textbf{Roles on the server.} Every route checks the role from the signed session; the interface only hides what a role cannot use.
+  \item \textbf{Sessions end with the account.} A deactivated or deleted account is rejected on its next request.
+  \item \textbf{Rate limits and lockouts.} Sign-in, PIN login, booth set-up, password change, maintenance unlock; a PIN is cancelled after five wrong entries.
+  \item \textbf{Hashed secrets.} Passwords and PINs use bcrypt; booth tokens and booth create tokens are stored as SHA-256 hashes and shown once.
+  \item \textbf{Booth-only voting.} The booth token, the voter's session and the election must all match.
+  \item \textbf{Results secrecy.} Counts are withheld by the server until publication.
+  \item \textbf{Input and output.} Server-side validation and sanitising; photos verified as real images; exports neutralise spreadsheet formulas.
+  \item \textbf{Configuration.} Secrets only from environment variables; production refuses to start with development secrets.
+\end{itemize}
+
+\section{User interface design}
+
+The interface uses a small set of design tokens (colours, spacing, radii) with a light theme by default and an optional dark theme. Screens are responsive and keyboard accessible, colours meet contrast guidelines, and animations use transforms and opacity and respect the reduced-motion setting. Role-specific layouts:
+
+\begin{itemize}
+  \item \textbf{Election Officer:} floating collapsible sidebar, overview with turnout and activity, elections, candidates, registrations, Desk Officers, programmes, booths, results, audit log, settings, profile.
+  \item \textbf{Desk Officer:} register student, registrations (live statuses), voter check-in.
+  \item \textbf{Voter:} a distraction-free booth flow: entry, instructions, one position at a time with large candidate cards, review, confirmation dialog, animated submission, confirmation.
+\end{itemize}

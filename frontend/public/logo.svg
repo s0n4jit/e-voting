@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Campus E-Voting">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2552"/>
+      <stop offset="1" stop-color="#4757c0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#g)"/>
+  <rect x="21" y="9" width="22" height="29" rx="3.5" fill="#ffffff"/>
+  <path d="M26.5 22.5l4.2 4.2 7.3-8.4" fill="none" stroke="#4757c0" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 36.5h40v12a5.5 5.5 0 0 1-5.5 5.5h-29A5.5 5.5 0 0 1 12 48.5z" fill="#ffffff"/>
+  <rect x="19" y="36.5" width="26" height="4.5" rx="2.25" fill="#1f2552"/>
+</svg>

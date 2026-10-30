@@ -52,3 +52,19 @@ def validate_password(password: str) -> tuple[bool, str]:
     if not any(c.isdigit() for c in password):
         return False, "Password must contain at least one digit."
     return True, ""
+
+
+def validate_person_name(name) -> tuple[bool, str]:
+    """Unicode letters separated by single spaces, dots, hyphens or apostrophes; 2-100 chars."""
+    if not name or not isinstance(name, str):
+        return False, "Name is required."
+    if not (2 <= len(name) <= 100):
+        return False, "Name must be between 2 and 100 characters."
+    if not re.fullmatch(r"[^\W\d_](?:[^\W\d_]|[ .'\-])*", name):
+        return False, "Name may contain only letters, spaces, dots, hyphens and apostrophes."
+    return True, ""
+
+
+def clean_name(value) -> str:
+    """Trim and collapse internal whitespace."""
+    return re.sub(r"\s+", " ", str(value or "")).strip()

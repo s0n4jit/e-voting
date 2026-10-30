@@ -4,8 +4,8 @@ export const maintenanceApi = {
   /**
    * Authenticate staff member using high-entropy staff PIN
    */
-  verifyStaffPin: async (pin) => {
-    const response = await apiClient.post('/maintenance/auth', { pin });
+  verifyStaffPin: async (code) => {
+    const response = await apiClient.post('/maintenance/auth', { code });
     return response.data;
   },
 

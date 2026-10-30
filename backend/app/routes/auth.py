@@ -7,7 +7,7 @@ import base64
 import pyotp
 import qrcode
 from datetime import timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -17,20 +17,20 @@ from flask_jwt_extended import (
     decode_token,
 )
 
-from app.extensions import db, token_blacklist, commit_or_flush
+from app.extensions import db, limiter, token_blacklist, commit_or_flush
 from app.models.user import User
 from app.models.election import Election
 from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
 from app.models.voting_token import VotingToken
 from app.models.kiosk_device import KioskDevice
-from app.services.otp_service import OTPService
-from app.utils.validators import sanitize_input
+from app.utils.validators import sanitize_input, validate_password
 
 auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.post("/login")
+@limiter.limit("10 per minute")
 def login():
     """
     Step 1 of 2FA:
@@ -80,6 +80,9 @@ def login():
             403,
         )
 
+    if not user.otp_enabled:
+        return _issue_session(user), 200
+
     # Issue a short-lived temp token scoped specifically for OTP
     temp_token = create_access_token(
         identity=str(user.id),
@@ -102,6 +105,7 @@ def login():
 
 
 @auth_bp.post("/verify-otp")
+@limiter.limit("10 per minute")
 def verify_otp():
     """
     Step 2 of 2FA:
@@ -159,18 +163,9 @@ def verify_otp():
             401,
         )
 
-    # Validate OTP (RFC 6238 TOTP with developer fallback if not yet bound)
     clean_code = str(otp_code).strip()
-    is_valid_otp = False
-
-    # 1. Check authentic TOTP code against user's secret
-    if user.otp_secret and user.verify_otp(clean_code):
-        is_valid_otp = True
-    # 2. Universal demo/initial onboarding code for accounts prior to TOTP binding
-    elif clean_code == "123456":
-        is_valid_otp = True
-
-    if not is_valid_otp:
+    demo = current_app.config.get("DEMO_OTP_CODE")
+    if not (user.otp_secret and user.verify_otp(clean_code)) and not (demo and clean_code == demo):
         return (
             jsonify({
                 "error": "Unauthorized",
@@ -179,45 +174,129 @@ def verify_otp():
             401,
         )
 
-    # Determine role claim
+    return _issue_session(user), 200
+
+
+def _issue_session(user):
+    """Create access/refresh tokens and a LOGIN_SUCCESS audit entry; returns the response body."""
     role = "admin" if (user.is_admin or user.role == "admin") else user.role
-
-    # Create full JWT credentials
-    access_token = create_access_token(
-        identity=str(user.id),
-        additional_claims={
-            "role": role,
-            "student_id": user.student_id,
-            "name": user.name,
-        },
-    )
-    refresh_token = create_refresh_token(
-        identity=str(user.id),
-        additional_claims={
-            "role": role,
-            "student_id": user.student_id,
-        },
-    )
-
-    # Log audit entry
-    audit = AuditLog(
+    claims = {"role": role, "student_id": user.student_id, "name": user.name}
+    body = {
+        "access_token": create_access_token(identity=str(user.id), additional_claims=claims),
+        "refresh_token": create_refresh_token(
+            identity=str(user.id), additional_claims={"role": role, "student_id": user.student_id}
+        ),
+        "user": user.to_dict(),
+    }
+    db.session.add(AuditLog(
         user_id=user.id,
         action="LOGIN_SUCCESS",
-        details="User completed 2FA login successfully.",
+        details="Signed in.",
         ip_address=request.remote_addr or "127.0.0.1",
         user_agent=request.user_agent.string if request.user_agent else "client",
-    )
-    db.session.add(audit)
+    ))
     commit_or_flush()
+    return jsonify(body)
 
-    return (
-        jsonify({
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "user": user.to_dict(),
-        }),
-        200,
+
+@auth_bp.get("/last-login")
+@jwt_required()
+def last_login():
+    """When and from where this account last signed in (the sign-in before the current one, if any)."""
+    from app.utils.timeutil import utc_iso
+
+    rows = (
+        AuditLog.query.filter_by(user_id=int(get_jwt_identity()), action="LOGIN_SUCCESS")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(2).all()
     )
+    row = rows[-1] if rows else None
+    return jsonify({"at": utc_iso(row.created_at) if row else None, "ip": row.ip_address if row else None}), 200
+
+
+@auth_bp.put("/photo")
+@jwt_required()
+def set_photo():
+    """Staff set or remove their own profile picture (data URL, same limits as the institution logo)."""
+    from app.routes.setup import LOGO_RE, MAX_LOGO_CHARS
+
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user or user.role not in ("admin", "polling_officer"):
+        return jsonify({"error": "Forbidden"}), 403
+    photo = (request.get_json(silent=True) or {}).get("photo") or ""
+    if photo and (len(photo) > MAX_LOGO_CHARS or not LOGO_RE.match(photo)):
+        return jsonify({"error": "Bad photo", "message": "Use a PNG, JPEG or WebP image under 300 KB."}), 400
+    user.photo = photo or None
+    commit_or_flush()
+    return jsonify(user.to_dict()), 200
+
+
+@auth_bp.post("/forgot-password")
+@limiter.limit("5 per minute")
+def forgot_password():
+    """
+    Self-service reset for staff who turned on two-step verification: the account name, a current
+    authenticator code and a new password. Accounts without it cannot be reset here (an Election
+    Officer resets Desk Officers; the server operator uses `manage.py set-password`).
+    """
+    payload = request.get_json(silent=True) or {}
+    identifier = sanitize_input(payload.get("identifier") or "")
+    code, new = str(payload.get("code") or "").strip(), payload.get("new_password") or ""
+    failure = (jsonify({"error": "Cannot reset", "message": "We could not verify those details. Check the account name and the current code from your authenticator app."}), 400)
+
+    user = User.query.filter(
+        (db.func.lower(User.email) == identifier.lower()) | (db.func.lower(User.student_id) == identifier.lower())
+    ).first() if identifier else None
+    if not user or user.role not in ("admin", "polling_officer") or not user.is_active or not user.otp_enabled or not user.verify_otp(code):
+        return failure
+    ok, message = validate_password(new)
+    if not ok:
+        return jsonify({"error": "Weak password", "message": message}), 400
+
+    user.set_password(new)
+    db.session.add(AuditLog(
+        user_id=user.id,
+        action="PASSWORD_RESET",
+        details="Reset their password with an authenticator code.",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "client",
+    ))
+    commit_or_flush()
+    return jsonify({"message": "Your password has been reset. You can sign in now."}), 200
+
+
+@auth_bp.post("/change-password")
+@jwt_required()
+@limiter.limit("5 per minute")
+def change_password():
+    """Signed-in staff change their own password, confirmed with the current password or an authenticator code."""
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user or user.role not in ("admin", "polling_officer"):
+        return jsonify({"error": "Forbidden", "message": "Only staff accounts have a password."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    current, new = payload.get("current_password") or "", payload.get("new_password") or ""
+    code = str(payload.get("code") or "").strip()
+    if code:  # forgot the current password: an authenticator code proves it is really them
+        if not (user.otp_enabled and user.verify_otp(code)):
+            return jsonify({"error": "Wrong code", "message": "That authenticator code is not correct.", "field": "code"}), 400
+    elif not user.check_password(current):
+        return jsonify({"error": "Wrong password", "message": "The current password is not correct.", "field": "current_password"}), 400
+    ok, message = validate_password(new)
+    if not ok:
+        return jsonify({"error": "Weak password", "message": message, "field": "new_password"}), 400
+    if new == current:
+        return jsonify({"error": "Same password", "message": "Choose a password different from the current one.", "field": "new_password"}), 400
+
+    user.set_password(new)
+    db.session.add(AuditLog(
+        user_id=user.id,
+        action="PASSWORD_CHANGED",
+        details="Changed their own password.",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "client",
+    ))
+    commit_or_flush()
+    return jsonify({"message": "Your password has been changed."}), 200
 
 
 @auth_bp.post("/refresh")
@@ -263,7 +342,7 @@ def logout():
         audit = AuditLog(
             user_id=int(user_id),
             action="LOGOUT",
-            details="User logged out.",
+            details="Signed out.",
             ip_address=request.remote_addr or "127.0.0.1",
             user_agent=request.user_agent.string if request.user_agent else "client",
         )
@@ -352,7 +431,7 @@ def enable_totp():
     audit = AuditLog(
         user_id=user.id,
         action="TOTP_2FA_ENABLED",
-        details=f"User {user.student_id} activated RFC 6238 Authenticator 2FA.",
+        details="Turned on two-step verification.",
         ip_address=request.remote_addr or "127.0.0.1",
         user_agent=request.user_agent.string if request.user_agent else "auth",
     )
@@ -378,6 +457,9 @@ def disable_totp():
     if not user:
         return jsonify({"error": "User not found."}), 404
 
+    if user.role == "admin":
+        return jsonify({"error": "Required", "message": "Two-step verification is required for Election Officers and cannot be turned off."}), 403
+
     payload = request.get_json(silent=True) or {}
     password = payload.get("password")
 
@@ -388,7 +470,7 @@ def disable_totp():
     audit = AuditLog(
         user_id=user.id,
         action="TOTP_2FA_DISABLED",
-        details=f"User {user.student_id} deactivated RFC 6238 Authenticator 2FA.",
+        details="Turned off two-step verification.",
         ip_address=request.remote_addr or "127.0.0.1",
         user_agent=request.user_agent.string if request.user_agent else "auth",
     )
@@ -424,10 +506,7 @@ def get_active_election():
     Accessible without JWT so unauthenticated kiosk booths can discover election details.
     """
     active_elections = Election.query.filter_by(is_active=True).all()
-    ongoing = [e for e in active_elections if e.is_ongoing]
-    election = ongoing[0] if ongoing else (
-        active_elections[0] if active_elections else Election.query.order_by(Election.created_at.desc()).first()
-    )
+    election = Election.current()
 
     if not election:
         return jsonify({"election": None, "elections": []}), 200
@@ -441,6 +520,7 @@ def get_active_election():
 
 
 @auth_bp.post("/voter-pin-login")
+@limiter.limit("30 per minute")
 def voter_pin_login():
     """
     Lab Kiosk / Desk PIN Authentication:
@@ -462,6 +542,19 @@ def voter_pin_login():
             }),
             400,
         )
+
+    # Voting is only possible from an authorized booth (see routes/booth.py), and a booth serves its own election
+    is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
+    if not is_kiosk_valid:
+        return (
+            jsonify({
+                "error": "Unauthorized Kiosk",
+                "message": "This computer is not set up as a voting booth. Ask the Election Officer for a booth token.",
+            }),
+            403,
+        )
+    if kiosk_device.election_id:
+        election_id = kiosk_device.election_id
 
     if election_id:
         try:
@@ -494,26 +587,16 @@ def voter_pin_login():
             400,
         )
 
-    # Optional kiosk terminal validation
-    kiosk_device = None
-    if kiosk_token:
-        is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
-        if not is_kiosk_valid:
-            return (
-                jsonify({
-                    "error": "Unauthorized Kiosk",
-                    "message": "The terminal is not an authorized kiosk station.",
-                }),
-                403,
-            )
 
     # Resolve student user
-    user = User.query.filter_by(student_id=student_id).first()
+    user = User.query.filter(
+        db.func.upper(User.student_id) == student_id.strip().upper(), User.role == "voter"
+    ).first()
     if not user:
         return (
             jsonify({
                 "error": "Invalid credentials",
-                "message": "Invalid Student ID or Voting PIN.",
+                "message": "Invalid Voter Slip ID or Voting PIN.",
             }),
             401,
         )
@@ -539,10 +622,25 @@ def voter_pin_login():
         raw_pin=voting_pin,
     )
     if not is_valid_pin:
+        # Lock the slip's PIN after 5 wrong guesses so a 6-digit PIN cannot be brute-forced.
+        latest = (
+            VotingToken.query.filter_by(student_id=user.student_id, election_id=election.id, is_used=False)
+            .order_by(VotingToken.created_at.desc()).first()
+        )
+        if latest:
+            latest.failed_attempts = (latest.failed_attempts or 0) + 1
+            if latest.failed_attempts >= 5:
+                latest.is_used = True
+                db.session.add(AuditLog(
+                    user_id=user.id, action="PIN_LOCKED",
+                    details=f"The voting PIN of {user.student_id} was cancelled after 5 wrong entries. A new PIN must be issued at the desk.",
+                    ip_address=request.remote_addr or "127.0.0.1",
+                ))
+            db.session.commit()
         return (
             jsonify({
                 "error": "Invalid PIN",
-                "message": "Invalid, expired, or already used voting PIN. Please request a new PIN at the desk.",
+                "message": "That PIN is incorrect, expired or already used. Please ask the desk for a new slip.",
             }),
             401,
         )
@@ -557,14 +655,16 @@ def voter_pin_login():
             "name": user.name,
             "election_id": election.id,
             "voting_authorized": True,
-            "is_kiosk": bool(kiosk_device),
+            "is_kiosk": True,
+            "booth_id": kiosk_device.booth_id,
+            "booth_ref": kiosk_device.ref,
         },
     )
 
     audit = AuditLog(
         user_id=user.id,
         action="PIN_LOGIN_SUCCESS",
-        details=f"Voter authenticated with single-use PIN for election {election.id}",
+        details=f"Entered a valid PIN and started voting in \u201c{election.title}\u201d at booth {kiosk_device.booth_id} (session {kiosk_device.ref}).",
         ip_address=request.remote_addr or "127.0.0.1",
         user_agent=request.user_agent.string if request.user_agent else "kiosk",
     )

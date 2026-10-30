@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminApi } from '../../api/adminApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { createPortal } from 'react-dom';
 import { toast } from 'react-hot-toast';
 import {
   ShieldCheckIcon,
@@ -25,8 +26,20 @@ export const AuditLog = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
+  const [serverCategories, setServerCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLog, setSelectedLog] = useState(null);
+
+  useEffect(() => {
+    if (!selectedLog) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setSelectedLog(null);
+    document.body.style.overflow = 'hidden'; // the page behind must not scroll
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [selectedLog]);
 
   const fetchLogs = async (silent = false) => {
     try {
@@ -40,6 +53,7 @@ export const AuditLog = () => {
       const list = Array.isArray(res) ? res : res?.logs || [];
       setLogs(list);
       if (res?.stats) setStats(res.stats);
+      if (res?.categories) setServerCategories(res.categories);
     } catch (err) {
       if (!silent) {
         console.error('Failed to retrieve audit log trail:', err);
@@ -85,64 +99,21 @@ export const AuditLog = () => {
     }
   };
 
-  const getActionBadge = (action) => {
-    if (['BALLOT_CAST', 'VOTE_CAST', 'BALLOT_SEALED'].includes(action)) {
-      return {
-        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        icon: CheckBadgeIcon,
-        label: 'Ballot Sealed',
-      };
-    }
-    if (['PIN_ISSUED', 'VOTING_TOKEN_GENERATED'].includes(action)) {
-      return {
-        bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-        icon: TicketIcon,
-        label: 'PIN Slip Issued',
-      };
-    }
-    if (['STUDENT_AUTO_ENROLLED_AT_DESK', 'VOTER_REGISTERED'].includes(action)) {
-      return {
-        bg: 'bg-amber-50 text-amber-700 border-amber-200',
-        icon: UserIcon,
-        label: 'Voter Enrolled',
-      };
-    }
-    if (['STAFF_MAINTENANCE_ACTION'].includes(action)) {
-      return {
-        bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-        icon: ComputerDesktopIcon,
-        label: 'Kiosk Hardware',
-      };
-    }
-    if (['LOGIN_SUCCESS', 'MFA_VERIFIED', 'TOTP_2FA_ENABLED'].includes(action)) {
-      return {
-        bg: 'bg-blue-50 text-blue-700 border-blue-200',
-        icon: KeyIcon,
-        label: 'Staff Auth',
-      };
-    }
-    if (['LOGIN_FAILED', 'UNAUTHORIZED_ACCESS'].includes(action)) {
-      return {
-        bg: 'bg-rose-50 text-rose-700 border-rose-200',
-        icon: ExclamationTriangleIcon,
-        label: 'Security Alert',
-      };
-    }
-    return {
-      bg: 'bg-slate-100 text-slate-700 border-slate-200',
-      icon: InformationCircleIcon,
-      label: action,
-    };
+  const BADGES = {
+    ballot: ['bg-emerald-50 text-emerald-700 border-emerald-200', CheckBadgeIcon],
+    pin: ['bg-indigo-50 text-indigo-700 border-indigo-200', TicketIcon],
+    desk: ['bg-amber-50 text-amber-700 border-amber-200', UserIcon],
+    auth: ['bg-blue-50 text-blue-700 border-blue-200', KeyIcon],
+    election: ['bg-violet-50 text-violet-700 border-violet-200', InformationCircleIcon],
+    booth: ['bg-cyan-50 text-cyan-700 border-cyan-200', ComputerDesktopIcon],
+    admin: ['bg-slate-100 text-slate-700 border-slate-200', InformationCircleIcon],
+  };
+  const getActionBadge = (log) => {
+    const [bg, icon] = BADGES[log.category] || BADGES.admin;
+    return { bg, icon, label: log.action_label || log.action };
   };
 
-  const categories = [
-    { id: 'all', label: 'All Operations' },
-    { id: 'ballot', label: '🗳️ Ballots Sealed' },
-    { id: 'pin', label: '🎫 PIN Slips Issued' },
-    { id: 'enroll', label: '👥 Desk Check-ins' },
-    { id: 'auth', label: '🔑 Staff Logins & 2FA' },
-    { id: 'kiosk', label: '🖥️ Kiosk Maintenance' },
-  ];
+  const categories = [{ id: 'all', label: 'All activity' }, ...serverCategories];
 
   return (
     <div className="space-y-6">
@@ -150,13 +121,10 @@ export const AuditLog = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            Election Transparency & Audit Trail
-            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold font-mono">
-              IMMUTABLE
-            </span>
+            Audit log
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Complete cryptographic activity ledger: who performed what operation, when, and from which station.
+            A record of administrative activity: who did what, and when.
           </p>
         </div>
 
@@ -185,11 +153,11 @@ export const AuditLog = () => {
           <p className="text-xl font-black text-slate-900 mt-1">{stats?.total_records || logs.length}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Ballots Sealed</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Ballots cast</p>
           <p className="text-xl font-black text-emerald-600 mt-1">{stats?.ballots_cast || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">PIN Slips Issued</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">PIN slips issued</p>
           <p className="text-xl font-black text-indigo-600 mt-1">{stats?.pins_issued || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
@@ -197,7 +165,7 @@ export const AuditLog = () => {
           <p className="text-xl font-black text-amber-600 mt-1">{stats?.desk_enrollments || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm col-span-2 lg:col-span-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Kiosk Actions</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Booth activity</p>
           <p className="text-xl font-black text-cyan-600 mt-1">{stats?.kiosk_actions || 0}</p>
         </div>
       </div>
@@ -256,7 +224,7 @@ export const AuditLog = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {logs.map((log) => {
-                  const badge = getActionBadge(log.action);
+                  const badge = getActionBadge(log);
                   const Icon = badge.icon;
 
                   return (
@@ -325,8 +293,8 @@ export const AuditLog = () => {
       </div>
 
       {/* Technical Detail Modal */}
-      {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      {selectedLog && createPortal(
+        <div className="no-flip fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -345,7 +313,7 @@ export const AuditLog = () => {
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 font-mono">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Action:</span>
-                  <span className="font-bold text-slate-900">{selectedLog.action}</span>
+                  <span className="font-bold text-slate-900">{String(selectedLog.action || '').toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Timestamp:</span>
@@ -363,7 +331,7 @@ export const AuditLog = () => {
 
               <div>
                 <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
-                  Operation Narrative
+                  What happened
                 </p>
                 <p className="p-3 rounded-xl bg-slate-100 text-slate-800 leading-relaxed">
                   {selectedLog.details || 'No descriptive metadata attached.'}
@@ -389,7 +357,8 @@ export const AuditLog = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

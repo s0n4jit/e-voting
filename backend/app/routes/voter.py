@@ -12,6 +12,8 @@ from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
 from app.services.vote_service import VoteService, VotingError
+from flask_jwt_extended import get_jwt
+from app.routes.booth import require_booth
 from app.utils.decorators import voter_required
 
 voter_bp = Blueprint("voter", __name__)
@@ -44,43 +46,25 @@ def get_election_ballot(election_id):
     """
     Retrieve structured multi-position ballot with candidate lists and NOTA indicators.
     """
+    _, denied = require_booth(get_jwt(), election_id)
+    if denied:
+        return denied
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
 
     candidates = Candidate.query.filter_by(election_id=election.id).order_by(Candidate.id.asc()).all()
 
-    # Group candidates by office / position in standard student union protocol order
-    order_priority = {
-        "Vice President": 1,
-        "General Secretary": 2,
-        "Assistant General Secretary": 3,
-        "Cultural Secretary": 4,
-        "Magazine Secretary": 5,
-        "Boys Common Room Secretary": 6,
-        "Girls Common Room Secretary": 7,
-        "Major Games Secretary": 8,
-        "Minor Games Secretary": 9,
-    }
-
     positions_map = {}
     for cand in candidates:
-        pos = cand.position or "General Secretary"
-        if pos not in positions_map:
-            positions_map[pos] = []
-        positions_map[pos].append(cand.to_dict())
+        positions_map.setdefault(cand.position or "General Secretary", []).append(cand.to_dict())
 
-    sorted_positions = sorted(
-        positions_map.keys(),
-        key=lambda p: (order_priority.get(p, 99), p)
-    )
+    # Officer-defined order first; positions without a configured order keep alphabetical order.
+    order = {p.name: p.sort_order for p in election.positions}
+    sorted_positions = sorted(positions_map, key=lambda p: (order.get(p, 10_000), p))
 
     positions_list = [
-        {
-            "position": pos,
-            "candidates": positions_map[pos],
-            "allow_nota": True,
-        }
+        {"position": pos, "candidates": positions_map[pos], "allow_nota": True}
         for pos in sorted_positions
     ]
 
@@ -101,6 +85,9 @@ def cast_multi_position_ballot(election_id):
     """
     Cast an anonymous multi-position ballot with NOTA support and kiosk verification.
     """
+    booth, denied = require_booth(get_jwt(), election_id)
+    if denied:
+        return denied
     user_id = get_jwt_identity()
     user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
     if not user:
@@ -108,7 +95,6 @@ def cast_multi_position_ballot(election_id):
 
     payload = request.get_json(silent=True) or {}
     selections = payload.get("selections")
-    kiosk_token = payload.get("kiosk_token") or request.headers.get("X-Kiosk-Token")
 
     if selections is None:
         return jsonify({"error": "selections list is required."}), 400
@@ -118,7 +104,7 @@ def cast_multi_position_ballot(election_id):
             user=user,
             election_id=election_id,
             selections=selections,
-            kiosk_token=kiosk_token,
+            booth=booth,
             ip_address=request.remote_addr or "127.0.0.1",
             user_agent=request.user_agent.string if request.user_agent else "client",
         )
@@ -126,13 +112,16 @@ def cast_multi_position_ballot(election_id):
     except VotingError as err:
         return jsonify({"error": "Voting failed", "message": str(err)}), 400
     except Exception as exc:
-        return jsonify({"error": "Server error", "message": str(exc)}), 500
+        return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
 
 
 @voter_bp.post("/elections/<int:election_id>/vote")
 @voter_required
 def cast_ballot(election_id):
     """Cast an anonymous vote in an election."""
+    booth, denied = require_booth(get_jwt(), election_id)
+    if denied:
+        return denied
     user_id = get_jwt_identity()
     user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
     if not user:
@@ -149,6 +138,7 @@ def cast_ballot(election_id):
             user=user,
             election_id=election_id,
             candidate_id=candidate_id,
+            booth=booth,
             ip_address=request.remote_addr or "127.0.0.1",
             user_agent=request.user_agent.string if request.user_agent else "client",
         )
@@ -156,7 +146,7 @@ def cast_ballot(election_id):
     except VotingError as err:
         return jsonify({"error": "Voting failed", "message": str(err)}), 400
     except Exception as exc:
-        return jsonify({"error": "Server error", "message": str(exc)}), 500
+        return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
 
 
 @voter_bp.get("/status/<int:election_id>")
