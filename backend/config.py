@@ -89,10 +89,10 @@ class Config:
 
     # ── Kiosk & Staff Maintenance ────────────────────────────────────────────
     BOOTH_ID: str = os.environ.get("BOOTH_ID", "BOOTH-LAB-01")
-    # Default salted hash for default PIN "948201" (generated via werkzeug.security generate_password_hash)
+    # Default salted scrypt hash for default PIN "948201"
     STAFF_MAINTENANCE_PIN_HASH: str = os.environ.get(
         "STAFF_MAINTENANCE_PIN_HASH",
-        "scrypt:32768:8:1$6HRcgykDhu1O5HU6$0b2e7ebcd720d37e898994e034e16463b6d66f29d1aa332f905f902f07adc8a2fa10fa8bd64f78eb2c89953747e5a08df54ae65f127b53e6ff95af79eb50b6e0"
+        "scrypt:32768:8:1$xnWbTNWX6Sm4euD0$f37b88d47c52160b673a4cc9bcd75ef494e71bca551131001230d1129843032cd319c45f87b9bd98b22a81e4978f9630ca28b58f37bd026bf9b3c46a6284d281",
     )
     MAINTENANCE_MAX_ATTEMPTS: int = int(os.environ.get("MAINTENANCE_MAX_ATTEMPTS", 5))
     MAINTENANCE_LOCKOUT_SECONDS: int = int(os.environ.get("MAINTENANCE_LOCKOUT_SECONDS", 900))

@@ -13,8 +13,9 @@ done
 
 echo "[Kiosk Browser] Frontend is ready. Launching locked-down Linux kiosk browser in fullscreen..."
 
-# Clean up any lingering chromium lock files
-rm -rf /root/.config/chromium/Singleton*
+# Clean up any lingering chromium lock files or previous session profiles
+rm -rf /root/.config/chromium /tmp/kiosk-profile
+mkdir -p /tmp/kiosk-profile
 
 exec chromium-browser \
   --no-sandbox \
@@ -27,7 +28,15 @@ exec chromium-browser \
   --no-first-run \
   --no-default-browser-check \
   --disable-session-crashed-bubble \
-  --disable-features=TranslateUI \
+  --disable-features=TranslateUI,Sync,SignInProfileAvatarBubble,ProfilePicker,InterestFeedContentSuggestions \
+  --disable-sync \
+  --incognito \
+  --user-data-dir=/tmp/kiosk-profile \
+  --password-store=basic \
+  --disable-notifications \
+  --disable-save-password-bubble \
+  --disable-translate \
+  --overscroll-history-navigation=0 \
   --check-for-update-interval=31536000 \
   --window-size=1920,1080 \
   --window-position=0,0 \

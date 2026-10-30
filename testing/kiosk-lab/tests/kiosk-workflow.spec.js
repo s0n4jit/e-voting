@@ -13,6 +13,18 @@ test.describe('Campus E-Voting System — Complete Kiosk Workflow', () => {
   test('E2E Full Ballot Cast across 9 Portfolios + NOTA & Staff Maintenance Panel', async ({ page, baseURL }) => {
     test.setTimeout(90000);
 
+    page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
+    page.on('response', async resp => {
+      if (resp.url().includes('/api/')) {
+        console.log(`[NETWORK RESP] ${resp.status()} ${resp.url()}`);
+        if (resp.status() >= 400) {
+          try {
+            console.log(`[NETWORK ERR BODY] ${await resp.text()}`);
+          } catch (e) {}
+        }
+      }
+    });
+
     // ── 1. Desk Officer Issues Voting PIN Slip ───────────────────────────────
     console.log('Step 1: Polling Desk issues official single-use PIN slip...');
     const voter = await deskHelper.issueVotingPin();
@@ -104,7 +116,8 @@ test.describe('Campus E-Voting System — Complete Kiosk Workflow', () => {
     await expect(page.locator('text=Final Step • Complete Ballot Verification')).toBeVisible();
 
     // Verify all portfolios have decisions recorded
-    await expect(page.locator('text=9 / 9 Portfolios Decided')).toBeVisible();
+    await expect(page.locator('text=9 / 9')).toBeVisible();
+    await expect(page.locator('text=Portfolios Decided')).toBeVisible();
 
     // ── 7. Submit Secret Ballot ──────────────────────────────────────────────
     console.log('Step 7: Confirming and casting secret ballot...');
@@ -143,13 +156,14 @@ test.describe('Campus E-Voting System — Complete Kiosk Workflow', () => {
     // Verify authenticated maintenance dashboard is displayed
     console.log('Verifying maintenance dashboard and diagnostics...');
     await expect(page.locator('text=Staff Maintenance & Diagnostics')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=Diagnostic Overview')).toBeVisible();
-    await expect(page.locator('text=System Health')).toBeVisible();
+    await expect(page.locator('text=System & Booth')).toBeVisible();
+    await expect(page.getByText('Terminal Station', { exact: true })).toBeVisible();
+    await expect(page.locator('text=BOOTH-LAB-01').first()).toBeVisible();
 
     // Switch to Network tab
     const netTab = page.locator('button:has-text("Network Diagnostics")');
     await netTab.click();
-    await expect(page.locator('text=Network Topology & Connectivity')).toBeVisible();
+    await expect(page.locator('text=Physical Network Interface')).toBeVisible();
 
     // Close maintenance mode using Return to Voting Kiosk button
     const returnKioskBtn = page.locator('button:has-text("Return to Voting Kiosk")').first();

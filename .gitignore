@@ -48,6 +48,8 @@ nosetests.xml
 coverage.xml
 *.cover
 *.py,cover
+testing/kiosk-lab/playwright-report/
+testing/kiosk-lab/test-results/
 .hypothesis/
 .pytest_cache/
 cover/

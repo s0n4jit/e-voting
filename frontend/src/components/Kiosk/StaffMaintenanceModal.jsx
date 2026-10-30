@@ -137,7 +137,19 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
       const res = await maintenanceApi.executeAction(actionKey, token);
       toast.success(res.message || `Action ${actionKey} executed successfully.`);
       setConfirmModal(null);
-      await loadDiagnostics();
+
+      if (actionKey === 'restart_browser' || actionKey === 'restart_kiosk') {
+        setTimeout(() => {
+          window.location.href = '/kiosk';
+        }, 1200);
+      } else if (actionKey === 'restart_system') {
+        toast('Rebooting terminal station. Reconnecting shortly...', { icon: '🔄' });
+        setTimeout(() => {
+          window.location.href = '/kiosk';
+        }, 2500);
+      } else {
+        await loadDiagnostics();
+      }
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data?.error || `Action ${actionKey} failed.`;
       toast.error(msg);

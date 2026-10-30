@@ -1,0 +1,16 @@
+{
+  "SyncDisabled": true,
+  "SigninAllowed": false,
+  "BrowserAddPersonEnabled": false,
+  "BrowserGuestModeEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "SpellcheckEnabled": false,
+  "TranslateEnabled": false,
+  "SearchSuggestEnabled": false,
+  "MetricsReportingEnabled": false,
+  "ExtensionInstallBlocklist": ["*"]
+}

@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const rawApiUrl =
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) ||
+  (typeof window !== 'undefined' && window.__API_URL__) ||
+  '/api';
 export const API_BASE_URL = rawApiUrl.endsWith('/api')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/+$/, '')}/api`;

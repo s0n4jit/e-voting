@@ -81,7 +81,7 @@ test.describe('Campus E-Voting System — Network Resilience & Offline Protectio
     await expect(page.locator('text=Student Union Election 2026–27')).toBeVisible();
 
     // 3. Intercept and abort ballot submission route to simulate server drop
-    await page.route('**/api/voter/vote/multi', async (route) => {
+    await page.route('**/api/voter/elections/*/cast-ballot', async (route) => {
       await route.abort('failed');
     });
 

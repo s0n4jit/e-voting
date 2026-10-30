@@ -83,6 +83,7 @@ def create_app(config_object=None) -> Flask:
     # ── Health check ──────────────────────────────────────────────────────────
     @app.route("/api/health")
     @app.route("/health")
+    @limiter.exempt
     def health():
         return jsonify({"status": "healthy", "service": "campus-evoting-api"}), 200
 
