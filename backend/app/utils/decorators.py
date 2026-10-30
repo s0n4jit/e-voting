@@ -73,3 +73,40 @@ def voter_required(fn=None):
     if fn is not None:
         return decorator(fn)
     return decorator
+
+
+def desk_required(fn=None):
+    """
+    Decorator that verifies the user is authorized for Physical Desk operations.
+    Allows both 'admin' and 'polling_officer' roles.
+    Can be used as `@desk_required` or `@desk_required()`.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            claims = get_jwt()
+            role = claims.get("role")
+            if role in ("admin", "polling_officer"):
+                return func(*args, **kwargs)
+
+            # Fallback DB verification
+            identity = get_jwt_identity()
+            if identity and str(identity).isdigit():
+                user = db.session.get(User, int(identity))
+                if user and (user.is_admin or user.role in ("admin", "polling_officer")):
+                    return func(*args, **kwargs)
+
+            return (
+                jsonify({
+                    "error": "Forbidden",
+                    "message": "Polling desk officer or administrator privileges required.",
+                }),
+                403,
+            )
+
+        return wrapper
+
+    if fn is not None:
+        return decorator(fn)
+    return decorator

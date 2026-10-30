@@ -157,6 +157,22 @@ export const adminApi = {
     const response = await apiClient.delete(`/admin/kiosk/${id}`);
     return response.data;
   },
+
+  // Polling Desk Officers
+  getOfficers: async () => {
+    const response = await apiClient.get('/admin/officers');
+    return response.data;
+  },
+
+  createOfficer: async (officerData) => {
+    const response = await apiClient.post('/admin/officers', officerData);
+    return response.data;
+  },
+
+  deleteOfficer: async (id) => {
+    const response = await apiClient.delete(`/admin/officers/${id}`);
+    return response.data;
+  },
 };
 
 export default adminApi;

@@ -41,30 +41,33 @@ export const PollingDesk = () => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const [elecRes, votersRes] = await Promise.allSettled([
-          adminApi.getElections(),
-          adminApi.getDeskVoters(''),
-        ]);
-
+        // Fetch active elections (works for both desk officers and admins)
         let loadedElections = [];
-        if (elecRes.status === 'fulfilled') {
-          const list = Array.isArray(elecRes.value) ? elecRes.value : (elecRes.value?.elections || []);
+        try {
+          const activeElectionsData = await voterApi.getActiveElections();
+          const list = Array.isArray(activeElectionsData)
+            ? activeElectionsData
+            : (activeElectionsData?.elections || []);
           loadedElections = list;
           setElections(list);
-
-          // Default select the first active election, or first election
-          const activeElection = list.find((e) => e.is_active);
-          if (activeElection) {
-            setSelectedElectionId(activeElection.id);
-          } else if (list.length > 0) {
+          if (list.length > 0) {
             setSelectedElectionId(list[0].id);
+          }
+        } catch (e) {
+          try {
+            const adminElections = await adminApi.getElections();
+            const list = Array.isArray(adminElections) ? adminElections : (adminElections?.elections || []);
+            loadedElections = list;
+            setElections(list);
+            if (list.length > 0) setSelectedElectionId(list[0].id);
+          } catch (e2) {
+            console.warn('Elections lookup fallback:', e2);
           }
         }
 
-        if (votersRes.status === 'fulfilled') {
-          const vList = Array.isArray(votersRes.value) ? votersRes.value : (votersRes.value?.voters || []);
-          setVoters(vList);
-        }
+        const votersRes = await adminApi.getDeskVoters('');
+        const vList = Array.isArray(votersRes) ? votersRes : (votersRes?.voters || []);
+        setVoters(vList);
       } catch (err) {
         console.error('Failed to initialize polling desk data:', err);
         toast.error('Failed to load polling desk data.');

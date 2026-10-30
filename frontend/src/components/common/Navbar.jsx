@@ -47,7 +47,13 @@ export const Navbar = () => {
           {/* Brand Logo & Title */}
           <div className="flex items-center gap-8">
             <Link
-              to={role === 'admin' ? '/admin/dashboard' : '/voter/dashboard'}
+              to={
+                role === 'admin'
+                  ? '/admin/dashboard'
+                  : role === 'polling_officer'
+                  ? '/desk'
+                  : '/voter/dashboard'
+              }
               className="flex items-center gap-3 group"
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-700 to-primary-500 flex items-center justify-center text-white shadow-md shadow-primary-500/20 group-hover:scale-105 transition-transform">
@@ -74,6 +80,10 @@ export const Navbar = () => {
                     <TicketIcon className="w-4 h-4 text-primary-600" />
                     Polling Desk
                   </NavLink>
+                  <NavLink to="/admin/officers" className={navLinkClass}>
+                    <UserGroupIcon className="w-4 h-4 text-emerald-600" />
+                    Desk Officers
+                  </NavLink>
                   <NavLink to="/admin/kiosks" className={navLinkClass}>
                     <ComputerDesktopIcon className="w-4 h-4 text-indigo-600" />
                     Booth Kiosks
@@ -89,6 +99,13 @@ export const Navbar = () => {
                   <NavLink to="/admin/audit" className={navLinkClass}>
                     <DocumentMagnifyingGlassIcon className="w-4 h-4" />
                     Audit Log
+                  </NavLink>
+                </>
+              ) : role === 'polling_officer' ? (
+                <>
+                  <NavLink to="/desk" className={navLinkClass}>
+                    <TicketIcon className="w-4 h-4 text-primary-600" />
+                    Verification Desk
                   </NavLink>
                 </>
               ) : (
@@ -129,10 +146,12 @@ export const Navbar = () => {
                     className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase tracking-wider ${
                       role === 'admin'
                         ? 'bg-purple-100 text-purple-700'
+                        : role === 'polling_officer'
+                        ? 'bg-amber-100 text-amber-800'
                         : 'bg-emerald-100 text-emerald-700'
                     }`}
                   >
-                    {role || 'Voter'}
+                    {role === 'polling_officer' ? 'Desk Officer' : (role || 'Voter')}
                   </span>
                   {user?.student_id && (
                     <span className="text-xs text-gray-400 font-mono">

@@ -17,6 +17,7 @@ import VoterManager from './components/Admin/VoterManager';
 import AuditLog from './components/Admin/AuditLog';
 import PollingDesk from './components/Admin/PollingDesk';
 import KioskManager from './components/Admin/KioskManager';
+import OfficerManager from './components/Admin/OfficerManager';
 import KioskLogin from './components/Kiosk/KioskLogin';
 import KioskVoting from './components/Kiosk/KioskVoting';
 
@@ -36,7 +37,9 @@ const RootRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
-  return <Navigate to={role === 'admin' ? '/admin/dashboard' : '/voter/dashboard'} replace />;
+  if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  if (role === 'polling_officer') return <Navigate to="/desk" replace />;
+  return <Navigate to="/voter/dashboard" replace />;
 };
 
 // Authenticated Layout wrapper with Navbar
@@ -100,6 +103,18 @@ function AppRoutes() {
         }
       />
 
+      {/* Polling Desk (Accessible to Polling Officers & Admins) */}
+      <Route
+        path="/desk"
+        element={
+          <ProtectedRoute allowedRoles={['polling_officer', 'admin']}>
+            <AuthenticatedLayout>
+              <PollingDesk />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+
       {/* Admin Routes */}
       <Route
         path="/admin/dashboard"
@@ -112,9 +127,19 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/desk"
+        path="/admin/officers"
         element={
           <ProtectedRoute allowedRoles={['admin']}>
+            <AuthenticatedLayout>
+              <OfficerManager />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/desk"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'polling_officer']}>
             <AuthenticatedLayout>
               <PollingDesk />
             </AuthenticatedLayout>

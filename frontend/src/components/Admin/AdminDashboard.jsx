@@ -13,6 +13,9 @@ import {
   ArrowUpTrayIcon,
   ShieldCheckIcon,
   ExclamationCircleIcon,
+  TicketIcon,
+  ComputerDesktopIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 
@@ -96,20 +99,34 @@ export const AdminDashboard = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            to="/admin/desk"
+            className="btn btn-secondary btn-sm gap-1.5"
+          >
+            <TicketIcon className="w-4 h-4 text-emerald-600" />
+            <span>Polling Desk</span>
+          </Link>
+          <Link
+            to="/admin/officers"
+            className="btn btn-secondary btn-sm gap-1.5"
+          >
+            <UserGroupIcon className="w-4 h-4 text-primary-600" />
+            <span>Desk Officers</span>
+          </Link>
+          <Link
+            to="/admin/kiosks"
+            className="btn btn-secondary btn-sm gap-1.5"
+          >
+            <ComputerDesktopIcon className="w-4 h-4 text-indigo-600" />
+            <span>Booth Kiosks</span>
+          </Link>
           <Link
             to="/admin/elections"
             className="btn btn-primary btn-sm gap-1.5 shadow-sm"
           >
             <PlusIcon className="w-4 h-4" />
             <span>New Election</span>
-          </Link>
-          <Link
-            to="/admin/voters"
-            className="btn btn-secondary btn-sm gap-1.5"
-          >
-            <ArrowUpTrayIcon className="w-4 h-4" />
-            <span>Import Voters</span>
           </Link>
         </div>
       </div>

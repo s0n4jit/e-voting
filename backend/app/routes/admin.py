@@ -18,7 +18,7 @@ from app.models.audit_log import AuditLog
 from app.models.voting_token import VotingToken
 from app.models.kiosk_device import KioskDevice
 from app.services.otp_service import OTPService
-from app.utils.decorators import admin_required
+from app.utils.decorators import admin_required, desk_required
 from app.utils.validators import (
     sanitize_input,
     validate_email,
@@ -412,7 +412,7 @@ def get_audit_logs():
 # ── Physical Desk (Voting Token Slip) ─────────────────────────────────────────
 
 @admin_bp.post("/desk/issue-pin")
-@admin_required
+@desk_required
 def issue_desk_pin():
     """
     Physical Polling Desk:
@@ -500,7 +500,7 @@ def issue_desk_pin():
 
 
 @admin_bp.get("/desk/voters")
-@admin_required
+@desk_required
 def get_desk_voters():
     """
     Search and list enrolled voters for desk staff with live election status
@@ -637,3 +637,99 @@ def delete_kiosk(kiosk_id):
     db.session.delete(kiosk)
     db.session.commit()
     return jsonify({"message": f"Kiosk terminal {kiosk_id} revoked successfully."}), 200
+
+
+# ── Polling Desk Officers Management ──────────────────────────────────────────
+
+@admin_bp.get("/officers")
+@admin_required
+def list_officers():
+    """List all registered polling desk officers."""
+    officers = (
+        User.query.filter(User.role == "polling_officer")
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    return jsonify([u.to_dict() for u in officers]), 200
+
+
+@admin_bp.post("/officers")
+@admin_required
+def create_officer():
+    """
+    Election Officer creates a Polling Desk Officer credential.
+    Desk officers have minimal capability: only look up students & issue PIN slips.
+    """
+    payload = request.get_json(silent=True) or {}
+    student_id = sanitize_input(payload.get("student_id") or payload.get("officer_id"))
+    name = sanitize_input(payload.get("name"))
+    email = sanitize_input(payload.get("email"))
+    password = payload.get("password")
+    department = sanitize_input(payload.get("department", "Polling Desk Administration"))
+
+    if not student_id or not name or not email or not password:
+        return (
+            jsonify({
+                "error": "Missing fields",
+                "message": "Officer ID, Name, Email, and Password are required.",
+            }),
+            400,
+        )
+
+    # Check for existing user
+    if User.query.filter_by(student_id=student_id).first():
+        return (
+            jsonify({
+                "error": "Conflict",
+                "message": f"An account with ID '{student_id}' already exists.",
+            }),
+            409,
+        )
+
+    if User.query.filter_by(email=email).first():
+        return (
+            jsonify({
+                "error": "Conflict",
+                "message": f"An account with email '{email}' already exists.",
+            }),
+            409,
+        )
+
+    officer = User(
+        student_id=student_id,
+        name=name,
+        email=email,
+        role="polling_officer",
+        department=department,
+        is_admin=False,
+        is_active=True,
+        otp_secret=OTPService.generate_secret(),
+        otp_enabled=True,
+    )
+    officer.set_password(password)
+    db.session.add(officer)
+    db.session.commit()
+
+    return (
+        jsonify({
+            "message": f"Polling Desk Officer '{name}' ({student_id}) created successfully.",
+            "officer": officer.to_dict(),
+        }),
+        201,
+    )
+
+
+@admin_bp.delete("/officers/<int:officer_id>")
+@admin_required
+def delete_officer(officer_id):
+    """Revoke/remove a polling desk officer."""
+    officer = db.session.get(User, officer_id)
+    if not officer or officer.role != "polling_officer":
+        return jsonify({"error": "Polling desk officer not found."}), 404
+
+    db.session.delete(officer)
+    db.session.commit()
+    return (
+        jsonify({"message": f"Polling desk officer '{officer.name}' removed successfully."}),
+        200,
+    )
