@@ -89,7 +89,16 @@ def create_app(config_object=None) -> Flask:
     # ── Database tables ───────────────────────────────────────────────────────
     with app.app_context():
         # Import models so SQLAlchemy knows about them before create_all()
-        from app.models import user, election, vote  # noqa: F401
+        from app.models import (  # noqa: F401
+            user,
+            election,
+            candidate,
+            voter_record,
+            ballot_entry,
+            audit_log,
+            voting_token,
+            kiosk_device,
+        )
 
         db.create_all()
         app.logger.info("Database tables created/verified.")

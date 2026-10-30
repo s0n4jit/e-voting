@@ -11,6 +11,13 @@ Populates:
 
 import sys
 import os
+
+if sys.stdout.encoding != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 from datetime import datetime, timedelta, timezone
 
 # Ensure backend root is in python path
@@ -74,7 +81,7 @@ def seed():
         else:
             print(f"  ℹ Election '{election.title}' already exists.")
 
-        # 3. Candidates
+        # 3. Candidates (3 distinct positions: President, Vice President, General Secretary)
         candidates_data = [
             {
                 "name": "Sarah Connor",
@@ -95,7 +102,7 @@ def seed():
             {
                 "name": "Elena Rostova",
                 "party": "Innovation & Green Campus",
-                "position": "President",
+                "position": "Vice President",
                 "department": "Environmental Engineering",
                 "bio": "Committed to 100% renewable energy on campus and sustainable transportation.",
                 "photo_url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300",
@@ -103,10 +110,26 @@ def seed():
             {
                 "name": "David Kim",
                 "party": "Student Solidarity Movement",
-                "position": "President",
+                "position": "Vice President",
                 "department": "Business Administration",
                 "bio": "Focused on career fairs, paid internship partnerships, and student club funding.",
                 "photo_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300",
+            },
+            {
+                "name": "Priya Sharma",
+                "party": "Student Welfare Coalition",
+                "position": "General Secretary",
+                "department": "Biomedical Sciences",
+                "bio": "Advocating for campus accessibility, transparent budgeting, and student health initiatives.",
+                "photo_url": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300",
+            },
+            {
+                "name": "Alex Chen",
+                "party": "Campus Unity Front",
+                "position": "General Secretary",
+                "department": "Data Science & Analytics",
+                "bio": "Working to streamline club registrations, academic grievance handling, and lab resources.",
+                "photo_url": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=300",
             },
         ]
 
@@ -125,7 +148,14 @@ def seed():
                     photo_url=c_data["photo_url"],
                 )
                 db.session.add(cand)
-                print(f"  ✓ Added Candidate: {cand.name} ({cand.party})")
+                print(f"  ✓ Added Candidate: {cand.name} ({cand.party}) - {cand.position}")
+            else:
+                existing_c.position = c_data["position"]
+                existing_c.party = c_data["party"]
+                existing_c.department = c_data["department"]
+                existing_c.bio = c_data["bio"]
+                existing_c.photo_url = c_data["photo_url"]
+                print(f"  ✓ Updated Candidate: {existing_c.name} - {existing_c.position}")
 
         db.session.flush()
 

@@ -113,6 +113,50 @@ export const adminApi = {
     const response = await apiClient.get('/admin/audit-logs', { params });
     return response.data;
   },
+
+  // Polling Desk
+  issueDeskPin: async (studentId, electionId) => {
+    const response = await apiClient.post('/admin/desk/issue-pin', {
+      student_id: studentId,
+      election_id: electionId,
+    });
+    return response.data;
+  },
+
+  getDeskVoters: async (queryOrParams) => {
+    let params = {};
+    if (typeof queryOrParams === 'string') {
+      params = { query: queryOrParams };
+    } else if (queryOrParams && typeof queryOrParams === 'object') {
+      params = queryOrParams;
+    }
+    try {
+      const response = await apiClient.get('/admin/desk/voters', { params });
+      return response.data;
+    } catch (err) {
+      // Fallback to standard voters list with client filtering if desk endpoint not yet available
+      const fallback = await apiClient.get('/admin/voters', { params });
+      return fallback.data;
+    }
+  },
+
+  // Booth Kiosks
+  registerKiosk: async (deviceName) => {
+    const response = await apiClient.post('/admin/kiosk/register', {
+      device_name: deviceName,
+    });
+    return response.data;
+  },
+
+  getKiosks: async () => {
+    const response = await apiClient.get('/admin/kiosk/list');
+    return response.data;
+  },
+
+  deleteKiosk: async (id) => {
+    const response = await apiClient.delete(`/admin/kiosk/${id}`);
+    return response.data;
+  },
 };
 
 export default adminApi;

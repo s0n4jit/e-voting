@@ -38,6 +38,80 @@ def get_election_candidates(election_id):
     return jsonify([c.to_dict() for c in candidates]), 200
 
 
+@voter_bp.get("/elections/<int:election_id>/ballot")
+@voter_required
+def get_election_ballot(election_id):
+    """
+    Retrieve structured multi-position ballot with candidate lists and NOTA indicators.
+    """
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Election not found."}), 404
+
+    candidates = Candidate.query.filter_by(election_id=election.id).order_by(Candidate.id.asc()).all()
+
+    # Group candidates by office / position
+    positions_map = {}
+    for cand in candidates:
+        pos = cand.position or "President"
+        if pos not in positions_map:
+            positions_map[pos] = []
+        positions_map[pos].append(cand.to_dict())
+
+    positions_list = [
+        {
+            "position": pos,
+            "candidates": cand_list,
+            "allow_nota": True,
+        }
+        for pos, cand_list in positions_map.items()
+    ]
+
+    return (
+        jsonify({
+            "election_id": election.id,
+            "title": election.title,
+            "election": election.to_dict(),
+            "positions": positions_list,
+        }),
+        200,
+    )
+
+
+@voter_bp.post("/elections/<int:election_id>/cast-ballot")
+@voter_required
+def cast_multi_position_ballot(election_id):
+    """
+    Cast an anonymous multi-position ballot with NOTA support and kiosk verification.
+    """
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
+    if not user:
+        return jsonify({"error": "Voter account not found."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    selections = payload.get("selections")
+    kiosk_token = payload.get("kiosk_token") or request.headers.get("X-Kiosk-Token")
+
+    if selections is None:
+        return jsonify({"error": "selections list is required."}), 400
+
+    try:
+        result = VoteService.cast_multi_position_vote(
+            user=user,
+            election_id=election_id,
+            selections=selections,
+            kiosk_token=kiosk_token,
+            ip_address=request.remote_addr or "127.0.0.1",
+            user_agent=request.user_agent.string if request.user_agent else "client",
+        )
+        return jsonify(dict(result)), 200
+    except VotingError as err:
+        return jsonify({"error": "Voting failed", "message": str(err)}), 400
+    except Exception as exc:
+        return jsonify({"error": "Server error", "message": str(exc)}), 500
+
+
 @voter_bp.post("/elections/<int:election_id>/vote")
 @voter_required
 def cast_ballot(election_id):

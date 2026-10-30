@@ -40,6 +40,17 @@ export const authApi = {
     });
     return response.data;
   },
+
+  // Booth Kiosk Voter PIN Login
+  voterPinLogin: async (studentId, votingPin, electionId, kioskToken) => {
+    const response = await apiClient.post('/auth/voter-pin-login', {
+      student_id: studentId,
+      voting_pin: votingPin,
+      election_id: electionId,
+      kiosk_token: kioskToken,
+    });
+    return response.data;
+  },
 };
 
 export default authApi;

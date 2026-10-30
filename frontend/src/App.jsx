@@ -15,6 +15,10 @@ import ElectionManager from './components/Admin/ElectionManager';
 import CandidateManager from './components/Admin/CandidateManager';
 import VoterManager from './components/Admin/VoterManager';
 import AuditLog from './components/Admin/AuditLog';
+import PollingDesk from './components/Admin/PollingDesk';
+import KioskManager from './components/Admin/KioskManager';
+import KioskLogin from './components/Kiosk/KioskLogin';
+import KioskVoting from './components/Kiosk/KioskVoting';
 
 // Root redirect handler based on authenticated user's role
 const RootRedirect = () => {
@@ -56,6 +60,10 @@ function AppRoutes() {
     <Routes>
       {/* Public Route */}
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Kiosk Mode Routes (Isolated, distraction-free booth immersion) */}
+      <Route path="/kiosk" element={<KioskLogin />} />
+      <Route path="/kiosk/vote/:electionId" element={<KioskVoting />} />
 
       {/* Root Route: Role based redirect */}
       <Route path="/" element={<RootRedirect />} />
@@ -99,6 +107,26 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['admin']}>
             <AuthenticatedLayout>
               <AdminDashboard />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/desk"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AuthenticatedLayout>
+              <PollingDesk />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/kiosks"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AuthenticatedLayout>
+              <KioskManager />
             </AuthenticatedLayout>
           </ProtectedRoute>
         }

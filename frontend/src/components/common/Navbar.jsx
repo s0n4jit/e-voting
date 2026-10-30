@@ -11,6 +11,9 @@ import {
   XMarkIcon,
   CheckCircleIcon,
   ChartBarIcon,
+  TicketIcon,
+  ComputerDesktopIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 
 export const Navbar = () => {
@@ -67,6 +70,14 @@ export const Navbar = () => {
                   <NavLink to="/admin/dashboard" className={navLinkClass}>
                     Dashboard
                   </NavLink>
+                  <NavLink to="/admin/desk" className={navLinkClass}>
+                    <TicketIcon className="w-4 h-4 text-primary-600" />
+                    Polling Desk
+                  </NavLink>
+                  <NavLink to="/admin/kiosks" className={navLinkClass}>
+                    <ComputerDesktopIcon className="w-4 h-4 text-indigo-600" />
+                    Booth Kiosks
+                  </NavLink>
                   <NavLink to="/admin/elections" className={navLinkClass}>
                     <ArchiveBoxIcon className="w-4 h-4" />
                     Elections
@@ -91,8 +102,20 @@ export const Navbar = () => {
             </nav>
           </div>
 
-          {/* User info & Logout */}
+          {/* User info, Quick Kiosk Launch & Logout */}
           <div className="hidden md:flex items-center gap-4">
+            {/* Kiosk Mode Quick Launcher */}
+            <Link
+              to="/kiosk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all"
+              title="Launch Booth Kiosk Terminal (New Window)"
+            >
+              <ComputerDesktopIcon className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Kiosk Mode</span>
+              <ArrowTopRightOnSquareIcon className="w-3 h-3 text-slate-400" />
+            </Link>
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 font-bold flex items-center justify-center text-sm border border-primary-200">
                 {user?.name ? user.name.charAt(0).toUpperCase() : (role === 'admin' ? 'A' : 'V')}
@@ -175,6 +198,22 @@ export const Navbar = () => {
                   Dashboard
                 </NavLink>
                 <NavLink
+                  to="/admin/desk"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={mobileNavLinkClass}
+                >
+                  <TicketIcon className="w-5 h-5 text-primary-600" />
+                  Polling Desk
+                </NavLink>
+                <NavLink
+                  to="/admin/kiosks"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={mobileNavLinkClass}
+                >
+                  <ComputerDesktopIcon className="w-5 h-5 text-indigo-600" />
+                  Booth Kiosks
+                </NavLink>
+                <NavLink
                   to="/admin/elections"
                   onClick={() => setMobileMenuOpen(false)}
                   className={mobileNavLinkClass}
@@ -198,6 +237,17 @@ export const Navbar = () => {
                   <DocumentMagnifyingGlassIcon className="w-5 h-5" />
                   Audit Log
                 </NavLink>
+                <Link
+                  to="/kiosk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-bold bg-slate-900 text-white mt-1"
+                >
+                  <ComputerDesktopIcon className="w-5 h-5 text-emerald-400" />
+                  <span>Launch Kiosk Mode</span>
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4 ml-auto text-slate-400" />
+                </Link>
               </>
             ) : (
               <>

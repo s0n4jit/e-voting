@@ -233,7 +233,7 @@ class TestVoterBallotSeparation:
         id, election_id, candidate_id, cast_at
         (and possibly a blind token — never voter identity).
         """
-        allowed_columns = {"id", "election_id", "candidate_id", "cast_at", "blind_token"}
+        allowed_columns = {"id", "election_id", "candidate_id", "cast_at", "blind_token", "position", "is_nota"}
         actual_columns = {c.name for c in BallotEntry.__table__.columns}
         forbidden = actual_columns - allowed_columns
         assert not forbidden, (

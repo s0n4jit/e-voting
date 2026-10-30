@@ -3,6 +3,9 @@ app/services/vote_service.py — Core voting business-logic layer.
 
 Enforces:
   - Atomic transactions
+  - Multi-position voting with NOTA support
+  - Single-use desk Voting PIN invalidation upon cast
+  - Kiosk terminal validation
   - Double-vote prevention
   - Election active & ongoing time window checks
   - Strict separation of WHO voted (VoterRecord) from WHAT was voted (BallotEntry)
@@ -13,6 +16,7 @@ import hashlib
 import hmac
 import logging
 import uuid
+from typing import List, Dict, Any, Optional
 
 from flask import current_app
 from sqlalchemy import func
@@ -24,6 +28,8 @@ from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
 from app.models.ballot_entry import BallotEntry
 from app.models.audit_log import AuditLog
+from app.models.voting_token import VotingToken
+from app.models.kiosk_device import KioskDevice
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +55,210 @@ class VoteResult(dict):
 
 class VoteService:
     @classmethod
+    def cast_multi_position_vote(
+        cls,
+        user=None,
+        election_id: Optional[int] = None,
+        selections: Optional[List[Dict[str, Any]]] = None,
+        kiosk_token: Optional[str] = None,
+        voter_id: Optional[int] = None,
+        db=None,
+        ip_address: str = "127.0.0.1",
+        user_agent: str = "internal",
+    ) -> VoteResult:
+        """
+        Atomically cast a multi-position ballot with NOTA support:
+          1. Validates election status and active time window.
+          2. Validates optional kiosk terminal token.
+          3. Validates voter eligibility via VoterRecord (student_id hash).
+          4. Verifies voter has not already voted.
+          5. Verifies EVERY position in the election has exactly one valid choice:
+             either an official candidate belonging to that position OR is_nota=True.
+          6. Updates VoterRecord.has_voted = True.
+          7. Marks any active VotingToken for that voter as used.
+          8. Inserts an anonymous BallotEntry for each position under a unified blind token.
+          9. Creates AuditLog entry (without revealing candidate selections).
+        """
+        session = db.session if hasattr(db, "session") else (db or default_db.session)
+
+        # 1. Resolve voter user
+        if voter_id is None and user is not None:
+            voter_id = getattr(user, "id", None)
+            voter_user = user
+        elif voter_id is not None:
+            voter_user = session.get(User, voter_id)
+        else:
+            raise VotingError("Voter user not identified.")
+
+        if not voter_user:
+            raise VotingError("Voter user not found.")
+
+        # 2. Resolve and validate election
+        if not election_id:
+            raise VotingError("Election ID is required.")
+        election = session.get(Election, election_id)
+        if not election:
+            raise VotingError("Election not found.")
+
+        if not election.is_active:
+            raise VotingError("Election is not active.")
+
+        now = datetime.now(timezone.utc)
+        start_time = election.start_time
+        end_time = election.end_time
+        if start_time and start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        if end_time and end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+
+        if start_time and now < start_time:
+            raise VotingError("Election has not started yet.")
+        if end_time and now > end_time:
+            raise VotingError("Election is closed.")
+
+        # 3. Optional kiosk device verification
+        if kiosk_token:
+            clean_kiosk_token = str(kiosk_token).strip()
+            kiosk = session.query(KioskDevice).filter_by(
+                kiosk_token=clean_kiosk_token, is_active=True
+            ).first()
+            if not kiosk:
+                raise VotingError("Invalid or unauthorized kiosk terminal.")
+            kiosk.last_heartbeat = now
+
+        # 4. Check voter registration & double-vote prevention
+        voter_hash = User.hash_student_id(voter_user.student_id)
+        voter_record = (
+            session.query(VoterRecord)
+            .filter_by(election_id=election.id, voter_hash=voter_hash)
+            .first()
+        )
+        if not voter_record:
+            raise VotingError("Voter is not eligible for this election.")
+
+        if voter_record.has_voted:
+            raise VotingError("Voter has already voted in this election.")
+
+        # 5. Validate selections across all positions configured in the election
+        if not selections or not isinstance(selections, list):
+            raise VotingError("Ballot selections are required.")
+
+        candidates = session.query(Candidate).filter_by(election_id=election.id).all()
+        if not candidates:
+            raise VotingError("No candidates configured for this election.")
+
+        cands_by_id = {c.id: c for c in candidates}
+        # Gather all distinct positions from candidates in this election
+        distinct_positions = sorted(list({c.position for c in candidates if c.position}))
+        if not distinct_positions:
+            distinct_positions = ["President"]
+
+        required_positions = set(distinct_positions)
+        selected_positions = set()
+        validated_entries = []
+
+        for item in selections:
+            if not isinstance(item, dict):
+                raise VotingError("Invalid ballot selection item format.")
+
+            pos = str(item.get("position", "")).strip()
+            if not pos:
+                raise VotingError("Position name is required for each ballot choice.")
+
+            if pos not in required_positions:
+                raise VotingError(f"Position '{pos}' is not valid for this election.")
+
+            if pos in selected_positions:
+                raise VotingError(f"Duplicate selection submitted for position '{pos}'.")
+
+            selected_positions.add(pos)
+            is_nota = bool(item.get("is_nota", False))
+            candidate_id = item.get("candidate_id")
+
+            if is_nota:
+                # Valid NOTA selection
+                validated_entries.append({
+                    "position": pos,
+                    "candidate_id": None,
+                    "is_nota": True,
+                })
+            else:
+                if not candidate_id:
+                    raise VotingError(f"Candidate choice or NOTA is required for position '{pos}'.")
+
+                cand = cands_by_id.get(int(candidate_id)) if str(candidate_id).isdigit() else None
+                if not cand:
+                    raise VotingError(f"Selected candidate not found for position '{pos}'.")
+
+                if cand.position != pos:
+                    raise VotingError(f"Candidate '{cand.name}' does not run for position '{pos}'.")
+
+                validated_entries.append({
+                    "position": pos,
+                    "candidate_id": cand.id,
+                    "is_nota": False,
+                })
+
+        # Ensure every single position in the election has been voted on
+        missing_positions = required_positions - selected_positions
+        if missing_positions:
+            raise VotingError(
+                f"Incomplete ballot: missing selection for position(s): {', '.join(sorted(missing_positions))}."
+            )
+
+        # 6. Execute atomic ballot separation
+        voter_record.has_voted = True
+        voter_record.voted_at = now
+
+        # Invalidate any active, unused desk VotingToken for this student & election
+        session.query(VotingToken).filter(
+            VotingToken.election_id == election.id,
+            (VotingToken.student_id == voter_user.student_id) | (VotingToken.user_id == voter_user.id),
+            VotingToken.is_used == False,
+        ).update({"is_used": True}, synchronize_session=False)
+
+        # Cryptographically strong unified blind token for this voter's submission
+        blind_seed = uuid.uuid4().hex.encode("utf-8")
+        blind_token = hmac.new(
+            blind_seed,
+            f"election-{election.id}:{uuid.uuid4().hex}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+
+        # Insert a BallotEntry for each position under the same blind token
+        for entry in validated_entries:
+            ballot_entry = BallotEntry(
+                election_id=election.id,
+                candidate_id=entry["candidate_id"],
+                position=entry["position"],
+                is_nota=entry["is_nota"],
+                blind_token=blind_token,
+                cast_at=now,
+            )
+            session.add(ballot_entry)
+
+        audit_entry = AuditLog(
+            user_id=voter_user.id,
+            action="VOTE_CAST",
+            details=f"Multi-position ballot submitted for election {election.id} ({len(validated_entries)} positions)",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            created_at=now,
+        )
+        session.add(audit_entry)
+
+        session.flush()
+        session.commit()
+
+        return VoteResult(
+            success=True,
+            message="Multi-position ballot successfully cast and recorded anonymously.",
+            blind_token=blind_token,
+            election_id=election.id,
+            positions_voted=len(validated_entries),
+        )
+
+    @classmethod
     def cast_vote(
         cls,
         user=None,
@@ -60,14 +270,7 @@ class VoteService:
         user_agent="internal",
     ) -> VoteResult:
         """
-        Atomically cast a vote:
-          1. Validates election status and time window.
-          2. Validates candidate belongs to the election.
-          3. Validates voter eligibility via VoterRecord (student_id hash).
-          4. Verifies voter has not already voted.
-          5. Updates VoterRecord.has_voted = True.
-          6. Creates anonymous BallotEntry with a blind token.
-          7. Creates AuditLog entry.
+        Atomically cast a single candidate vote (supports backwards compatibility).
         """
         session = db.session if hasattr(db, "session") else (db or default_db.session)
 
@@ -121,17 +324,7 @@ class VoteService:
             .first()
         )
         if not voter_record:
-            # All enrolled, active campus voters are eligible
-            if getattr(voter_user, "is_active", True) and getattr(voter_user, "role", "voter") == "voter":
-                voter_record = VoterRecord(
-                    election_id=election.id,
-                    voter_hash=voter_hash,
-                    has_voted=False,
-                )
-                session.add(voter_record)
-                session.flush()
-            else:
-                raise VotingError("Voter is not eligible for this election.")
+            raise VotingError("Voter is not eligible for this election.")
 
         if voter_record.has_voted:
             raise VotingError("Voter has already voted in this election.")
@@ -139,6 +332,13 @@ class VoteService:
         # Execute atomic ballot separation
         voter_record.has_voted = True
         voter_record.voted_at = now
+
+        # Invalidate any active desk VotingToken
+        session.query(VotingToken).filter(
+            VotingToken.election_id == election.id,
+            (VotingToken.student_id == voter_user.student_id) | (VotingToken.user_id == voter_user.id),
+            VotingToken.is_used == False,
+        ).update({"is_used": True}, synchronize_session=False)
 
         # Cryptographically strong blind token (no voter identifier)
         blind_seed = uuid.uuid4().hex.encode("utf-8")
@@ -151,6 +351,8 @@ class VoteService:
         ballot_entry = BallotEntry(
             election_id=election.id,
             candidate_id=candidate.id,
+            position=candidate.position or "President",
+            is_nota=False,
             blind_token=blind_token,
             cast_at=now,
         )
@@ -167,15 +369,7 @@ class VoteService:
         session.add(audit_entry)
 
         session.flush()
-
-        # If running outside test savepoints, commit to persist
-        try:
-            is_testing = current_app and current_app.config.get("TESTING", False)
-        except Exception:
-            is_testing = False
-
-        if not is_testing:
-            session.commit()
+        session.commit()
 
         return VoteResult(
             success=True,
@@ -187,7 +381,8 @@ class VoteService:
     @classmethod
     def get_results(cls, election_id: int, db=None, force: bool = False) -> dict:
         """
-        Aggregate votes for an election by candidate.
+        Aggregate votes for an election grouped by position, including NOTA votes,
+        percentages, and declared winners.
         Raises ResultsHiddenError unless results_published=True or force=True.
         """
         session = db.session if hasattr(db, "session") else (db or default_db.session)
@@ -199,59 +394,158 @@ class VoteService:
         if not force and not election.results_published:
             raise ResultsHiddenError("Election results are not yet published.")
 
-        # Total votes in election
-        total_votes = (
+        # Total unique voters who participated
+        total_voters = (
+            session.query(func.count(VoterRecord.id))
+            .filter_by(election_id=election.id, has_voted=True)
+            .scalar()
+            or 0
+        )
+
+        # Total ballot entries cast
+        total_ballot_entries = (
             session.query(func.count(BallotEntry.id))
             .filter_by(election_id=election.id)
             .scalar()
             or 0
         )
 
-        # Count per candidate
-        counts = (
-            session.query(
-                Candidate.id,
-                Candidate.name,
-                Candidate.party,
-                Candidate.position,
-                func.count(BallotEntry.id).label("votes"),
-            )
-            .outerjoin(
-                BallotEntry,
-                (BallotEntry.candidate_id == Candidate.id)
-                & (BallotEntry.election_id == election.id),
-            )
-            .filter(Candidate.election_id == election.id)
-            .group_by(Candidate.id, Candidate.name, Candidate.party, Candidate.position)
-            .order_by(func.count(BallotEntry.id).desc())
+        display_total_votes = total_voters if total_voters > 0 else total_ballot_entries
+
+        # Discover all positions from candidates and ballot entries
+        cand_positions = [
+            r[0]
+            for r in session.query(Candidate.position)
+            .filter_by(election_id=election.id)
+            .distinct()
             .all()
-        )
+            if r[0]
+        ]
+        ballot_positions = [
+            r[0]
+            for r in session.query(BallotEntry.position)
+            .filter_by(election_id=election.id)
+            .distinct()
+            .all()
+            if r[0]
+        ]
+        all_positions = sorted(list(set(cand_positions + ballot_positions)))
+        if not all_positions:
+            all_positions = ["President"]
 
-        max_votes = -1
-        for row in counts:
-            if row.votes > max_votes:
-                max_votes = row.votes
+        by_position = []
+        positions_map = {}
+        all_flat_candidates = []
 
-        candidate_results = []
-        for row in counts:
-            votes = row.votes
-            pct = round((votes / total_votes * 100), 2) if total_votes > 0 else 0.0
-            candidate_results.append({
-                "candidate_id": row.id,
-                "name": row.name,
-                "party": row.party,
-                "position": row.position,
-                "votes": votes,
-                "percentage": pct,
-                "is_winner": (votes == max_votes and max_votes > 0),
-            })
+        for pos in all_positions:
+            # Count total votes for this position
+            pos_total = (
+                session.query(func.count(BallotEntry.id))
+                .filter_by(election_id=election.id, position=pos)
+                .scalar()
+                or 0
+            )
+
+            # Count NOTA votes for this position
+            nota_votes = (
+                session.query(func.count(BallotEntry.id))
+                .filter_by(election_id=election.id, position=pos, is_nota=True)
+                .scalar()
+                or 0
+            )
+
+            # Count votes per candidate for this position
+            counts = (
+                session.query(
+                    Candidate.id,
+                    Candidate.name,
+                    Candidate.party,
+                    Candidate.position,
+                    Candidate.photo_url,
+                    func.count(BallotEntry.id).label("votes"),
+                )
+                .outerjoin(
+                    BallotEntry,
+                    (BallotEntry.candidate_id == Candidate.id)
+                    & (BallotEntry.election_id == election.id)
+                    & (BallotEntry.position == pos)
+                    & (BallotEntry.is_nota == False),
+                )
+                .filter(Candidate.election_id == election.id, Candidate.position == pos)
+                .group_by(
+                    Candidate.id,
+                    Candidate.name,
+                    Candidate.party,
+                    Candidate.position,
+                    Candidate.photo_url,
+                )
+                .order_by(func.count(BallotEntry.id).desc(), Candidate.name.asc())
+                .all()
+            )
+
+            max_cand_votes = 0
+            candidates_for_pos = []
+            for row in counts:
+                votes = row.votes
+                pct = round((votes / pos_total * 100), 2) if pos_total > 0 else 0.0
+                if votes > max_cand_votes:
+                    max_cand_votes = votes
+
+                c_dict = {
+                    "candidate_id": row.id,
+                    "name": row.name,
+                    "party": row.party,
+                    "position": row.position,
+                    "photo_url": row.photo_url,
+                    "votes": votes,
+                    "percentage": pct,
+                    "is_winner": False,
+                }
+                candidates_for_pos.append(c_dict)
+
+            nota_pct = round((nota_votes / pos_total * 100), 2) if pos_total > 0 else 0.0
+            winner_name = None
+            winner_details = None
+
+            if pos_total == 0:
+                winner_name = "No votes cast"
+            elif nota_votes > max_cand_votes:
+                winner_name = "NOTA - Position Unfilled"
+            elif max_cand_votes > nota_votes:
+                top_cands = [c for c in candidates_for_pos if c["votes"] == max_cand_votes]
+                if len(top_cands) == 1:
+                    top_cand = top_cands[0]
+                    top_cand["is_winner"] = True
+                    winner_name = top_cand["name"]
+                    winner_details = top_cand
+                else:
+                    winner_name = f"Tie between {', '.join(c['name'] for c in top_cands)}"
+            else:
+                # Tie between candidate and NOTA
+                winner_name = "NOTA - Position Unfilled"
+
+            pos_data = {
+                "position": pos,
+                "total_votes": pos_total,
+                "nota_count": nota_votes,
+                "nota_percentage": nota_pct,
+                "winner": winner_name,
+                "winner_details": winner_details,
+                "candidates": candidates_for_pos,
+            }
+            by_position.append(pos_data)
+            positions_map[pos] = pos_data
+            all_flat_candidates.extend(candidates_for_pos)
 
         return {
             "election_id": election.id,
             "title": election.title,
-            "total_votes": total_votes,
+            "total_votes": display_total_votes,
+            "total_ballot_entries": total_ballot_entries,
             "results_published": election.results_published,
-            "candidates": candidate_results,
+            "by_position": by_position,
+            "positions": positions_map,
+            "candidates": all_flat_candidates,
         }
 
     @classmethod
@@ -294,5 +588,6 @@ class VoteService:
 
 # Module-level aliases
 cast_vote = VoteService.cast_vote
+cast_multi_position_vote = VoteService.cast_multi_position_vote
 get_results = VoteService.get_results
 calculate_turnout = VoteService.calculate_turnout

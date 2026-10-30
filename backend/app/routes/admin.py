@@ -15,6 +15,8 @@ from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
+from app.models.voting_token import VotingToken
+from app.models.kiosk_device import KioskDevice
 from app.services.otp_service import OTPService
 from app.utils.decorators import admin_required
 from app.utils.validators import (
@@ -405,3 +407,233 @@ def get_audit_logs():
         }),
         200,
     )
+
+
+# ── Physical Desk (Voting Token Slip) ─────────────────────────────────────────
+
+@admin_bp.post("/desk/issue-pin")
+@admin_required
+def issue_desk_pin():
+    """
+    Physical Polling Desk:
+    Volunteer verifies student identity and issues a single-use 6-digit voting PIN
+    valid for 20 minutes.
+    """
+    payload = request.get_json(silent=True) or {}
+    student_id = sanitize_input(payload.get("student_id"))
+    election_id = payload.get("election_id")
+
+    if not student_id:
+        return (
+            jsonify({"error": "student_id is required."}),
+            400,
+        )
+
+    if election_id:
+        try:
+            election_id = int(election_id)
+            election = db.session.get(Election, election_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": "election_id must be an integer."}), 400
+    else:
+        active_elections = Election.query.filter_by(is_active=True).all()
+        ongoing = [e for e in active_elections if e.is_ongoing]
+        election = ongoing[0] if ongoing else (
+            active_elections[0] if active_elections else Election.query.order_by(Election.created_at.desc()).first()
+        )
+
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    user = User.query.filter_by(student_id=student_id).first()
+    if not user:
+        return jsonify({"error": "Student not found in enrollment records."}), 404
+
+    # Check if voter has already cast a ballot in this election
+    voter_hash = User.hash_student_id(user.student_id)
+    voter_rec = VoterRecord.query.filter_by(
+        election_id=election.id, voter_hash=voter_hash
+    ).first()
+
+    if voter_rec and voter_rec.has_voted:
+        return (
+            jsonify({"error": "Voter has already cast their ballot in this election."}),
+            400,
+        )
+
+    # If not registered yet, register eligible student at desk
+    if not voter_rec:
+        voter_rec = VoterRecord(
+            election_id=election.id,
+            voter_hash=voter_hash,
+            has_voted=False,
+        )
+        db.session.add(voter_rec)
+        db.session.flush()
+
+    admin_identity = get_jwt_identity()
+    admin_id = int(admin_identity) if str(admin_identity).isdigit() else None
+
+    # Generate 6-digit PIN valid for 20 minutes
+    raw_pin, token_record = VotingToken.generate_pin(
+        student_id=user.student_id,
+        election_id=election.id,
+        created_by=admin_id,
+        validity_minutes=20,
+    )
+
+    db.session.commit()
+
+    return (
+        jsonify({
+            "student_id": user.student_id,
+            "name": user.name,
+            "pin": str(raw_pin),
+            "voting_pin": str(raw_pin),
+            "expires_at": token_record.expires_at.isoformat(),
+            "validity_minutes": 20,
+            "election_id": election.id,
+            "message": "Single-use voting PIN generated successfully.",
+        }),
+        200,
+    )
+
+
+@admin_bp.get("/desk/voters")
+@admin_required
+def get_desk_voters():
+    """
+    Search and list enrolled voters for desk staff with live election status
+    (Already Voted / PIN Active / Ready).
+    """
+    search_query = request.args.get("query") or request.args.get("search") or ""
+    election_id_raw = request.args.get("election_id")
+
+    election = None
+    if election_id_raw and str(election_id_raw).isdigit():
+        election = db.session.get(Election, int(election_id_raw))
+
+    if not election:
+        # Default to active ongoing election or latest election
+        active_elections = Election.query.filter_by(is_active=True).all()
+        ongoing = [e for e in active_elections if e.is_ongoing]
+        election = ongoing[0] if ongoing else (
+            active_elections[0] if active_elections else Election.query.order_by(Election.created_at.desc()).first()
+        )
+
+    # Base query on voters
+    query = User.query.filter(User.role == "voter")
+    if search_query.strip():
+        term = f"%{search_query.strip()}%"
+        query = query.filter(
+            (User.student_id.ilike(term))
+            | (User.name.ilike(term))
+            | (User.email.ilike(term))
+            | (User.department.ilike(term))
+        )
+
+    students = query.order_by(User.student_id.asc()).limit(200).all()
+
+    now = datetime.now(timezone.utc)
+    results = []
+
+    for s in students:
+        has_voted = False
+        is_pin_active = False
+        pin_expires_at = None
+
+        if election:
+            v_hash = User.hash_student_id(s.student_id)
+            vr = VoterRecord.query.filter_by(election_id=election.id, voter_hash=v_hash).first()
+            if vr and vr.has_voted:
+                has_voted = True
+
+            if not has_voted:
+                tok = (
+                    VotingToken.query.filter_by(
+                        student_id=s.student_id,
+                        election_id=election.id,
+                        is_used=False,
+                    )
+                    .order_by(VotingToken.created_at.desc())
+                    .first()
+                )
+                if tok:
+                    exp = tok.expires_at
+                    if exp.tzinfo is None:
+                        exp = exp.replace(tzinfo=timezone.utc)
+                    if now <= exp:
+                        is_pin_active = True
+                        pin_expires_at = tok.expires_at.isoformat()
+
+        if has_voted:
+            status = "Already Voted"
+        elif is_pin_active:
+            status = "PIN Active"
+        else:
+            status = "Ready"
+
+        results.append({
+            "id": s.id,
+            "student_id": s.student_id,
+            "name": s.name,
+            "email": s.email,
+            "department": s.department or "",
+            "year": s.year or "Undergraduate",
+            "status": status,
+            "has_voted": has_voted,
+            "pin_active": is_pin_active,
+            "pin_expires_at": pin_expires_at,
+        })
+
+    return jsonify({"voters": results, "total": len(results)}), 200
+
+
+# ── Authorized Computer Lab Kiosks ───────────────────────────────────────────
+
+@admin_bp.post("/kiosk/register")
+@admin_required
+def register_kiosk():
+    """Register a new computer terminal as an authorized lab kiosk."""
+    payload = request.get_json(silent=True) or {}
+    device_name = sanitize_input(payload.get("device_name"))
+
+    if not device_name:
+        return jsonify({"error": "device_name is required."}), 400
+
+    ip_addr = request.remote_addr or "127.0.0.1"
+    kiosk = KioskDevice.register_device(device_name=device_name, ip_address=ip_addr)
+    db.session.commit()
+
+    return (
+        jsonify({
+            "message": "Kiosk terminal registered successfully.",
+            "kiosk_token": kiosk.kiosk_token,
+            "kiosk": kiosk.to_dict(),
+            "id": kiosk.id,
+            "device_name": kiosk.device_name,
+            "created_at": kiosk.created_at.isoformat() if kiosk.created_at else None,
+        }),
+        201,
+    )
+
+
+@admin_bp.get("/kiosk/list")
+@admin_required
+def list_kiosks():
+    """List all registered computer lab kiosk terminals."""
+    kiosks = KioskDevice.query.order_by(KioskDevice.created_at.desc()).all()
+    return jsonify([k.to_dict() for k in kiosks]), 200
+
+
+@admin_bp.delete("/kiosk/<int:kiosk_id>")
+@admin_required
+def delete_kiosk(kiosk_id):
+    """Revoke and delete a registered kiosk terminal."""
+    kiosk = db.session.get(KioskDevice, kiosk_id)
+    if not kiosk:
+        return jsonify({"error": "Kiosk terminal not found."}), 404
+
+    db.session.delete(kiosk)
+    db.session.commit()
+    return jsonify({"message": f"Kiosk terminal {kiosk_id} revoked successfully."}), 200

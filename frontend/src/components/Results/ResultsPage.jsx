@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { resultsApi } from '../../api/resultsApi';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +13,8 @@ import {
   LockClosedIcon,
   UsersIcon,
   ShieldCheckIcon,
+  NoSymbolIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 
 export const ResultsPage = () => {
@@ -24,6 +26,9 @@ export const ResultsPage = () => {
   const [statsData, setStatsData] = useState(null);
   const [unpublished, setUnpublished] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  // Position filter tab ('ALL' or specific position name)
+  const [selectedPositionTab, setSelectedPositionTab] = useState('ALL');
 
   useEffect(() => {
     const fetchResultsAndStats = async () => {
@@ -63,7 +68,7 @@ export const ResultsPage = () => {
         if (detail && detail.toLowerCase().includes('not published')) {
           setUnpublished(true);
         } else {
-          setErrorMessage('Unable to load election tally results.');
+          setErrorMessage('Unable to load certified election results.');
         }
       } finally {
         setLoading(false);
@@ -74,6 +79,107 @@ export const ResultsPage = () => {
   }, [electionId]);
 
   const backLink = role === 'admin' ? '/admin/elections' : '/voter/dashboard';
+
+  // Extract raw candidates or positions
+  const rawCandidateList = useMemo(() => {
+    if (!resultsData) return [];
+    if (resultsData.positions && Array.isArray(resultsData.positions)) {
+      const flattened = [];
+      resultsData.positions.forEach((pos) => {
+        const posName = pos.name || pos.title || 'General';
+        (pos.candidates || []).forEach((c) => {
+          flattened.push({ ...c, position: posName });
+        });
+        if (pos.nota_votes !== undefined || pos.nota_count !== undefined) {
+          flattened.push({
+            id: `nota-${posName}`,
+            name: 'None of the Above (NOTA)',
+            position: posName,
+            votes: pos.nota_votes ?? pos.nota_count ?? 0,
+            is_nota: true,
+          });
+        }
+      });
+      return flattened;
+    }
+    return resultsData.results || resultsData.candidates || [];
+  }, [resultsData]);
+
+  // Group candidate tallies by Position
+  const groupedByPosition = useMemo(() => {
+    const groups = {};
+
+    rawCandidateList.forEach((cand) => {
+      const pos = (cand.position || 'General Office').trim();
+      if (!groups[pos]) {
+        groups[pos] = [];
+      }
+
+      const votes = cand.votes ?? cand.vote_count ?? 0;
+      const isNota = Boolean(
+        cand.is_nota ||
+        cand.name?.toLowerCase().includes('none of the above') ||
+        cand.name?.toLowerCase().includes('nota')
+      );
+
+      groups[pos].push({
+        ...cand,
+        votes,
+        is_nota: isNota,
+      });
+    });
+
+    // Check if resultsData has standalone NOTA counts per position or global nota
+    if (resultsData?.nota_by_position) {
+      Object.entries(resultsData.nota_by_position).forEach(([pos, count]) => {
+        if (groups[pos]) {
+          const alreadyHasNota = groups[pos].some((c) => c.is_nota);
+          if (!alreadyHasNota) {
+            groups[pos].push({
+              id: `nota-${pos}`,
+              name: 'None of the Above (NOTA)',
+              position: pos,
+              votes: count,
+              is_nota: true,
+            });
+          }
+        }
+      });
+    }
+
+    // For each position, sort candidates by votes descending & compute percentages & winner
+    const result = {};
+    Object.keys(groups).forEach((pos) => {
+      const list = [...groups[pos]].sort((a, b) => b.votes - a.votes);
+      const positionTotalVotes = list.reduce((acc, c) => acc + c.votes, 0);
+
+      // Find winner: highest votes if votes > 0
+      const leader = list.length > 0 && list[0].votes > 0 ? list[0] : null;
+
+      result[pos] = {
+        candidates: list,
+        totalVotes: positionTotalVotes,
+        winner: leader,
+      };
+    });
+
+    return result;
+  }, [rawCandidateList, resultsData]);
+
+  const positionsList = useMemo(() => Object.keys(groupedByPosition), [groupedByPosition]);
+
+  // Total votes cast across election
+  const totalVotesCast = useMemo(() => {
+    if (resultsData?.total_votes !== undefined) return resultsData.total_votes;
+    if (statsData?.total_votes !== undefined) return statsData.total_votes;
+    const posTotals = Object.values(groupedByPosition).map((p) => p.totalVotes);
+    return posTotals.length > 0 ? Math.max(...posTotals) : 0;
+  }, [resultsData, statsData, groupedByPosition]);
+
+  const totalEligibleVoters = statsData?.total_voters || statsData?.registered_voters || null;
+  const turnoutPercent = totalEligibleVoters && totalEligibleVoters > 0
+    ? ((totalVotesCast / totalEligibleVoters) * 100).toFixed(1)
+    : (statsData?.turnout_percentage || (totalVotesCast > 0 ? '100.0' : '0.0'));
 
   if (loading) {
     return (
@@ -95,7 +201,7 @@ export const ResultsPage = () => {
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Election Tally in Progress</h2>
           <p className="text-sm text-gray-600 mt-2 leading-relaxed">
-            Results for this election have not been officially published yet. Either the voting window is still open or the electoral committee is completing cryptographic audit verification.
+            Results for this election have not been officially published yet. Either polling is still open or the electoral committee is completing cryptographic audit verification.
           </p>
 
           <div className="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-center justify-center gap-2">
@@ -129,29 +235,15 @@ export const ResultsPage = () => {
     );
   }
 
-  // Calculate vote totals and determine winner
-  const rawCandidateList = resultsData?.results || resultsData?.candidates || [];
-  const totalVotesCast = resultsData?.total_votes ?? statsData?.total_votes ?? rawCandidateList.reduce((acc, c) => acc + (c.votes || c.vote_count || 0), 0);
-  const totalEligibleVoters = statsData?.total_voters || statsData?.registered_voters || null;
-  const turnoutPercent = totalEligibleVoters && totalEligibleVoters > 0
-    ? ((totalVotesCast / totalEligibleVoters) * 100).toFixed(1)
-    : (statsData?.turnout_percentage || (totalVotesCast > 0 ? '100.0' : '0.0'));
-
-  // Sort candidates by votes descending
-  const sortedCandidates = [...rawCandidateList].sort((a, b) => {
-    const votesA = a.votes ?? a.vote_count ?? 0;
-    const votesB = b.votes ?? b.vote_count ?? 0;
-    return votesB - votesA;
-  });
-
-  const winner = sortedCandidates.length > 0 && (sortedCandidates[0].votes || sortedCandidates[0].vote_count) > 0
-    ? sortedCandidates[0]
-    : null;
+  // Filter positions to display based on selected tab
+  const displayedPositions = selectedPositionTab === 'ALL'
+    ? positionsList
+    : positionsList.filter((pos) => pos === selectedPositionTab);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Back button and Header */}
-      <div className="mb-6">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in space-y-8">
+      {/* Header and Back Link */}
+      <div>
         <Link
           to={backLink}
           className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 font-medium mb-3 transition-colors"
@@ -161,64 +253,25 @@ export const ResultsPage = () => {
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              {resultsData?.election?.title || resultsData?.title || `Certified Election Results`}
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+              {resultsData?.election?.title || resultsData?.title || 'Certified Election Results'}
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Final verified ballot counts with secret cryptographic tally integrity.
+              Final verified ballot counts broken down by contested offices with cryptographic audit integrity.
             </p>
           </div>
           <StatusBadge status="published" label="Official & Certified" variant="success" />
         </div>
       </div>
 
-      {/* Winner Banner */}
-      {winner ? (
-        <div className="mb-8 card overflow-hidden border-2 border-amber-300 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent p-6 shadow-md">
-          <div className="flex flex-col sm:flex-row items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
-              <TrophyIcon className="w-9 h-9" />
-            </div>
-            <div className="text-center sm:text-left flex-1">
-              <div className="flex items-center justify-center sm:justify-start gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                  Elected Winner
-                </span>
-                <span className="text-xs text-gray-500">
-                  Position: {winner.position || 'President'}
-                </span>
-              </div>
-              <h2 className="text-2xl font-black text-gray-900 mt-1">
-                {winner.name || winner.candidate_name}
-              </h2>
-              {winner.party && (
-                <p className="text-xs font-semibold text-gray-600 mt-0.5">
-                  Affiliation: {winner.party}
-                </p>
-              )}
-            </div>
-            <div className="text-center sm:text-right bg-white/80 p-3 rounded-xl border border-amber-200">
-              <p className="text-2xl font-black text-amber-600">
-                {(winner.votes ?? winner.vote_count ?? 0).toLocaleString()}
-              </p>
-              <p className="text-[11px] text-gray-500 font-medium">Votes Secured</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-8 card p-6 text-center text-sm text-gray-500">
-          No votes were recorded in this election slate.
-        </div>
-      )}
-
-      {/* Turnout Statistics Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* Global Turnout Statistics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="card p-4 border border-gray-100 flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600">
             <ChartBarIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase font-semibold">Total Ballots Cast</p>
+            <p className="text-[11px] text-gray-500 uppercase font-semibold">Ballots Cast</p>
             <p className="text-xl font-extrabold text-gray-900">{totalVotesCast.toLocaleString()}</p>
           </div>
         </div>
@@ -228,8 +281,18 @@ export const ResultsPage = () => {
             <UsersIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase font-semibold">Voter Turnout</p>
+            <p className="text-[11px] text-gray-500 uppercase font-semibold">Voter Turnout</p>
             <p className="text-xl font-extrabold text-emerald-700">{turnoutPercent}%</p>
+          </div>
+        </div>
+
+        <div className="card p-4 border border-gray-100 flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
+            <AcademicCapIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-500 uppercase font-semibold">Contested Offices</p>
+            <p className="text-xl font-extrabold text-indigo-900">{positionsList.length}</p>
           </div>
         </div>
 
@@ -238,64 +301,183 @@ export const ResultsPage = () => {
             <ShieldCheckIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase font-semibold">Ballot Box Audit</p>
+            <p className="text-[11px] text-gray-500 uppercase font-semibold">Ballot Box Audit</p>
             <p className="text-xs font-mono font-bold text-purple-700">SHA-256 Intact</p>
           </div>
         </div>
       </div>
 
-      {/* Breakdown per candidate */}
-      <div className="card p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-          <CheckBadgeIcon className="w-5 h-5 text-primary-600" />
-          Candidate Vote Breakdown
-        </h3>
+      {/* Position Selector Tabs */}
+      {positionsList.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-200">
+          <button
+            onClick={() => setSelectedPositionTab('ALL')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              selectedPositionTab === 'ALL'
+                ? 'bg-primary-600 text-white shadow-sm'
+                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+            }`}
+          >
+            All Offices ({positionsList.length})
+          </button>
+          {positionsList.map((pos) => (
+            <button
+              key={pos}
+              onClick={() => setSelectedPositionTab(pos)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                selectedPositionTab === pos
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+              }`}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
+      )}
 
-        <div className="space-y-6">
-          {sortedCandidates.map((cand, index) => {
-            const count = cand.votes ?? cand.vote_count ?? 0;
-            const percentage = totalVotesCast > 0 ? ((count / totalVotesCast) * 100).toFixed(1) : 0;
-            const isWinner = index === 0 && count > 0;
+      {/* Position-by-Position Results Sections */}
+      <div className="space-y-10">
+        {displayedPositions.map((pos) => {
+          const { candidates: posCandidates, totalVotes: posTotalVotes, winner } = groupedByPosition[pos];
 
-            return (
-              <div key={cand.id || index} className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900">{cand.name || cand.candidate_name}</span>
-                    {cand.party && (
-                      <span className="text-xs text-gray-400">({cand.party})</span>
-                    )}
-                    {isWinner && (
-                      <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                        Winner
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm font-semibold text-gray-900">
-                      {count.toLocaleString()} votes
+          return (
+            <div
+              key={pos}
+              className="card overflow-hidden border border-gray-200 shadow-sm transition-all"
+            >
+              {/* Position Header & Winner Banner */}
+              <div className="p-6 bg-gradient-to-r from-slate-50 via-white to-amber-50/40 border-b border-gray-100">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600 block">
+                      Election Office
                     </span>
-                    <span className="font-bold text-sm text-primary-700 w-12 text-right">
-                      {percentage}%
-                    </span>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">{pos}</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Total Votes Cast in this Office: <span className="font-bold text-gray-800">{posTotalVotes.toLocaleString()}</span>
+                    </p>
                   </div>
-                </div>
 
-                {/* Visual Progress Bar */}
-                <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isWinner
-                        ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                        : 'bg-primary-600'
-                    }`}
-                    style={{ width: `${percentage}%` }}
-                  />
+                  {/* Declared Winner Pill / Card */}
+                  {winner ? (
+                    <div className="flex items-center gap-3 bg-white p-3 px-4 rounded-2xl border border-amber-200 shadow-xs">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+                        {winner.is_nota ? (
+                          <NoSymbolIcon className="w-6 h-6" />
+                        ) : (
+                          <TrophyIcon className="w-6 h-6" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.2 rounded-full ${
+                            winner.is_nota
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {winner.is_nota ? 'Abstention Plurality' : 'Declared Winner'}
+                          </span>
+                        </div>
+                        <p className="text-base font-extrabold text-gray-900 leading-tight mt-0.5">
+                          {winner.name || winner.candidate_name}
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-medium">
+                          {winner.votes.toLocaleString()} votes ({posTotalVotes > 0 ? ((winner.votes / posTotalVotes) * 100).toFixed(1) : 0}%)
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">No votes recorded yet for this office</span>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Candidates & NOTA Vote Breakdown */}
+              <div className="p-6 space-y-5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 mb-2">
+                  <CheckBadgeIcon className="w-4 h-4 text-primary-600" />
+                  Candidate & NOTA Vote Tallies
+                </h3>
+
+                <div className="space-y-4">
+                  {posCandidates.map((cand, idx) => {
+                    const isWinner = winner && cand.id === winner.id && cand.votes > 0;
+                    const percentage = posTotalVotes > 0
+                      ? ((cand.votes / posTotalVotes) * 100).toFixed(1)
+                      : '0.0';
+
+                    return (
+                      <div
+                        key={cand.id || idx}
+                        className={`p-4 rounded-xl border transition-all ${
+                          isWinner
+                            ? 'bg-amber-50/50 border-amber-300 ring-1 ring-amber-400/20 shadow-xs'
+                            : cand.is_nota
+                            ? 'bg-slate-50 border-slate-200'
+                            : 'bg-white border-gray-100 hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            {cand.is_nota ? (
+                              <NoSymbolIcon className="w-4 h-4 text-slate-500 shrink-0" />
+                            ) : (
+                              <span className="font-mono text-xs font-semibold text-gray-400 w-5">
+                                #{idx + 1}
+                              </span>
+                            )}
+                            <span className="font-extrabold text-gray-900">
+                              {cand.name || cand.candidate_name}
+                            </span>
+                            {cand.party && !cand.is_nota && (
+                              <span className="text-xs text-gray-500 font-medium">
+                                ({cand.party})
+                              </span>
+                            )}
+                            {isWinner && (
+                              <span className="px-2 py-0.2 rounded text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900">
+                                Winner
+                              </span>
+                            )}
+                            {cand.is_nota && (
+                              <span className="px-2 py-0.2 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
+                                Formal Abstention
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-right self-end sm:self-auto">
+                            <span className="font-mono text-sm font-black text-gray-900">
+                              {cand.votes.toLocaleString()} votes
+                            </span>
+                            <span className="font-black text-sm text-primary-700 w-14 text-right">
+                              {percentage}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isWinner
+                                ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                                : cand.is_nota
+                                ? 'bg-slate-500'
+                                : 'bg-primary-600'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

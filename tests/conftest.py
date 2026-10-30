@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 # Lazily import the application factory so models are not imported at module
 # level (avoids circular imports when the test suite is collected).
 # ---------------------------------------------------------------------------
+from sqlalchemy.pool import StaticPool
 from app import create_app
 from app.extensions import db as _db
 from app.models.user import User
@@ -34,6 +35,10 @@ def app():
     _app = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        "SQLALCHEMY_ENGINE_OPTIONS": {
+            "poolclass": StaticPool,
+            "connect_args": {"check_same_thread": False},
+        },
         "SQLALCHEMY_TRACK_MODIFICATIONS": False,
         "JWT_SECRET_KEY": "test-jwt-secret-key-do-not-use-in-production",
         "SECRET_KEY": "test-secret-key",
@@ -51,8 +56,12 @@ def db(app):
     with app.app_context():
         _db.create_all()
         yield _db
-        _db.session.remove()
-        _db.drop_all()
+        try:
+            _db.session.rollback()
+            _db.session.remove()
+            _db.drop_all()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")
@@ -63,7 +72,7 @@ def db_session(app, db):
 
 
 @pytest.fixture()
-def client(app):
+def client(app, db):
     """Flask test client."""
     with app.test_client() as c:
         yield c

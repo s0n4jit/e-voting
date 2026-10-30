@@ -29,6 +29,30 @@ export const voterApi = {
     const response = await apiClient.get('/voter/status', { params });
     return response.data;
   },
+
+  // Multi-position ballot & Kiosk casting
+  getElectionBallot: async (electionId) => {
+    try {
+      const response = await apiClient.get(`/voter/elections/${electionId}/ballot`);
+      return response.data;
+    } catch (err) {
+      // Fallback: fetch candidate list and group if ballot route is not yet deployed
+      const candidates = await apiClient.get(`/voter/elections/${electionId}/candidates`);
+      const list = Array.isArray(candidates.data) ? candidates.data : (candidates.data?.candidates || []);
+      return {
+        election_id: electionId,
+        candidates: list,
+      };
+    }
+  },
+
+  castMultiPositionBallot: async (electionId, selections, kioskToken) => {
+    const response = await apiClient.post(`/voter/elections/${electionId}/cast-ballot`, {
+      selections,
+      kiosk_token: kioskToken,
+    });
+    return response.data;
+  },
 };
 
 export default voterApi;

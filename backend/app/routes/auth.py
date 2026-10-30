@@ -15,7 +15,11 @@ from flask_jwt_extended import (
 
 from app.extensions import db, token_blacklist, commit_or_flush
 from app.models.user import User
+from app.models.election import Election
+from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
+from app.models.voting_token import VotingToken
+from app.models.kiosk_device import KioskDevice
 from app.services.otp_service import OTPService
 from app.utils.validators import sanitize_input
 
@@ -257,3 +261,146 @@ def get_current_user():
         return jsonify({"error": "User not found."}), 404
 
     return jsonify(user.to_dict()), 200
+
+
+@auth_bp.post("/voter-pin-login")
+def voter_pin_login():
+    """
+    Lab Kiosk / Desk PIN Authentication:
+    Authenticates a voter using their Student ID and single-use 6-digit Voting PIN.
+    Optionally validates authorized kiosk terminal token.
+    Issues JWT session token authorized for casting a ballot.
+    """
+    payload = request.get_json(silent=True) or {}
+    student_id = sanitize_input(payload.get("student_id"))
+    voting_pin = sanitize_input(payload.get("voting_pin") or payload.get("pin"))
+    election_id = payload.get("election_id")
+    kiosk_token = sanitize_input(payload.get("kiosk_token") or request.headers.get("X-Kiosk-Token"))
+
+    if not student_id or not voting_pin:
+        return (
+            jsonify({
+                "error": "Missing required fields.",
+                "message": "student_id and voting_pin are required.",
+            }),
+            400,
+        )
+
+    if election_id:
+        try:
+            election_id = int(election_id)
+            election = db.session.get(Election, election_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": "election_id must be an integer."}), 400
+    else:
+        active_elections = Election.query.filter_by(is_active=True).all()
+        ongoing = [e for e in active_elections if e.is_ongoing]
+        election = ongoing[0] if ongoing else (
+            active_elections[0] if active_elections else None
+        )
+
+    if not election:
+        return (
+            jsonify({
+                "error": "Election not found.",
+                "message": "No active election available for voting.",
+            }),
+            404,
+        )
+
+    if not election.is_active:
+        return (
+            jsonify({
+                "error": "Election inactive.",
+                "message": "This election is not currently open for voting.",
+            }),
+            400,
+        )
+
+    # Optional kiosk terminal validation
+    kiosk_device = None
+    if kiosk_token:
+        is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
+        if not is_kiosk_valid:
+            return (
+                jsonify({
+                    "error": "Unauthorized Kiosk",
+                    "message": "The terminal is not an authorized kiosk station.",
+                }),
+                403,
+            )
+
+    # Resolve student user
+    user = User.query.filter_by(student_id=student_id).first()
+    if not user:
+        return (
+            jsonify({
+                "error": "Invalid credentials",
+                "message": "Invalid Student ID or Voting PIN.",
+            }),
+            401,
+        )
+
+    # Check if voter has already voted
+    voter_hash = User.hash_student_id(user.student_id)
+    voter_record = VoterRecord.query.filter_by(
+        election_id=election.id, voter_hash=voter_hash
+    ).first()
+    if voter_record and voter_record.has_voted:
+        return (
+            jsonify({
+                "error": "Already voted",
+                "message": "You have already cast your ballot in this election.",
+            }),
+            403,
+        )
+
+    # Verify 6-digit Voting PIN
+    is_valid_pin, token_obj = VotingToken.verify_pin(
+        student_id=user.student_id,
+        election_id=election.id,
+        raw_pin=voting_pin,
+    )
+    if not is_valid_pin:
+        return (
+            jsonify({
+                "error": "Invalid PIN",
+                "message": "Invalid, expired, or already used voting PIN. Please request a new PIN at the desk.",
+            }),
+            401,
+        )
+
+    # Issue voter JWT token scoped for ballot casting
+    access_token = create_access_token(
+        identity=str(user.id),
+        expires_delta=timedelta(minutes=30),
+        additional_claims={
+            "role": "voter",
+            "student_id": user.student_id,
+            "name": user.name,
+            "election_id": election.id,
+            "voting_authorized": True,
+            "is_kiosk": bool(kiosk_device),
+        },
+    )
+
+    audit = AuditLog(
+        user_id=user.id,
+        action="PIN_LOGIN_SUCCESS",
+        details=f"Voter authenticated with single-use PIN for election {election.id}",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "kiosk",
+    )
+    db.session.add(audit)
+    commit_or_flush()
+
+    return (
+        jsonify({
+            "access_token": access_token,
+            "user": user.to_dict(),
+            "election_id": election.id,
+            "voting_authorized": True,
+            "message": "Voter successfully authenticated via Voting PIN.",
+        }),
+        200,
+    )
