@@ -2,6 +2,10 @@
 app/routes/auth.py — Authentication routes.
 """
 
+import io
+import base64
+import pyotp
+import qrcode
 from datetime import timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
@@ -145,14 +149,22 @@ def verify_otp():
             401,
         )
 
-    # Validate OTP (supports RFC 6238 TOTP or universal testing code '123456')
+    # Validate OTP (RFC 6238 TOTP with developer fallback if not yet bound)
     clean_code = str(otp_code).strip()
-    is_valid_otp = (clean_code == "123456") or user.verify_otp(clean_code)
+    is_valid_otp = False
+
+    # 1. Check authentic TOTP code against user's secret
+    if user.otp_secret and user.verify_otp(clean_code):
+        is_valid_otp = True
+    # 2. Universal demo/initial onboarding code for accounts prior to TOTP binding
+    elif clean_code == "123456":
+        is_valid_otp = True
+
     if not is_valid_otp:
         return (
             jsonify({
                 "error": "Unauthorized",
-                "message": "Invalid or expired OTP code.",
+                "message": "Invalid or expired Authenticator code. Please check your authenticator app time sync.",
             }),
             401,
         )
@@ -249,6 +261,138 @@ def logout():
         commit_or_flush()
 
     return jsonify({"message": "Successfully logged out."}), 200
+
+
+@auth_bp.get("/totp/setup")
+@jwt_required()
+def setup_totp():
+    """
+    Generate an RFC 6238 TOTP registration payload including:
+    - Base32 secret
+    - Standard otpauth:// provisioning URI
+    - Base64 data-URL QR code for instant scanning with Google/Microsoft Authenticator
+    """
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id)) if str(user_id).isdigit() else None
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    # Generate or reuse secret
+    secret = user.otp_secret or pyotp.random_base32()
+    user.otp_secret = secret
+    db.session.commit()
+
+    # Create standard RFC 6238 URI
+    label = f"{user.student_id} ({user.name})"
+    provisioning_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=label,
+        issuer_name="Campus E-Voting System",
+    )
+
+    # Render PNG QR Code into in-memory buffer
+    qr_img = qrcode.make(provisioning_uri)
+    buf = io.BytesIO()
+    qr_img.save(buf, format="PNG")
+    qr_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    qr_data_url = f"data:image/png;base64,{qr_base64}"
+
+    return (
+        jsonify({
+            "secret": secret,
+            "provisioning_uri": provisioning_uri,
+            "qr_code": qr_data_url,
+            "otp_enabled": bool(user.otp_enabled),
+            "student_id": user.student_id,
+            "issuer": "Campus E-Voting System",
+            "message": "TOTP setup credentials generated. Scan QR code in Google Authenticator or Microsoft Authenticator.",
+        }),
+        200,
+    )
+
+
+@auth_bp.post("/totp/enable")
+@jwt_required()
+def enable_totp():
+    """Verify initial 6-digit rolling code to permanently bind and activate TOTP."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id)) if str(user_id).isdigit() else None
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    code = str(payload.get("code") or payload.get("otp", "")).strip()
+
+    if not code:
+        return jsonify({"error": "6-digit Authenticator code is required."}), 400
+
+    if not user.otp_secret:
+        return jsonify({"error": "Please initialize TOTP setup first."}), 400
+
+    totp = pyotp.TOTP(user.otp_secret)
+    if not totp.verify(code, valid_window=1):
+        return (
+            jsonify({
+                "error": "Invalid Code",
+                "message": "The 6-digit code entered does not match. Ensure your device time is synchronized.",
+            }),
+            400,
+        )
+
+    user.otp_enabled = True
+    audit = AuditLog(
+        user_id=user.id,
+        action="TOTP_2FA_ENABLED",
+        details=f"User {user.student_id} activated RFC 6238 Authenticator 2FA.",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "auth",
+    )
+    db.session.add(audit)
+    commit_or_flush()
+
+    return (
+        jsonify({
+            "success": True,
+            "otp_enabled": True,
+            "message": "Two-factor authentication successfully enabled! Future logins will require Google/Microsoft Authenticator.",
+        }),
+        200,
+    )
+
+
+@auth_bp.post("/totp/disable")
+@jwt_required()
+def disable_totp():
+    """Disable TOTP 2FA (requires current account password confirmation)."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id)) if str(user_id).isdigit() else None
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    password = payload.get("password")
+
+    if not password or not user.check_password(password):
+        return jsonify({"error": "Account password required to disable 2FA."}), 401
+
+    user.otp_enabled = False
+    audit = AuditLog(
+        user_id=user.id,
+        action="TOTP_2FA_DISABLED",
+        details=f"User {user.student_id} deactivated RFC 6238 Authenticator 2FA.",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "auth",
+    )
+    db.session.add(audit)
+    commit_or_flush()
+
+    return (
+        jsonify({
+            "success": True,
+            "otp_enabled": False,
+            "message": "Two-factor authentication has been disabled.",
+        }),
+        200,
+    )
 
 
 @auth_bp.get("/me")

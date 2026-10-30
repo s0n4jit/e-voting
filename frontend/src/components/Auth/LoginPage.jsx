@@ -243,32 +243,33 @@ export const LoginPage = () => {
             ) : (
               <form onSubmit={handleOtpSubmit} className="space-y-5">
                 <div className="text-center pb-2">
-                  <div className="inline-flex p-3 rounded-full bg-primary-50 text-primary-600 mb-2">
+                  <div className="inline-flex p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-2">
                     <KeyIcon className="w-6 h-6" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-900">Two-Factor Authentication (2FA)</h3>
+                  <h3 className="text-base font-bold text-gray-900">Authenticator 2FA (RFC 6238)</h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Enter the 6-digit TOTP code generated for student <span className="font-mono font-semibold text-gray-700">{studentId}</span>.
+                    Enter the 6-digit rolling code from your Authenticator app (Google Authenticator / Authy).
                   </p>
                 </div>
 
                 <div>
                   <label htmlFor="otp" className="label text-center">
-                    6-Digit Verification Code
+                    6-Digit Authenticator Code
                   </label>
                   <input
                     id="otp"
                     type="text"
                     required
+                    inputMode="numeric"
                     maxLength={6}
                     autoFocus
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="123456"
-                    className="input text-center font-mono text-2xl tracking-[0.5em] py-3 font-bold text-primary-700"
+                    placeholder="••••••"
+                    className="input text-center font-mono text-2xl tracking-[0.5em] py-3 font-bold text-indigo-700"
                   />
-                  <p className="text-[11px] text-gray-400 text-center mt-1.5">
-                    TOTP algorithm (RFC 6238) active. Code expires in 300s.
+                  <p className="text-[11px] text-gray-400 text-center mt-1.5 font-mono">
+                    RFC 6238 Standard (30-second window). Initial demo code: 123456
                   </p>
                 </div>
 

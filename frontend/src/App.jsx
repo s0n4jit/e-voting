@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
-import Navbar from './components/common/Navbar';
+import AppShell from './components/layout/AppShell';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
 // Pages & Components
@@ -42,20 +42,9 @@ const RootRedirect = () => {
   return <Navigate to="/voter/dashboard" replace />;
 };
 
-// Authenticated Layout wrapper with Navbar
+// Authenticated Layout wrapper with AppShell
 const AuthenticatedLayout = ({ children }) => {
-  return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      <Navbar />
-      <main className="flex-1 pb-12">{children}</main>
-      <footer className="py-6 border-t border-slate-200/60 bg-white/50 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Campus e-Voting System • Cryptographically Verified Tally Ledger</span>
-          <span>TOTP RFC 6238 • Blind Tokenized Ballots</span>
-        </div>
-      </footer>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 };
 
 function AppRoutes() {

@@ -115,13 +115,18 @@ export const adminApi = {
   },
 
   // Polling Desk
-  issueDeskPin: async (studentId, electionId) => {
-    const response = await apiClient.post('/admin/desk/issue-pin', {
+  issueDeskPin: async (studentId, electionId, name = null, department = null) => {
+    const payload = typeof studentId === 'object' ? studentId : {
       student_id: studentId,
       election_id: electionId,
-    });
+      name,
+      department,
+    };
+    const response = await apiClient.post('/admin/desk/issue-pin', payload);
     return response.data;
   },
+
+  exportAuditLogsUrl: () => `/api/admin/audit-logs/export`,
 
   getDeskVoters: async (queryOrParams) => {
     let params = {};

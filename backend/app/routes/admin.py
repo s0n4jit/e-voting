@@ -6,7 +6,7 @@ import csv
 import io
 from datetime import datetime, timezone
 from dateutil import parser as date_parser
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db, commit_or_flush
@@ -383,29 +383,134 @@ def import_voters():
 @admin_bp.get("/audit-logs")
 @admin_required
 def get_audit_logs():
-    """Retrieve filtered, paginated audit logs."""
+    """
+    Retrieve rich, filtered, searchable audit logs for transparency reporting.
+    Supports full-text query, category chip filters, and user population.
+    """
     action = request.args.get("action")
+    category = (request.args.get("category") or "all").lower().strip()
+    search = (request.args.get("search") or request.args.get("query") or "").strip()
     user_id = request.args.get("user_id")
     limit = min(int(request.args.get("limit", 100)), 500)
     offset = int(request.args.get("offset", 0))
 
     query = AuditLog.query
-    if action:
+
+    # Category filters
+    CATEGORY_ACTIONS = {
+        "ballot": ["BALLOT_CAST", "VOTE_CAST", "BALLOT_SEALED"],
+        "pin": ["PIN_ISSUED", "PIN_LOGIN_SUCCESS", "VOTING_TOKEN_GENERATED"],
+        "auth": ["LOGIN_SUCCESS", "LOGIN_FAILED", "MFA_VERIFIED", "LOGOUT", "TOTP_2FA_ENABLED", "TOTP_2FA_DISABLED"],
+        "kiosk": ["STAFF_MAINTENANCE_ACTION", "KIOSK_REGISTERED", "KIOSK_AUTHENTICATED"],
+        "enroll": ["STUDENT_AUTO_ENROLLED_AT_DESK", "VOTER_REGISTERED", "VOTER_IMPORT"],
+    }
+
+    if category in CATEGORY_ACTIONS:
+        query = query.filter(AuditLog.action.in_(CATEGORY_ACTIONS[category]))
+    elif action:
         query = query.filter(AuditLog.action == action)
+
     if user_id and user_id.isdigit():
         query = query.filter(AuditLog.user_id == int(user_id))
 
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (AuditLog.action.ilike(search_term))
+            | (AuditLog.details.ilike(search_term))
+            | (AuditLog.ip_address.ilike(search_term))
+            | (AuditLog.user_agent.ilike(search_term))
+        )
+
     total = query.count()
     logs = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+
+    # Pre-fetch user profiles for actors
+    actor_ids = {log.user_id for log in logs if log.user_id}
+    actors = {u.id: u for u in User.query.filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
+
+    # Calculate summary metrics
+    stats = {
+        "total_records": AuditLog.query.count(),
+        "ballots_cast": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS["ballot"])).count(),
+        "pins_issued": AuditLog.query.filter(AuditLog.action == "PIN_ISSUED").count(),
+        "desk_enrollments": AuditLog.query.filter(AuditLog.action == "STUDENT_AUTO_ENROLLED_AT_DESK").count(),
+        "kiosk_actions": AuditLog.query.filter(AuditLog.action == "STAFF_MAINTENANCE_ACTION").count(),
+    }
+
+    serialized = []
+    for log in logs:
+        item = log.to_dict()
+        actor = actors.get(log.user_id)
+        if actor:
+            item["actor_name"] = actor.name
+            item["actor_student_id"] = actor.student_id
+            item["actor_role"] = actor.role
+        else:
+            item["actor_name"] = "Automated System / Voter" if not log.user_id else f"User #{log.user_id}"
+            item["actor_student_id"] = ""
+            item["actor_role"] = "system" if not log.user_id else "unknown"
+        serialized.append(item)
 
     return (
         jsonify({
             "total": total,
             "limit": limit,
             "offset": offset,
-            "logs": [log.to_dict() for log in logs],
+            "category": category,
+            "stats": stats,
+            "logs": serialized,
         }),
         200,
+    )
+
+
+@admin_bp.get("/audit-logs/export")
+@admin_required
+def export_audit_logs():
+    """Export complete election audit trail as certified CSV."""
+    logs = AuditLog.query.order_by(AuditLog.created_at.asc()).all()
+
+    actor_ids = {log.user_id for log in logs if log.user_id}
+    actors = {u.id: u for u in User.query.filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Event ID",
+        "Timestamp (UTC)",
+        "Action Type",
+        "Actor ID",
+        "Actor Name",
+        "Actor Student ID",
+        "Actor Role",
+        "Details",
+        "IP Address",
+        "User Agent",
+    ])
+
+    for log in logs:
+        actor = actors.get(log.user_id)
+        writer.writerow([
+            log.id,
+            log.created_at.isoformat() if log.created_at else "",
+            log.action,
+            log.user_id or "SYSTEM",
+            actor.name if actor else "SYSTEM/ANONYMOUS",
+            actor.student_id if actor else "",
+            actor.role if actor else "system",
+            log.details or "",
+            log.ip_address or "",
+            log.user_agent or "",
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"cevs_audit_trail_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -446,8 +551,37 @@ def issue_desk_pin():
         return jsonify({"error": "No active election found."}), 404
 
     user = User.query.filter_by(student_id=student_id).first()
+    is_new_registration = False
+    admin_identity = get_jwt_identity()
+    admin_id = int(admin_identity) if str(admin_identity).isdigit() else None
+
+    # On-the-spot voter registration at the Polling Desk
     if not user:
-        return jsonify({"error": "Student not found in enrollment records."}), 404
+        name = sanitize_input(payload.get("name")) or f"Student {student_id}"
+        department = sanitize_input(payload.get("department")) or "General"
+        user = User(
+            student_id=student_id,
+            name=name,
+            email=f"{student_id.lower()}@campus.local",
+            role="voter",
+            is_active=True,
+            department=department,
+            otp_secret=OTPService.generate_secret(),
+            otp_enabled=False,
+        )
+        user.set_password(f"Voter@{student_id[-4:] if len(student_id) >= 4 else '2026'}")
+        db.session.add(user)
+        db.session.flush()
+        is_new_registration = True
+
+        audit_enroll = AuditLog(
+            user_id=admin_id,
+            action="STUDENT_AUTO_ENROLLED_AT_DESK",
+            details=f"Student {student_id} ({name}, Dept: {department}) enrolled on-the-spot at polling desk for election {election.id}",
+            ip_address=request.remote_addr or "127.0.0.1",
+            user_agent=request.user_agent.string if request.user_agent else "desk",
+        )
+        db.session.add(audit_enroll)
 
     # Check if voter has already cast a ballot in this election
     voter_hash = User.hash_student_id(user.student_id)
@@ -457,7 +591,10 @@ def issue_desk_pin():
 
     if voter_rec and voter_rec.has_voted:
         return (
-            jsonify({"error": "Voter has already cast their ballot in this election."}),
+            jsonify({
+                "error": "Already Voted",
+                "message": f"Student '{user.name}' ({user.student_id}) has already cast their ballot in this election. Slip cannot be re-issued.",
+            }),
             400,
         )
 
@@ -471,9 +608,6 @@ def issue_desk_pin():
         db.session.add(voter_rec)
         db.session.flush()
 
-    admin_identity = get_jwt_identity()
-    admin_id = int(admin_identity) if str(admin_identity).isdigit() else None
-
     # Generate 6-digit PIN valid for 20 minutes
     raw_pin, token_record = VotingToken.generate_pin(
         student_id=user.student_id,
@@ -482,18 +616,31 @@ def issue_desk_pin():
         validity_minutes=20,
     )
 
+    # Audit log PIN issuance
+    audit_pin = AuditLog(
+        user_id=admin_id,
+        action="PIN_ISSUED",
+        details=f"Single-use voting PIN generated for student {user.student_id} in election {election.id} by officer {admin_id}",
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "desk",
+    )
+    db.session.add(audit_pin)
+
     db.session.commit()
 
     return (
         jsonify({
             "student_id": user.student_id,
             "name": user.name,
+            "department": getattr(user, "department", "General"),
             "pin": str(raw_pin),
             "voting_pin": str(raw_pin),
             "expires_at": token_record.expires_at.isoformat(),
             "validity_minutes": 20,
             "election_id": election.id,
-            "message": "Single-use voting PIN generated successfully.",
+            "election_title": election.title,
+            "is_new_registration": is_new_registration,
+            "message": f"Single-use voting PIN slip generated for {user.name} ({user.student_id}).",
         }),
         200,
     )

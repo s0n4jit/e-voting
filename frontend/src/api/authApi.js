@@ -59,6 +59,22 @@ export const authApi = {
     const response = await apiClient.get('/auth/active-election');
     return response.data;
   },
+
+  // RFC 6238 TOTP Authenticator 2FA
+  setupTotp: async () => {
+    const response = await apiClient.get('/auth/totp/setup');
+    return response.data;
+  },
+
+  enableTotp: async (code) => {
+    const response = await apiClient.post('/auth/totp/enable', { code });
+    return response.data;
+  },
+
+  disableTotp: async (password) => {
+    const response = await apiClient.post('/auth/totp/disable', { password });
+    return response.data;
+  },
 };
 
 export default authApi;
