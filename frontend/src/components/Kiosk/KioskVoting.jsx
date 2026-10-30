@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { voterApi } from '../../api/voterApi';
 import { useBooth } from '../../hooks/useBooth';
-import { AnimatedCheck, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
+import { AnimatedCheck, BoothClock, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
 import Modal from '../common/Modal';
 import LoadingSpinner from '../common/LoadingSpinner';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
@@ -182,7 +182,7 @@ export const KioskVoting = () => {
       <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur border-b border-line">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <BrandMark />
-          <ThemeToggle />
+          <div className="flex items-center gap-4"><BoothClock /><ThemeToggle /></div>
         </div>
         {progress && (
           <div className="h-1 bg-recessed" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={answered}>

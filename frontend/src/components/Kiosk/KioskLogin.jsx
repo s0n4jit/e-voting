@@ -6,7 +6,7 @@ import { authApi } from '../../api/authApi';
 import { useBooth } from '../../hooks/useBooth';
 import BoothSetup from './BoothSetup';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
+import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
@@ -65,7 +65,7 @@ export const KioskLogin = () => {
     <div className="min-h-screen bg-bg flex flex-col">
       <header className="flex items-center justify-between px-6 py-4">
         <BrandMark />
-        <ThemeToggle />
+        <div className="flex items-center gap-4"><BoothClock /><ThemeToggle /></div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-4 pb-16">

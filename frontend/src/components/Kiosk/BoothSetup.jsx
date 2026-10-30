@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { boothApi } from '../../api/boothApi';
-import { BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
+import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
 
 /** Shown on a computer that is not (or no longer) a voting booth. */
 export default function BoothSetup({ onActivated }) {
@@ -29,7 +29,7 @@ export default function BoothSetup({ onActivated }) {
     <div className="min-h-screen bg-bg flex flex-col">
       <header className="flex items-center justify-between px-6 py-4">
         <BrandMark />
-        <ThemeToggle />
+        <div className="flex items-center gap-4"><BoothClock /><ThemeToggle /></div>
       </header>
       <main className="flex-1 flex items-center justify-center px-4 pb-16">
         <div className="w-full max-w-md animate-page-in">

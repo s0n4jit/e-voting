@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { MoonIcon, SunIcon, InboxIcon } from '@heroicons/react/24/outline';
 import { useTheme } from '../../context/ThemeContext';
 import { useBrand } from '../../context/BrandContext';
@@ -16,6 +17,21 @@ export const ThemeToggle = ({ className = '' }) => {
     >
       <Icon className="w-5 h-5" />
     </button>
+  );
+};
+
+/** Live clock and date for the voting booth header. */
+export const BoothClock = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="text-right leading-tight tabular-nums" aria-label="Current time and date">
+      <div className="text-lg font-semibold">{format(now, 'hh:mm:ss a')}</div>
+      <div className="text-xs text-muted">{format(now, 'EEE, d MMM yyyy')}</div>
+    </div>
   );
 };
 
