@@ -1,28 +1,31 @@
-import { defineConfig, devices } from '@playwright/test';
+// @ts-check
+const { defineConfig, devices } = require('@playwright/test');
 
-export default defineConfig({
+module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: 'html',
+  timeout: 60000,
+  expect: {
+    timeout: 10000,
+  },
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }]
+  ],
   use: {
-    baseURL: process.env.VOTING_APP_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
+    baseURL: process.env.BASE_URL || 'http://localhost:3001',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     viewport: { width: 1280, height: 800 },
-    ignoreHTTPSErrors: true,
   },
   projects: [
     {
-      name: 'chromium-kiosk',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1920, height: 1080 },
-        launchOptions: {
-          args: ['--kiosk', '--disable-extensions'],
-        },
-      },
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });
