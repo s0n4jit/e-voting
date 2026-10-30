@@ -151,7 +151,7 @@ class VoteService:
         # Gather all distinct positions from candidates in this election
         distinct_positions = sorted(list({c.position for c in candidates if c.position}))
         if not distinct_positions:
-            distinct_positions = ["President"]
+            distinct_positions = ["General Secretary"]
 
         required_positions = set(distinct_positions)
         selected_positions = set()
@@ -351,7 +351,7 @@ class VoteService:
         ballot_entry = BallotEntry(
             election_id=election.id,
             candidate_id=candidate.id,
-            position=candidate.position or "President",
+            position=candidate.position or "General Secretary",
             is_nota=False,
             blind_token=blind_token,
             cast_at=now,
@@ -431,7 +431,7 @@ class VoteService:
         ]
         all_positions = sorted(list(set(cand_positions + ballot_positions)))
         if not all_positions:
-            all_positions = ["President"]
+            all_positions = ["General Secretary"]
 
         by_position = []
         positions_map = {}

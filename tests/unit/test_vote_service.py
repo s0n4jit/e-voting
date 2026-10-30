@@ -64,8 +64,8 @@ def _make_election(db_session, *, start_offset_h=-1, end_offset_h=23,
 
 
 def _make_candidates(db_session, election):
-    c1 = Candidate(election_id=election.id, name="Alice", party="A", position="President", bio="Bio A")
-    c2 = Candidate(election_id=election.id, name="Bob",   party="B", position="President", bio="Bio B")
+    c1 = Candidate(election_id=election.id, name="Alice", party="A", position="General Secretary", bio="Bio A")
+    c2 = Candidate(election_id=election.id, name="Bob",   party="B", position="General Secretary", bio="Bio B")
     db_session.add_all([c1, c2])
     db_session.flush()
     return [c1, c2]

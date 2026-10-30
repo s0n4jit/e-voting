@@ -191,7 +191,7 @@ def add_candidate(election_id):
 
     payload = request.get_json(silent=True) or {}
     name = sanitize_input(payload.get("name"))
-    position = sanitize_input(payload.get("position", "President"))
+    position = sanitize_input(payload.get("position", "General Secretary"))
     party = sanitize_input(payload.get("party", ""))
     department = sanitize_input(payload.get("department", ""))
     bio = sanitize_input(payload.get("bio", ""))

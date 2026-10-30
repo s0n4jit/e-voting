@@ -14,6 +14,18 @@ import {
   UserIcon,
 } from '@heroicons/react/24/outline';
 
+const CANONICAL_PORTFOLIOS = [
+  'Vice President',
+  'General Secretary',
+  'Assistant General Secretary',
+  'Cultural Secretary',
+  'Magazine Secretary',
+  'Boys Common Room Secretary',
+  'Girls Common Room Secretary',
+  'Major Games Secretary',
+  'Minor Games Secretary',
+];
+
 export const CandidateManager = () => {
   const { electionId } = useParams();
   const [candidates, setCandidates] = useState([]);
@@ -25,7 +37,7 @@ export const CandidateManager = () => {
   // New candidate form
   const [formData, setFormData] = useState({
     name: '',
-    position: 'President',
+    position: 'General Secretary',
     party: '',
     bio: '',
   });
@@ -83,7 +95,7 @@ export const CandidateManager = () => {
       setModalOpen(false);
       setFormData({
         name: '',
-        position: 'President',
+        position: 'General Secretary',
         party: '',
         bio: '',
       });
@@ -239,17 +251,24 @@ export const CandidateManager = () => {
 
           <div>
             <label className="label" htmlFor="position">
-              Contested Position *
+              Contested Portfolio *
             </label>
-            <input
+            <select
               id="position"
-              type="text"
               required
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              placeholder="e.g. Student Council President"
-              className="input"
-            />
+              className="input bg-white text-gray-900"
+            >
+              {CANONICAL_PORTFOLIOS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Note: The College Principal presides as ex-officio Union President.
+            </p>
           </div>
 
           <div>

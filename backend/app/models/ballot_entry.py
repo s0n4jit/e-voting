@@ -28,7 +28,7 @@ class BallotEntry(db.Model):
         nullable=True,
         index=True,
     )
-    position = db.Column(db.String(100), nullable=False, default="President", index=True)
+    position = db.Column(db.String(100), nullable=False, default="General Secretary", index=True)
     is_nota = db.Column(db.Boolean, default=False, nullable=False)
     blind_token = db.Column(
         db.String(128),

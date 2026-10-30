@@ -18,7 +18,7 @@ class Candidate(db.Model):
     )
     name = db.Column(db.String(120), nullable=False)
     party = db.Column(db.String(100), nullable=True)
-    position = db.Column(db.String(100), nullable=False, default="President")
+    position = db.Column(db.String(100), nullable=False, default="General Secretary")
     department = db.Column(db.String(100), nullable=True)
     bio = db.Column(db.Text, nullable=True)
     photo_url = db.Column(db.String(255), nullable=True)

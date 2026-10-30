@@ -127,8 +127,8 @@ def run_manual_test():
         print("\n[Step 3/10] Admin setting up election and candidates...")
         now = datetime.now(timezone.utc)
         election = Election(
-            title="Student Council Presidential Election 2026",
-            description="Official annual student election for council president.",
+            title="General Election of the Student Union 2026-27",
+            description="Official annual student union election across executive portfolios.",
             start_time=now - timedelta(hours=1),
             end_time=now + timedelta(hours=24),
             is_active=True,
@@ -141,21 +141,28 @@ def run_manual_test():
         c1 = Candidate(
             election_id=election.id,
             name="Sarah Jenkins",
-            position="President",
+            position="General Secretary",
             department="Computer Science",
             bio="Focusing on campus tech hubs & 24/7 library access."
         )
         c2 = Candidate(
             election_id=election.id,
             name="David Kumar",
-            position="President",
+            position="General Secretary",
             department="Mechanical Engineering",
             bio="Advocating for student welfare, cafeteria upgrades & sports funding."
         )
         db.session.add_all([c1, c2])
+
+        # Whitelist eligible students in VoterRecord
+        db.session.add_all([
+            VoterRecord(election_id=election.id, voter_hash=User.hash_student_id(voter1.student_id)),
+            VoterRecord(election_id=election.id, voter_hash=User.hash_student_id(voter2.student_id)),
+        ])
         db.session.commit()
         print(f"  -> Created Active Election (ID: {election.id}): '{election.title}'")
         print(f"  -> Added Candidates: Candidate 1 = '{c1.name}', Candidate 2 = '{c2.name}'")
+        print("  -> Whitelisted voters in VoterRecord with SHA-256 hashes.")
 
         # Step 4: Voter 1 Login
         print("\n[Step 4/10] Testing Voter 1 (Alice) Login...")
@@ -215,14 +222,16 @@ def run_manual_test():
         voter_records = VoterRecord.query.filter_by(election_id=election.id).all()
         ballot_entries = BallotEntry.query.filter_by(election_id=election.id).all()
         
-        print(f"  -> VoterRecord count (Who voted): {len(voter_records)}")
+        print(f"  -> Total eligible VoterRecord count: {len(voter_records)}")
+        voted_records = [vr for vr in voter_records if vr.has_voted]
+        print(f"  -> Voted VoterRecord count (Who voted): {len(voted_records)}")
         print(f"  -> BallotEntry count (What was voted): {len(ballot_entries)}")
-        assert len(voter_records) == 1
+        assert len(voted_records) == 1
         assert len(ballot_entries) == 1
-        assert voter_records[0].has_voted is True
+        assert voted_records[0].has_voted is True
 
         # Verify no link between VoterRecord and BallotEntry
-        vr = voter_records[0]
+        vr = voted_records[0]
         be = ballot_entries[0]
         assert not hasattr(vr, 'candidate_id'), "SECURITY LEAK: VoterRecord contains candidate_id!"
         assert not hasattr(vr, 'ballot_entry_id'), "SECURITY LEAK: VoterRecord contains ballot_entry_id!"
@@ -234,8 +243,8 @@ def run_manual_test():
         # Step 9: Voter 2 casts ballot for David Kumar
         print("\n[Step 9/10] Voter 2 (Bob) casts ballot for Candidate 2 (David Kumar)...")
         # Direct service call to simulate voter 2
-        success, msg, receipt = cast_vote(voter2, election.id, c2.id)
-        assert success is True
+        receipt = cast_vote(voter2, election.id, c2.id)
+        assert receipt.get("success") is True
         print(f"  -> Voter 2 ballot recorded. Receipt: {receipt.get('blind_token')}")
 
         # Step 10: Tally & Publish Results

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import {
@@ -10,6 +10,7 @@ import {
   CheckBadgeIcon,
   ArrowRightIcon,
   ArrowPathIcon,
+  ComputerDesktopIcon,
 } from '@heroicons/react/24/outline';
 
 export const LoginPage = () => {
@@ -26,11 +27,14 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Autofill helper for demos
+  // Autofill helper for campus staff demos
   const setDemoCredentials = (role) => {
     if (role === 'admin') {
       setStudentId('ADMIN001');
       setPassword('Admin@1234');
+    } else if (role === 'desk') {
+      setStudentId('DESK001');
+      setPassword('Desk@1234');
     } else {
       setStudentId('STU001');
       setPassword('Student@1234');
@@ -38,10 +42,16 @@ export const LoginPage = () => {
     setErrorMsg('');
   };
 
+  const resolveTarget = (role) => {
+    if (role === 'admin') return '/admin/dashboard';
+    if (role === 'polling_officer') return '/desk';
+    return '/voter/dashboard';
+  };
+
   const handleCredentialsSubmit = async (e) => {
     e.preventDefault();
     if (!studentId.trim() || !password) {
-      setErrorMsg('Please enter both Student ID and Password.');
+      setErrorMsg('Please enter both ID and Password.');
       return;
     }
 
@@ -59,13 +69,13 @@ export const LoginPage = () => {
         // Direct login succeeded
         toast.success('Login successful!');
         const userRole = response?.user?.role || (response?.access_token ? 'voter' : '');
-        const target = userRole === 'admin' ? '/admin/dashboard' : '/voter/dashboard';
+        const target = resolveTarget(userRole);
         const destination = location.state?.from?.pathname || target;
         navigate(destination, { replace: true });
       }
     } catch (err) {
       console.error('Login error:', err);
-      const detail = err.response?.data?.message || err.response?.data?.error || 'Invalid Student ID or password. Please try again.';
+      const detail = err.response?.data?.message || err.response?.data?.error || 'Invalid ID or password. Please try again.';
       setErrorMsg(detail);
       toast.error(detail);
     } finally {
@@ -92,7 +102,7 @@ export const LoginPage = () => {
 
       toast.success('Identity verified successfully!');
       const userRole = response?.user?.role;
-      const target = userRole === 'admin' ? '/admin/dashboard' : '/voter/dashboard';
+      const target = resolveTarget(userRole);
       const destination = location.state?.from?.pathname || target;
       navigate(destination, { replace: true });
     } catch (err) {
@@ -129,11 +139,11 @@ export const LoginPage = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="card shadow-xl border-gray-100 overflow-hidden">
-          {/* Demo Helper Banner */}
+          {/* Demo Helper Banner for Campus Officers */}
           <div className="bg-gradient-to-r from-primary-900 via-indigo-900 to-slate-900 text-white p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wider font-semibold text-primary-200 flex items-center gap-1">
-                <CheckBadgeIcon className="w-4 h-4 text-primary-300" /> Demo Test Credentials
+                <CheckBadgeIcon className="w-4 h-4 text-primary-300" /> Official Staff Credentials
               </span>
               <span className="text-[11px] text-gray-400">Click to autofill</span>
             </div>
@@ -143,18 +153,18 @@ export const LoginPage = () => {
                 onClick={() => setDemoCredentials('admin')}
                 className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
               >
-                <div className="font-semibold text-indigo-200">Administrator</div>
+                <div className="font-semibold text-indigo-200">Election Officer</div>
                 <div className="text-[11px] text-gray-300 font-mono">ID: ADMIN001</div>
                 <div className="text-[11px] text-gray-300 font-mono">PW: Admin@1234</div>
               </button>
               <button
                 type="button"
-                onClick={() => setDemoCredentials('voter')}
+                onClick={() => setDemoCredentials('desk')}
                 className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
               >
-                <div className="font-semibold text-emerald-300">Voter / Student</div>
-                <div className="text-[11px] text-gray-300 font-mono">ID: STU001</div>
-                <div className="text-[11px] text-gray-300 font-mono">PW: Student@1234</div>
+                <div className="font-semibold text-amber-300">Desk Officer</div>
+                <div className="text-[11px] text-gray-300 font-mono">ID: DESK001</div>
+                <div className="text-[11px] text-gray-300 font-mono">PW: Desk@1234</div>
               </button>
             </div>
           </div>
@@ -299,6 +309,23 @@ export const LoginPage = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Student Voter in Campus Election Prompt */}
+        <div className="mt-5 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
+          <p className="text-xs font-bold text-slate-800">
+            Student Voter in Campus Election?
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Voting takes place in-person on campus computer booths. Get your 6-digit Voting PIN slip from the Polling Desk and access the booth terminal.
+          </p>
+          <Link
+            to="/kiosk"
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm"
+          >
+            <ComputerDesktopIcon className="w-4 h-4 text-emerald-400" />
+            <span>Open Campus Polling Booth Terminal →</span>
+          </Link>
         </div>
       </div>
     </div>
