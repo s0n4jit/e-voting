@@ -20,22 +20,32 @@ export const AuditLog = () => {
   const [filterAction, setFilterAction] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await adminApi.getAuditLogs({ limit: 100 });
       const list = Array.isArray(res) ? res : (res?.logs || res?.audit_logs || []);
       setLogs(list);
     } catch (err) {
-      console.error('Failed to retrieve audit log trail:', err);
-      toast.error('Could not load security audit trail.');
+      if (!silent) {
+        console.error('Failed to retrieve audit log trail:', err);
+        toast.error('Could not load security audit trail.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchLogs(false);
+
+    // Silent background auto-refresh every 3 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchLogs(true);
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const formatDateString = (dateStr) => {
@@ -81,13 +91,19 @@ export const AuditLog = () => {
           </p>
         </div>
 
-        <button
-          onClick={fetchLogs}
-          className="btn btn-secondary btn-sm gap-1.5 self-start sm:self-auto"
-        >
-          <ArrowPathIcon className="w-4 h-4" />
-          <span>Refresh Trail</span>
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live Sync (3s)
+          </span>
+          <button
+            onClick={() => fetchLogs(false)}
+            className="btn btn-secondary btn-sm gap-1.5"
+          >
+            <ArrowPathIcon className="w-4 h-4" />
+            <span>Refresh Trail</span>
+          </button>
+        </div>
       </div>
 
       {/* Security Banner */}

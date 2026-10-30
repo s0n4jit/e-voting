@@ -89,6 +89,34 @@ export const PollingDesk = () => {
     fetchInitialData();
   }, []);
 
+  // Silent auto-refresh polling every 3 seconds to keep voter statuses live in real-time
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const silentPoll = async () => {
+      // Don't poll if browser tab is hidden in background
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      try {
+        const data = await adminApi.getDeskVoters({
+          election_id: selectedElectionId || undefined,
+        });
+        const list = Array.isArray(data) ? data : (data?.voters || []);
+        if (isSubscribed && Array.isArray(list) && list.length > 0) {
+          setVoters(list);
+        }
+      } catch (err) {
+        // Silent failure in background
+      }
+    };
+
+    const interval = setInterval(silentPoll, 3000);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [selectedElectionId]);
+
   // Poll or search desk voters when searchQuery or election changes
   const refreshVoters = async () => {
     try {
@@ -250,6 +278,10 @@ export const PollingDesk = () => {
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
               Physical Polling Desk
             </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync (3s)
+            </span>
           </div>
           <p className="text-sm text-gray-500 mt-1">
             Voter verification desk: look up enrolled students and issue single-use physical voting PIN slips.

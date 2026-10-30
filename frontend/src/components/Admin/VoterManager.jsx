@@ -41,23 +41,35 @@ export const VoterManager = () => {
   const [csvPreview, setCsvPreview] = useState([]);
   const [importSummary, setImportSummary] = useState(null);
 
-  const fetchVoters = async () => {
+  const fetchVoters = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await adminApi.getVoters();
       const list = Array.isArray(data) ? data : (data?.voters || []);
       setVoters(list);
     } catch (err) {
-      console.error('Failed to load voters list:', err);
-      toast.error('Could not fetch voter roster.');
+      if (!silent) {
+        console.error('Failed to load voters list:', err);
+        toast.error('Could not fetch voter roster.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchVoters();
-  }, []);
+    fetchVoters(false);
+
+    // Silent background poll every 4 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      // Skip background update if modal forms are actively open to avoid jarring input state
+      if (addModalOpen || csvModalOpen || submitting) return;
+      fetchVoters(true);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [addModalOpen, csvModalOpen, submitting]);
 
   const handleAddSingleVoter = async (e) => {
     e.preventDefault();
@@ -168,9 +180,15 @@ export const VoterManager = () => {
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Voter Registry & Roster
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+              Voter Registry & Roster
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync (4s)
+            </span>
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             Manage student eligibility, enroll individual voters, or bulk import via CSV.
           </p>

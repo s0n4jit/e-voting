@@ -30,51 +30,65 @@ export const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
+  const fetchDashboardData = async (silent = false) => {
+    try {
+      if (!silent) {
         setLoading(true);
         setError(null);
+      }
 
-        // Fetch elections, voters, and audit logs concurrently
-        const [electionsRes, votersRes, logsRes] = await Promise.allSettled([
-          adminApi.getElections(),
-          adminApi.getVoters(),
-          adminApi.getAuditLogs({ limit: 10 }),
-        ]);
+      // Fetch elections, voters, and audit logs concurrently
+      const [electionsRes, votersRes, logsRes] = await Promise.allSettled([
+        adminApi.getElections(),
+        adminApi.getVoters(),
+        adminApi.getAuditLogs({ limit: 10 }),
+      ]);
 
-        const elections = electionsRes.status === 'fulfilled'
-          ? (Array.isArray(electionsRes.value) ? electionsRes.value : electionsRes.value?.elections || [])
-          : [];
+      const elections = electionsRes.status === 'fulfilled'
+        ? (Array.isArray(electionsRes.value) ? electionsRes.value : electionsRes.value?.elections || [])
+        : [];
 
-        const voters = votersRes.status === 'fulfilled'
-          ? (Array.isArray(votersRes.value) ? votersRes.value : votersRes.value?.voters || [])
-          : [];
+      const voters = votersRes.status === 'fulfilled'
+        ? (Array.isArray(votersRes.value) ? votersRes.value : votersRes.value?.voters || [])
+        : [];
 
-        const logs = logsRes.status === 'fulfilled'
-          ? (Array.isArray(logsRes.value) ? logsRes.value : logsRes.value?.logs || logsRes.value?.audit_logs || [])
-          : [];
+      const logs = logsRes.status === 'fulfilled'
+        ? (Array.isArray(logsRes.value) ? logsRes.value : logsRes.value?.logs || logsRes.value?.audit_logs || [])
+        : [];
 
-        const activeCount = elections.filter((e) => e.is_active).length;
-        const totalVotesCast = elections.reduce((acc, curr) => acc + (curr.total_votes || curr.votes_count || 0), 0);
+      const activeCount = elections.filter((e) => e.is_active).length;
+      const totalVotesCast = elections.reduce((acc, curr) => acc + (curr.total_votes || curr.votes_count || 0), 0);
 
-        setStats({
-          totalVoters: voters.length,
-          activeElections: activeCount,
-          ballotsCast: totalVotesCast,
-          auditEvents: logs.length > 0 ? (logsRes.value?.total || logs.length) : 0,
-        });
+      setStats({
+        totalVoters: voters.length,
+        activeElections: activeCount,
+        ballotsCast: totalVotesCast,
+        auditEvents: logs.length > 0 ? (logsRes.value?.total || logs.length) : 0,
+      });
 
-        setRecentElections(elections.slice(0, 5));
-      } catch (err) {
+      setRecentElections(elections.slice(0, 5));
+    } catch (err) {
+      if (!silent) {
         console.error('Failed to load admin dashboard summary:', err);
         setError('Error retrieving administration overview metrics.');
-      } finally {
+      }
+    } finally {
+      if (!silent) {
         setLoading(false);
       }
-    };
+    }
+  };
 
-    fetchDashboardData();
+  useEffect(() => {
+    fetchDashboardData(false);
+
+    // Silent background refresh every 3.5 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchDashboardData(true);
+    }, 3500);
+
+    return () => clearInterval(interval);
   }, []);
 
   const formatDateString = (dateStr) => {
@@ -91,9 +105,15 @@ export const AdminDashboard = () => {
       {/* Title & Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Administrator Center
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+              Administrator Center
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync (3.5s)
+            </span>
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             Campus election governance, cryptographic audit verification, and ballot management.
           </p>
