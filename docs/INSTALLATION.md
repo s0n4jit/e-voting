@@ -100,3 +100,14 @@ To set a booth up: in the officer panel open **Voting booths** and press **Gener
 ## Persistent data
 
 PostgreSQL data lives in the `db_data` Docker volume and application logs in `backend_logs`. See [OPERATIONS.md](OPERATIONS.md) for backups, restores and upgrades.
+
+## Using the prebuilt images (no build)
+
+Every push to `main` publishes the backend and frontend images to GitHub Container Registry (`ghcr.io/s0n4jit/e-voting-backend` and `…-frontend`, tags `latest`, the commit, and release versions such as `1.0.0`). To run them instead of building:
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d
+docker compose -f docker-compose.ghcr.yml pull && docker compose -f docker-compose.ghcr.yml up -d   # update
+```
+
+Set `IMAGE_TAG=1.0.0` in `.env` to pin a release. Images are published for `amd64` and `arm64` (including Raspberry Pi).
