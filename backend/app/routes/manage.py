@@ -15,6 +15,7 @@ from app.extensions import db
 from app.models.audit_log import AuditLog
 from app.models.candidate import Candidate
 from app.models.election import Election
+from app.models.voting_token import VotingToken
 from app.models.election_position import ElectionPosition
 from app.models.programme import Programme
 from app.models.system_setting import SystemSetting
@@ -61,9 +62,6 @@ def transition(election, target):
         return f"An election cannot move from {Election.STATUS_LABELS[cur]} to {Election.STATUS_LABELS[target]}."
 
     if target == "voting_active":
-        end = election.end_time if election.end_time.tzinfo else election.end_time.replace(tzinfo=timezone.utc)
-        if end <= datetime.now(timezone.utc):
-            return "The voting end time has already passed. Update the voting period first."
         names = [p.name for p in election.positions]
         if not names:
             return "Add at least one position before opening voting."
@@ -72,6 +70,9 @@ def transition(election, target):
         if missing:
             return "Every position needs at least one candidate. Missing: " + ", ".join(missing) + "."
     election.set_status(target)
+    if target == "voting_closed":  # PINs handed out but not used can no longer start a vote
+        now = datetime.now(timezone.utc)
+        VotingToken.query.filter_by(election_id=election.id, is_used=False).update({"expires_at": now})
     return None
 
 
@@ -131,6 +132,38 @@ def set_election_status(election_id):
     _audit("ELECTION_STATUS_CHANGED", f"Moved \u201c{election.title}\u201d to the stage \u201c{Election.STATUS_LABELS[target]}\u201d.")
     db.session.commit()
     return jsonify(election.to_dict()), 200
+
+
+@manage_bp.post("/elections/<int:election_id>/pause")
+@admin_required
+def pause_voting(election_id):
+    """Pause voting (for example a break): booths stop accepting votes until it is resumed."""
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Election not found."}), 404
+    if election.effective_status != "voting_active":
+        return jsonify({"error": "Voting can only be paused while it is open."}), 409
+    if not election.voting_paused:
+        election.voting_paused = True
+        _audit("VOTING_PAUSED", f"Paused voting in \u201c{election.title}\u201d.")
+        db.session.commit()
+    return jsonify(election.to_dict()), 200
+
+
+@manage_bp.post("/elections/<int:election_id>/resume")
+@admin_required
+def resume_voting(election_id):
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Election not found."}), 404
+    if election.effective_status != "voting_active":
+        return jsonify({"error": "Voting is not open."}), 409
+    if election.voting_paused:
+        election.voting_paused = False
+        _audit("VOTING_RESUMED", f"Resumed voting in \u201c{election.title}\u201d.")
+        db.session.commit()
+    return jsonify(election.to_dict()), 200
+
 
 
 # ── positions ─────────────────────────────────────────────────────────────────

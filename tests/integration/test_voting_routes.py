@@ -205,10 +205,10 @@ class TestVotingRoutes:
             headers=headers,
         )
         assert resp.status_code == 400
-        assert "not active" in str(resp.get_json()).lower()
+        assert "not open" in str(resp.get_json()).lower()
 
-    def test_voter_cannot_vote_in_unstarted_election(self, app, db, client):
-        """Vote attempt before election start time must return HTTP 400."""
+    def test_schedule_before_start_does_not_block_voting(self, app, db, client):
+        """The schedule is information only: an election the officer has opened accepts votes before its start time."""
         now = datetime.now(timezone.utc)
         with app.app_context():
             election = Election(
@@ -248,11 +248,10 @@ class TestVotingRoutes:
             json={"candidate_id": cand_id},
             headers=headers,
         )
-        assert resp.status_code == 400
-        assert "not started" in str(resp.get_json()).lower()
+        assert resp.status_code == 200
 
-    def test_voter_cannot_vote_in_closed_election(self, app, db, client):
-        """Vote attempt after election window has ended must return HTTP 400."""
+    def test_schedule_after_end_does_not_block_voting(self, app, db, client):
+        """The schedule is information only: an election the officer has opened accepts votes after its end time."""
         now = datetime.now(timezone.utc)
         with app.app_context():
             election = Election(
@@ -292,8 +291,7 @@ class TestVotingRoutes:
             json={"candidate_id": cand_id},
             headers=headers,
         )
-        assert resp.status_code == 400
-        assert "closed" in str(resp.get_json()).lower()
+        assert resp.status_code == 200
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -341,10 +341,10 @@ export default function SetupWizard() {
                     <Field label="Election date" htmlFor="election-date">
                       {input('election', 'date', { type: 'date' })}
                     </Field>
-                    <Field label="Voting starts" htmlFor="election-start_time">
+                    <Field label="Scheduled start (for information)" htmlFor="election-start_time">
                       {input('election', 'start_time', { type: 'time' })}
                     </Field>
-                    <Field label="Voting ends" htmlFor="election-end_time">
+                    <Field label="Scheduled end (for information)" htmlFor="election-end_time">
                       {input('election', 'end_time', { type: 'time' })}
                     </Field>
                   </div>

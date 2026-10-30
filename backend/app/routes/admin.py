@@ -154,8 +154,8 @@ def update_election(election_id):
         election.title = sanitize_input(payload["title"])
     if "description" in payload:
         election.description = sanitize_input(payload["description"])
-    if ("start_time" in payload or "end_time" in payload) and election_locked(election):
-        return jsonify({"error": "The voting period cannot be changed once voting has opened."}), 409
+    if ("start_time" in payload or "end_time" in payload) and election.effective_status == "archived":
+        return jsonify({"error": "An archived election cannot be changed."}), 409
     if "start_time" in payload:
         try:
             st = date_parser.parse(payload["start_time"])
@@ -498,6 +498,8 @@ def issue_desk_pin():
 
     if not election:
         return jsonify({"error": "No active election found."}), 404
+    if not election.desk_open:
+        return jsonify({"error": "Voting ended", "message": "Voting has ended, so no more students can be registered and no more PINs can be issued."}), 409
 
     user = User.query.filter(
         db.func.upper(User.student_id) == student_id.strip().upper(), User.role == "voter"

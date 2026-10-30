@@ -167,7 +167,7 @@ class TestCastVote:
             candidates = _make_candidates(db_session, election)
             voter, _ = _register_voter(db_session, election, "VC003")
 
-            with pytest.raises(VotingError, match="not active"):
+            with pytest.raises(VotingError, match="not open"):
                 VoteService.cast_vote(
                     voter_id=voter.id,
                     election_id=election.id,
@@ -175,16 +175,17 @@ class TestCastVote:
                     db=db_session,
                 )
 
-    def test_vote_after_election_closed_rejected(self, app, db_session):
-        """Voting after end_time must be rejected, even if is_active=True."""
+    def test_vote_while_paused_rejected(self, app, db_session):
+        """A paused election rejects votes; the scheduled end time is not consulted."""
         with app.app_context():
             from app.services.vote_service import VotingError
             # Election ended 1 hour ago
             election = _make_election(db_session, start_offset_h=-5, end_offset_h=-1)
+            election.voting_paused = True
             candidates = _make_candidates(db_session, election)
             voter, _ = _register_voter(db_session, election, "VC004")
 
-            with pytest.raises(VotingError, match="closed"):
+            with pytest.raises(VotingError, match="paused"):
                 VoteService.cast_vote(
                     voter_id=voter.id,
                     election_id=election.id,

@@ -27,7 +27,7 @@
 |---|---|
 | "No programmes configured" | Election Officer: Programmes → add or import a CSV. |
 | Duplicate student warning | The same name, programme and semester already exists. Confirm only if it is a different student. |
-| PIN cannot be issued | The student has already voted, or the slip ID is wrong (check the prefix, e.g. `SUE26-E1-`). |
+| PIN cannot be issued / student cannot be registered | Voting has been closed (registration and PINs end with it), or the student has already voted, or the slip ID is wrong (check the prefix, e.g. `SUE26-E1-`). |
 | PIN stopped working | It expires after 20 minutes, works once, and is cancelled after 5 wrong entries. Issue a new one. |
 
 ## Booths
@@ -36,7 +36,7 @@
 |---|---|
 | "Token or code is not correct" | The token was already used, expired (15 minutes) or mistyped, or the code belongs to another officer. Generate a new token; use the code of the officer who generated it. |
 | Booth keeps returning to set-up | It was deleted in the panel, or its election was archived. Generate a new token. |
-| Booth shows "Voting is not open" | The election is not in *Voting active* or outside its start/end time. |
+| Booth shows "Voting is not open" | The election is not in *Voting active*, or voting is paused. Open or resume voting on the Elections page; the scheduled time does not matter. |
 | Booth is Offline in the panel | Check the booth's network (`ip addr`, `ping`), then restart `evote-kiosk.service`. |
 | The page does not open on the booth | Wrong address in `/etc/default/evote-kiosk`. It must end with `/kiosk/vote`. |
 | Maintenance screen rejects the code | Use the current 6-digit code of an Election Officer; after 5 wrong codes it locks for 15 minutes. |

@@ -5,7 +5,8 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
-_Nothing yet._
+- Voting is now controlled only by the Election Officer: **Open voting**, **Pause voting** / **Resume voting** (for a break) and **Close voting**. The scheduled date and time is shown for information only and no longer opens or closes voting.
+- When the officer closes voting, every booth resets at once (even mid-ballot) and shows "Voting has ended"; students can no longer be registered, PINs can no longer be issued and unused PINs are cancelled.
 
 ## 1.0.0 — 2026-10-30 (first public release)
 

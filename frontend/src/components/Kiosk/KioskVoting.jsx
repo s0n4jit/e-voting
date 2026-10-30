@@ -46,7 +46,7 @@ export const KioskVoting = () => {
   const { electionId } = useParams();
   const navigate = useNavigate();
   const kioskToken = localStorage.getItem('kiosk_token') || '';
-  const { state: boothState } = useBooth();
+  const { state: boothState, info: boothInfo } = useBooth();
   useEffect(() => {
     if (boothState === 'setup') navigate('/kiosk/vote', { replace: true }); // booth deleted: back to set-up
   }, [boothState, navigate]);
@@ -87,6 +87,11 @@ export const KioskVoting = () => {
     ['access_token', 'refresh_token', 'user'].forEach((k) => localStorage.removeItem(k));
     navigate('/kiosk/vote', { replace: true });
   }, [navigate]);
+
+  // The officer closed voting: reset this booth at once, even in the middle of a ballot.
+  useEffect(() => {
+    if (boothInfo?.voting_ended) finish();
+  }, [boothInfo, finish]);
 
   useEffect(() => {
     voterApi

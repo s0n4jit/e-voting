@@ -111,6 +111,7 @@ def status():
         "booth_id": device.booth_id,
         "slip_prefix": election.ensure_slip_prefix() if election else None,
         "voting_open": bool(election and election.is_ongoing),
-        "election": {"id": election.id, "title": election.title, "status": election.effective_status,
+        "voting_ended": bool(election and not election.desk_open),
+        "election": {"id": election.id, "title": election.title, "status": election.effective_status, "paused": bool(election.voting_paused),
                      "start_time": data["start_time"], "end_time": data["end_time"]} if election else None,
     }), 200

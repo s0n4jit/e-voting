@@ -89,8 +89,8 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \midrule
 \req{FR-8}{The system shall enforce the lifecycle Setup, Registration, Ready, Voting active, Voting closed, Results published, Archived on the server.}{High}
 \req{FR-9}{Only one non-archived election shall exist at a time.}{High}
-\req{FR-10}{Voting shall be accepted only in the Voting active stage and inside the configured time window.}{High}
-\req{FR-11}{Positions, candidates and the voting period shall be locked once voting opens.}{High}
+\req{FR-10}{Voting shall be accepted only in the Voting active stage and while it is not paused; the scheduled time is informational and shall not open or close voting.}{High}
+\req{FR-11}{Positions and candidates shall be locked once voting opens; the Election Officer shall be able to pause and resume voting.}{High}
 \req{FR-12}{Opening voting shall require at least one candidate for every position.}{Medium}
 \req{FR-13}{Candidates shall have a name, position, department from the programme list and a photo.}{High}
 \req{FR-14}{The Election Officer shall create and manage Desk Officer accounts.}{High}
@@ -189,7 +189,7 @@ Reliability & Idempotent database migrations; health endpoint; watchdog restarts
 Performance & Typical page actions under one second for a campus-sized electorate (thousands of voters) \\
 Usability & A voter completes voting without training; officers are guided by a wizard and checklists \\
 Portability & Docker Compose on Linux, Windows or macOS; PostgreSQL configurable \\
-Maintainability & Layered code, automated tests (146), documented operations \\
+Maintainability & Layered code, automated tests (147), documented operations \\
 Accessibility & Keyboard navigation, visible focus, sufficient contrast, reduced-motion support \\
 \bottomrule
 \end{tabularx}

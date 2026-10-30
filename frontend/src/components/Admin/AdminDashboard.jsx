@@ -10,7 +10,7 @@ import {
   InboxIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
-import { EmptyState, PageHeader, StatCard } from '../ui';
+import { EmptyState, PageHeader, StatCard, formatSchedule } from '../ui';
 import StatusBadge from '../common/StatusBadge';
 
 const STAGES = [
@@ -123,12 +123,14 @@ export const AdminDashboard = () => {
               </ol>
               <dl className="grid grid-cols-2 gap-4 mt-6 text-sm">
                 <div>
-                  <dt className="text-muted">Voting opens</dt>
-                  <dd className="font-medium">{format(new Date(election.start_time), 'PPp')}</dd>
+                  <dt className="text-muted">Scheduled (for information)</dt>
+                  <dd className="font-medium">{formatSchedule(election.start_time, election.end_time)}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Voting closes</dt>
-                  <dd className="font-medium">{format(new Date(election.end_time), 'PPp')}</dd>
+                  <dt className="text-muted">Voting is controlled by</dt>
+                  <dd className="font-medium">
+                    You, on the <Link to="/admin/elections" className="text-brand hover:underline">Elections</Link> page
+                  </dd>
                 </div>
               </dl>
             </>

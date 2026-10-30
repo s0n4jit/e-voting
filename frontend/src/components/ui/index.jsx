@@ -20,6 +20,13 @@ export const ThemeToggle = ({ className = '' }) => {
   );
 };
 
+/** "Oct 30, 2026 5:00 PM – 10:00 PM" (the end shows its date only when it is another day). */
+export const formatSchedule = (startIso, endIso) => {
+  const s = new Date(startIso);
+  const e = new Date(endIso);
+  return `${format(s, 'PP p')} – ${format(e, format(s, 'PP') === format(e, 'PP') ? 'p' : 'PP p')}`;
+};
+
 /** Live clock and date for the voting booth header. */
 export const BoothClock = () => {
   const [now, setNow] = useState(() => new Date());

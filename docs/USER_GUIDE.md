@@ -21,12 +21,12 @@ Move the election through its stages on the **Elections** page:
 | Setup | Configure everything |
 | Registration | Desk Officers register students |
 | Ready | Everything is prepared, voting not open yet |
-| Voting active | Booths accept votes (inside the configured time window) |
-| Voting closed | No more votes |
+| Voting active | Booths accept votes until you close voting. **Pause voting** stops votes for a break and **Resume voting** continues |
+| Voting closed | No more votes. Booths reset and show "Voting has ended"; registration and PIN issue stop; unused PINs are cancelled |
 | Results published | Results are unlocked for the officer |
 | Archived | Finished; a new election can be created |
 
-Positions, candidates and the voting period lock when voting opens. Only one election runs at a time.
+The scheduled date and time is shown to staff and voters for information only: **you** decide when voting starts (Open voting), pauses (Pause voting) and ends (Close voting). Positions and candidates lock when voting opens. Only one election runs at a time.
 
 ### Results
 Nothing is visible until you press **Publish results**. Then open **Results**: **Present on projector** reveals one position at a time (Space or → to reveal and continue, ← to go back, F for full screen); **Create public link** shares the results with anyone; the CSV report is downloadable. Equal top votes show as a draw.

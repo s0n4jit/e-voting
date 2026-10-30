@@ -87,6 +87,8 @@ export const adminApi = {
 
   // Officer dashboard, lifecycle, positions, programmes, settings
   getOverview: async () => (await apiClient.get('/admin/overview')).data,
+  pauseVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/pause`)).data,
+  resumeVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/resume`)).data,
   setElectionStatus: async (electionId, status) =>
     (await apiClient.post(`/admin/elections/${electionId}/status`, { status })).data,
   setPositions: async (electionId, positions) =>

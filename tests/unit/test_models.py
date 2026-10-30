@@ -164,13 +164,19 @@ class TestElectionModel:
         e = self._make_election(db_session, start_offset_h=-1, end_offset_h=1, is_active=True)
         assert e.is_ongoing is True
 
-    def test_is_ongoing_false_before_start_time(self, db_session):
-        e = self._make_election(db_session, start_offset_h=5, end_offset_h=10, is_active=True)
-        assert e.is_ongoing is False
+    def test_schedule_is_information_only(self, db_session):
+        before = self._make_election(db_session, start_offset_h=5, end_offset_h=10, is_active=True)
+        after = self._make_election(db_session, start_offset_h=-10, end_offset_h=-1, is_active=True)
+        assert before.is_ongoing is True and after.is_ongoing is True
+        assert after.effective_status == "voting_active"
 
-    def test_is_ongoing_false_after_end_time(self, db_session):
-        e = self._make_election(db_session, start_offset_h=-10, end_offset_h=-1, is_active=True)
+    def test_paused_voting_is_not_ongoing(self, db_session):
+        e = self._make_election(db_session, start_offset_h=-1, end_offset_h=1, is_active=True)
+        e.voting_paused = True
         assert e.is_ongoing is False
+        assert e.to_dict()["status_label"] == "Voting Paused"
+        e.set_status("voting_closed")
+        assert e.voting_paused is False
 
     def test_is_ongoing_false_when_not_activated(self, db_session):
         e = self._make_election(db_session, start_offset_h=-1, end_offset_h=1, is_active=False)

@@ -578,11 +578,12 @@ def voter_pin_login():
             404,
         )
 
-    if not election.is_active:
+    if not election.is_ongoing:
         return (
             jsonify({
                 "error": "Election inactive.",
-                "message": "This election is not currently open for voting.",
+                "message": "Voting is paused for a short while." if election.is_active
+                else "This election is not currently open for voting.",
             }),
             400,
         )

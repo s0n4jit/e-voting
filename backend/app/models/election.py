@@ -41,6 +41,9 @@ class Election(db.Model):
     public_token = db.Column(db.String(64), unique=True, nullable=True)  # unguessable link to the published results
     status = db.Column(db.String(20), nullable=False, default="setup", server_default="setup")
     results_published = db.Column(db.Boolean, nullable=False, default=False)
+    # Voting is opened, paused and closed by the Election Officer, never by the clock. start_time and
+    # end_time are the announced schedule and are shown for information only.
+    voting_paused = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
@@ -97,6 +100,7 @@ class Election(db.Model):
         """Move to a lifecycle status, keeping the legacy is_active / results_published flags in sync."""
         self.status = status
         self.is_active = status == "voting_active"
+        self.voting_paused = False  # a pause only exists inside "voting_active"
         if status == "results_published":
             self.results_published = True
         elif status not in ("archived",):
@@ -125,28 +129,17 @@ class Election(db.Model):
             st = "voting_active"
         if self.results_published and st in ("setup", "registration", "ready", "voting_active", "voting_closed"):
             return "results_published"
-        if st == "voting_active" and self.end_time:
-            end = self.end_time if self.end_time.tzinfo else self.end_time.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) > end:
-                return "voting_closed"
         return st
 
     @property
+    def desk_open(self) -> bool:
+        """Students can be registered and PINs issued until the officer closes voting."""
+        return self.effective_status in ("setup", "registration", "ready", "voting_active")
+
+    @property
     def is_ongoing(self) -> bool:
-        """
-        True if the election is marked active and the current UTC time
-        falls within [start_time, end_time].
-        """
-        if not self.is_active or not self.start_time or not self.end_time:
-            return False
-        now = datetime.now(timezone.utc)
-        start = self.start_time
-        end = self.end_time
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
-        return start <= now <= end
+        """True while the officer has voting open and not paused. The scheduled times play no part."""
+        return bool(self.is_active) and not self.voting_paused
 
     def to_dict(self, include_candidates: bool = False) -> dict:
         """Return dict representation."""
@@ -166,7 +159,9 @@ class Election(db.Model):
             "end_time": utc_iso(self.end_time),
             "is_active": self.is_active,
             "status": self.effective_status,
-            "status_label": self.STATUS_LABELS.get(self.effective_status, self.status),
+            "status_label": "Voting Paused" if self.is_active and self.voting_paused
+            else self.STATUS_LABELS.get(self.effective_status, self.status),
+            "voting_paused": bool(self.voting_paused),
             "positions": [p.name for p in self.positions],
             "is_ongoing": self.is_ongoing,
             "results_published": self.results_published,

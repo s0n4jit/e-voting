@@ -1,6 +1,7 @@
 import apiClient from './axiosConfig';
 
 export const deskApi = {
+  state: async () => (await apiClient.get('/desk/state')).data,
   getProgrammes: async () => (await apiClient.get('/desk/programmes')).data,
   register: async (data) => (await apiClient.post('/desk/registrations', data)).data,
   list: async (params = {}) => (await apiClient.get('/desk/registrations', { params })).data,

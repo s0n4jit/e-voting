@@ -21,6 +21,7 @@ _COLUMNS = [
     ("voting_tokens", "failed_attempts", "INTEGER NOT NULL DEFAULT 0"),
     ("elections", "public_token", "VARCHAR(64)"),
     ("elections", "slip_prefix", "VARCHAR(20)"),
+    ("elections", "voting_paused", "BOOLEAN NOT NULL DEFAULT false"),
     ("kiosk_devices", "election_id", "INTEGER"),
     ("programmes", "level", "VARCHAR(10) NOT NULL DEFAULT 'degree'"),
     ("programmes", "programme", "VARCHAR(120) NOT NULL DEFAULT ''"),

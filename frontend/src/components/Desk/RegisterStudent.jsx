@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { EmptyState, Field, PageHeader, errorMessage } from '../ui';
 import LoadingSpinner from '../common/LoadingSpinner';
 import SlipCard from './SlipCard';
+import { useDeskOpen } from '../../hooks/useDeskOpen';
 import ProgrammePicker from './ProgrammePicker';
 
 export default function RegisterStudent() {
@@ -16,6 +17,7 @@ export default function RegisterStudent() {
   const [duplicate, setDuplicate] = useState(null);
   const [busy, setBusy] = useState(false);
   const [slip, setSlip] = useState(null);
+  const deskOpen = useDeskOpen();
 
   useEffect(() => {
     deskApi.getProgrammes().then(setProgrammes).catch(() => setProgrammes([]));
@@ -48,6 +50,17 @@ export default function RegisterStudent() {
   };
 
   if (!programmes) return <LoadingSpinner size="lg" />;
+
+  if (!deskOpen && !slip) {
+    return (
+      <div className="max-w-xl">
+        <PageHeader title="Register student" />
+        <div className="card">
+          <EmptyState title="Voting has ended">No more students can be registered and no more PINs can be issued.</EmptyState>
+        </div>
+      </div>
+    );
+  }
 
   if (slip) {
     return (

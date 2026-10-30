@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { ArrowDownTrayIcon, PlusIcon, RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { saveBlob } from '../../api/deskApi';
-import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage } from '../ui';
+import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 
@@ -13,8 +12,8 @@ const ORDER = ['setup', 'registration', 'ready', 'voting_active', 'voting_closed
 const NEXT = {
   setup: ['registration', 'Open registration', null],
   registration: ['ready', 'Mark ready', null],
-  ready: ['voting_active', 'Open voting', 'Voters with a PIN will be able to vote as soon as the voting period starts. Positions, candidates and the voting period are locked from this point.'],
-  voting_active: ['voting_closed', 'Close voting', 'No further ballots will be accepted. This cannot be undone.'],
+  ready: ['voting_active', 'Open voting', 'Booths accept votes right away and keep accepting them until you close voting. You can pause for a break and resume. The scheduled date and time is for information only. Positions and candidates are locked from this point.'],
+  voting_active: ['voting_closed', 'Close voting', 'No further ballots will be accepted, even if the scheduled time has not ended. This cannot be undone.'],
   voting_closed: ['results_published', 'Publish results', 'Unlocks the results for you: the projector reveal, the report and the public link on the Results page. Until you publish, nobody can see the counts. This does not make them public. This cannot be undone.'],
   results_published: ['archived', 'Archive election', 'Archived elections are read-only.'],
 };
@@ -60,6 +59,20 @@ export const ElectionManager = () => {
     }
   };
 
+  const pauseResume = async (election) => {
+    setBusy(true);
+    try {
+      if (election.voting_paused) await adminApi.resumeVoting(election.id);
+      else await adminApi.pauseVoting(election.id);
+      toast.success(election.voting_paused ? 'Voting resumed' : 'Voting paused');
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openEditor = (election) => {
     const now = new Date();
     setFormError('');
@@ -92,7 +105,8 @@ export const ElectionManager = () => {
     const payload = {
       title: form.title,
       description: form.description,
-      ...(locked ? {} : { start_time: new Date(form.start_time).toISOString(), end_time: new Date(form.end_time).toISOString() }),
+      start_time: new Date(form.start_time).toISOString(),
+      end_time: new Date(form.end_time).toISOString(),
     };
     const positions = form.positions.split('\n').map((p) => p.trim()).filter(Boolean);
     try {
@@ -164,7 +178,8 @@ export const ElectionManager = () => {
                     </div>
                     {e.description && <p className="text-sm text-muted mt-1">{e.description}</p>}
                     <p className="text-sm text-muted mt-2">
-                      {format(new Date(e.start_time), 'PPp')} → {format(new Date(e.end_time), 'PPp')}
+                      Scheduled: {formatSchedule(e.start_time, e.end_time)}
+                      <span className="text-xs"> · for information, you open and close voting</span>
                     </p>
                     <p className="text-sm text-muted mt-1">
                       {e.positions.length} {e.positions.length === 1 ? 'position' : 'positions'}
@@ -174,6 +189,11 @@ export const ElectionManager = () => {
                   <div className="flex flex-wrap gap-2 shrink-0">
                     {idx > 0 && idx <= 2 && (
                       <button className="btn-ghost btn-sm" onClick={() => move(e, ORDER[idx - 1])} disabled={busy}>Back a stage</button>
+                    )}
+                    {e.status === 'voting_active' && (
+                      <button className="btn-secondary btn-sm" disabled={busy} onClick={() => pauseResume(e)}>
+                        {e.voting_paused ? 'Resume voting' : 'Pause voting'}
+                      </button>
                     )}
                     {next && (
                       <button className="btn-primary btn-sm" disabled={busy} onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}>
@@ -225,13 +245,16 @@ export const ElectionManager = () => {
               <textarea id="el-desc" className="input min-h-[64px]" value={editor.form.description} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, description: e.target.value } })} />
             </Field>
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Voting starts" htmlFor="el-start">
-                <input id="el-start" type="datetime-local" className="input" required disabled={lockedEditing} value={editor.form.start_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, start_time: e.target.value } })} />
+              <Field label="Scheduled start" htmlFor="el-start">
+                <input id="el-start" type="datetime-local" className="input" required value={editor.form.start_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, start_time: e.target.value } })} />
               </Field>
-              <Field label="Voting ends" htmlFor="el-end">
-                <input id="el-end" type="datetime-local" className="input" required disabled={lockedEditing} value={editor.form.end_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, end_time: e.target.value } })} />
+              <Field label="Scheduled end" htmlFor="el-end">
+                <input id="el-end" type="datetime-local" className="input" required value={editor.form.end_time} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, end_time: e.target.value } })} />
               </Field>
             </div>
+            <p className="text-xs text-muted -mt-2">
+              The date and time are shown to staff and voters for information only. Voting starts when you press Open voting and ends when you press Close voting.
+            </p>
             <Field label="Positions" htmlFor="el-pos" hint={lockedEditing ? 'Positions are locked once voting has opened.' : 'One per line, in the order voters will see them.'}>
               <textarea id="el-pos" className="input min-h-[110px]" disabled={lockedEditing} value={editor.form.positions} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, positions: e.target.value } })} />
             </Field>

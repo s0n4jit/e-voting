@@ -40,7 +40,7 @@ Voter & Votes once on an authorised booth \\
 
 \subsection{Running the election}
 
-Use the \textbf{Elections} page to move the election through its stages (Figure~\ref{fig:lifecycle} in Chapter~\ref{chap:design}). Positions, candidates and the voting period are locked as soon as voting opens. Only one election can be active in an installation.
+Use the \textbf{Elections} page to move the election through its stages (Figure~\ref{fig:lifecycle} in Chapter~\ref{chap:design}). The scheduled date and time is for information only: voting starts when you press \textbf{Open voting}, stops for a break with \textbf{Pause voting} (and continues with \textbf{Resume voting}), and ends when you press \textbf{Close voting}. Positions and candidates are locked as soon as voting opens. Only one election can be active in an installation.
 
 \subsection{Results}
 
@@ -88,7 +88,7 @@ Click your name at the top right to open your profile: change the photo, change 
 \midrule
 PIN cannot be issued & The student has already voted, or the slip ID is wrong \\
 PIN stopped working & It expires after 20 minutes and is cancelled after five wrong entries; issue a new one \\
-Booth says voting is not open & The election is not in the voting stage or is outside its time window \\
+Booth says voting is not open & The election is not in the voting stage, or voting is paused \\
 Booth returned to set-up & It was removed in the panel; generate a new token \\
 Results are locked & Close voting, then publish the results \\
 Lost authenticator & The system operator runs the recovery command described in the security guide \\

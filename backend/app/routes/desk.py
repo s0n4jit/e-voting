@@ -129,6 +129,15 @@ def list_programmes():
     return jsonify([p.to_dict() for p in rows]), 200
 
 
+@desk_bp.get("/state")
+@desk_required
+def desk_state():
+    """Polled by the desk screens: false once the officer has closed voting."""
+    election = Election.current()
+    return jsonify({"open": bool(election.desk_open) if election else True,
+                    "status": election.effective_status if election else None}), 200
+
+
 # ── registration ──────────────────────────────────────────────────────────────
 
 @desk_bp.post("/registrations")
@@ -147,6 +156,9 @@ def register_student():
     if err:
         return jsonify({"error": err, "field": "semester"}), 400
     semester = payload["semester"]
+    current = Election.current()
+    if current and not current.desk_open:
+        return jsonify({"error": "Voting has ended, so no more students can be registered and no more PINs can be issued.", "code": "voting_ended"}), 409
 
     name = sanitize_input(name)
     duplicate = User.query.filter(
@@ -191,7 +203,7 @@ def register_student():
     if user is None:
         return jsonify({"error": "Could not generate a unique Voter Slip ID. Please try again."}), 503
 
-    if election and election.effective_status in ("setup", "registration", "ready", "voting_active"):
+    if election and election.desk_open:
         db.session.add(VoterRecord(
             election_id=election.id, voter_hash=User.hash_student_id(user.student_id), has_voted=False
         ))

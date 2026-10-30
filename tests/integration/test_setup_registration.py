@@ -327,7 +327,7 @@ def test_pin_locks_after_repeated_failures(client, installed, desk_token, booth)
     assert client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": slip, "voting_pin": pin}).status_code == 401
 
 
-def test_voting_blocked_before_start_and_after_end(client, installed, desk_token, booth):
+def test_pause_resume_and_schedule_is_information_only(client, installed, desk_token, booth):
     eid = _open_election(client, installed)
     for pos in ("President", "Secretary"):
         cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
@@ -339,15 +339,27 @@ def test_voting_blocked_before_start_and_after_end(client, installed, desk_token
     ballot = client.get(f"/api/voter/elections/{eid}/ballot", headers=HB(vt, booth)).get_json()
     sel = [{"position": p["position"], "candidate_id": p["candidates"][0]["id"], "is_nota": False} for p in ballot["positions"]]
 
+    # The schedule is information only: moving it never opens or closes voting.
     from app.models.election import Election
     e = _db.session.get(Election, eid)
     now = datetime.now(timezone.utc)
-    e.end_time = now - timedelta(minutes=1)
-    _db.session.commit()
-    assert client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=HB(vt, booth), json={"selections": sel}).status_code == 400
     e.start_time, e.end_time = now + timedelta(hours=1), now + timedelta(hours=2)
     _db.session.commit()
-    assert client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=HB(vt, booth), json={"selections": sel}).status_code == 400
+
+    # Only the officer's pause stops votes ...
+    assert client.post(f"/api/admin/elections/{eid}/pause", headers=H(installed)).status_code == 200
+    assert _db.session.get(Election, eid).to_dict()["status_label"] == "Voting Paused"
+    r = client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=HB(vt, booth), json={"selections": sel})
+    assert r.status_code == 400 and "paused" in r.get_data(as_text=True).lower()
+    # ... and the same ballot goes through after resuming, although the scheduled time has not begun.
+    assert client.post(f"/api/admin/elections/{eid}/resume", headers=H(installed)).status_code == 200
+    assert client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=HB(vt, booth), json={"selections": sel}).status_code == 200
+
+
+def test_pause_only_while_voting_is_open(client, installed):
+    eid = _open_election(client, installed)
+    assert client.post(f"/api/admin/elections/{eid}/pause", headers=H(installed)).status_code == 409
+    assert client.post(f"/api/admin/elections/{eid}/resume", headers=H(installed)).status_code == 409
 
 
 # ── security ────────────────────────────────────────────────────────────────
@@ -744,12 +756,19 @@ def test_booth_does_not_accept_votes_when_voting_is_not_open(client, installed, 
     for st in ("registration", "ready", "voting_active"):
         client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": st})
     assert client.get("/api/booth/status", headers={"X-Kiosk-Token": booth}).get_json()["voting_open"] is True
-    client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": "voting_closed"})
-    assert client.get("/api/booth/status", headers={"X-Kiosk-Token": booth}).get_json()["voting_open"] is False
     slip = register(client, desk_token).get_json()["slip_id"]
-    pin = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).get_json()["pin"]
+    pin = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).get_json()["pin"]  # handed out, not yet used
+
+    client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": "voting_closed"})
+    st = client.get("/api/booth/status", headers={"X-Kiosk-Token": booth}).get_json()
+    assert st["voting_open"] is False and st["voting_ended"] is True
+    # The desk is closed too: no new students, no new PINs, and an unused PIN no longer works.
+    assert client.get("/api/desk/state", headers=H(desk_token)).get_json()["open"] is False
+    r = register(client, desk_token)
+    assert r.status_code == 409 and r.get_json()["code"] == "voting_ended"
+    assert client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).status_code == 409
     r = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": slip, "voting_pin": pin})
-    assert r.status_code in (400, 404)                                                       # no election is open
+    assert r.status_code in (400, 401, 404)
 
 
 def test_two_step_verification_cannot_be_turned_off_by_an_election_officer(client, installed):

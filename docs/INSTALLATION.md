@@ -44,7 +44,7 @@ Open `http://<server>:<WEB_PORT>/`. While the portal is not installed you are ta
 1. **Welcome**
 2. **System** – institution name, portal name, logo, timezone, default language
 3. **Officer account** – the first Election Officer (name, email, username, password)
-4. **Election** – title, description, date, voting hours, positions, and (optionally) programmes
+4. **Election** – title, description, the scheduled date and hours (shown for information only), positions, and (optionally) programmes
 5. **Review and install** – you are signed in and taken to the Election Officer dashboard
 
 The wizard is available only until the first install completes. The "installed" flag lives in the database, so a second request cannot create another initial officer. If you set `SETUP_TOKEN`, complete setup immediately after deployment anyway, because it is the only protection before that point.

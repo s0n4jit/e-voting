@@ -34,7 +34,7 @@ Browsers used & Chromium-based and Firefox, desktop and phone width \\
 \toprule
 \textbf{Test module} & \textbf{Tests} & \textbf{Covers} \\
 \midrule
-\code{test\_setup\_registration} & 48 & Installation, registration, booths, voting, results, audit, security \\
+\code{test\_setup\_registration} & 49 & Installation, registration, booths, voting, results, audit, security \\
 \code{test\_auth\_routes} & 24 & Sign-in, two-step verification, tokens, protection of admin endpoints \\
 \code{test\_maintenance\_routes} & 15 & Maintenance unlock, lockout, diagnostics, allowed actions \\
 \code{test\_voting\_routes} & 5 & Casting, duplicate vote, closed and unstarted elections \\
@@ -43,7 +43,7 @@ Browsers used & Chromium-based and Firefox, desktop and phone width \\
 \code{test\_vote\_service} & 12 & Vote service, results, password hashing \\
 \code{test\_keepalive} & 4 & Health endpoint, self-ping and database ping \\
 \midrule
-\textbf{Total} & \textbf{146} & \textbf{all passed} \\
+\textbf{Total} & \textbf{147} & \textbf{all passed} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -73,7 +73,7 @@ T-14 & PIN login without a booth or with a built-in token & Rejected & Pass \\
 T-15 & Vote from another booth or a plain browser & Rejected & Pass \\
 T-16 & Complete vote and repeat it & First accepted, second rejected & Pass \\
 T-17 & Tampered selections (missing, duplicate, unknown position or candidate) & Rejected & Pass \\
-T-18 & Vote before start or after end & Rejected & Pass \\
+T-18 & Pause voting; vote; resume; vote (schedule in the future) & Rejected while paused; accepted after resume & Pass \\
 T-19 & Vote in another election & Rejected & Pass \\
 T-20 & Five wrong PIN attempts & PIN cancelled & Pass \\
 T-21 & Results during voting, after closing and before publishing & Counts not returned & Pass \\
@@ -152,4 +152,4 @@ FR-34 to FR-37 & T-24, T-25, authentication and role tests \\
 
 \section{Conclusion}
 
-All 146 automated tests pass. The critical properties (one vote per voter, booth-only voting, hidden results, role enforcement) are covered by tests and were confirmed on PostgreSQL.
+All 147 automated tests pass. The critical properties (one vote per voter, booth-only voting, hidden results, role enforcement) are covered by tests and were confirmed on PostgreSQL.

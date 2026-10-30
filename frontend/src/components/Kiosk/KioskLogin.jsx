@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowRightIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { authApi } from '../../api/authApi';
 import { useBooth } from '../../hooks/useBooth';
 import BoothSetup from './BoothSetup';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage } from '../ui';
+import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage, formatSchedule } from '../ui';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
@@ -39,6 +39,7 @@ export const KioskLogin = () => {
   }, []);
 
   const open = Boolean(info?.voting_open);
+  const ended = Boolean(info?.voting_ended);
   const prefix = info?.slip_prefix || 'SUE';
 
   const submit = async (e) => {
@@ -79,7 +80,7 @@ export const KioskLogin = () => {
                 <p className="text-muted mt-2">{election.title}</p>
                 <p className="text-xs text-muted mt-1 inline-flex items-center gap-1.5">
                   <ClockIcon className="w-3.5 h-3.5" />
-                  {format(new Date(election.start_time), 'PP p')} – {format(new Date(election.end_time), 'p')}
+                  Scheduled: {formatSchedule(election.start_time, election.end_time)}
                 </p>
               </>
             ) : (
@@ -87,10 +88,17 @@ export const KioskLogin = () => {
             )}
           </div>
 
+          {ended ? (
+            <div className="card card-body text-center py-12 animate-pop-in" role="status">
+              <CheckCircleIcon className="w-14 h-14 text-ok mx-auto" />
+              <h2 className="text-2xl font-semibold mt-4">Voting has ended</h2>
+              <p className="text-muted mt-2">Thank you for taking part. This booth is now closed.</p>
+            </div>
+          ) : (
           <form onSubmit={submit} className="card card-body space-y-5">
             {election && !open && (
               <p className="text-sm text-warn bg-warn-soft rounded-lg px-3 py-2" role="status">
-                Voting is not open at the moment. Please check with the desk.
+                {election.paused ? 'Voting is paused for a short while. Please wait for the officer to resume it.' : 'Voting is not open at the moment. Please check with the desk.'}
               </p>
             )}
             <Field label="Voter slip ID" htmlFor="slip" hint="Type only the 6 digits printed at the end of your slip ID.">
@@ -132,6 +140,7 @@ export const KioskLogin = () => {
               {busy ? 'Checking…' : (<>Continue <ArrowRightIcon className="w-5 h-5" /></>)}
             </button>
           </form>
+          )}
 
           <p className="text-xs text-muted text-center mt-6">
             Your vote is secret. It is never linked to your name.

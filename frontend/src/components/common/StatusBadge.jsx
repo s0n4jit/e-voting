@@ -2,7 +2,7 @@ import React from 'react';
 
 const GROUPS = {
   ok: ['active', 'open', 'voted', 'published', 'verified', 'success', 'voting active', 'results published'],
-  warn: ['inactive', 'closed', 'not voted', 'pending', 'unverified', 'draft', 'pin active', 'voting closed', 'ready'],
+  warn: ['inactive', 'closed', 'not voted', 'pending', 'unverified', 'draft', 'pin active', 'voting closed', 'ready', 'voting paused'],
   bad: ['failed', 'error', 'revoked', 'banned', 'danger'],
   brand: ['admin', 'primary', 'info', 'registration', 'registered'],
 };

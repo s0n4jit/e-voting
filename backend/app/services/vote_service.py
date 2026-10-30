@@ -107,20 +107,11 @@ class VoteService:
             raise VotingError("Election not found.")
 
         if not election.is_active:
-            raise VotingError("Election is not active.")
+            raise VotingError("Voting is not open.")
+        if election.voting_paused:
+            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
 
         now = datetime.now(timezone.utc)
-        start_time = election.start_time
-        end_time = election.end_time
-        if start_time and start_time.tzinfo is None:
-            start_time = start_time.replace(tzinfo=timezone.utc)
-        if end_time and end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
-
-        if start_time and now < start_time:
-            raise VotingError("Election has not started yet.")
-        if end_time and now > end_time:
-            raise VotingError("Election is closed.")
 
         # 3. Optional kiosk device verification
         if kiosk_token:
@@ -298,20 +289,11 @@ class VoteService:
             raise VotingError("Election not found.")
 
         if not election.is_active:
-            raise VotingError("Election is not active.")
+            raise VotingError("Voting is not open.")
+        if election.voting_paused:
+            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
 
         now = datetime.now(timezone.utc)
-        start_time = election.start_time
-        end_time = election.end_time
-        if start_time and start_time.tzinfo is None:
-            start_time = start_time.replace(tzinfo=timezone.utc)
-        if end_time and end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=timezone.utc)
-
-        if start_time and now < start_time:
-            raise VotingError("Election has not started yet.")
-        if end_time and now > end_time:
-            raise VotingError("Election is closed.")
 
         # Resolve and validate candidate
         if not candidate_id:
