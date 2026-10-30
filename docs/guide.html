@@ -135,5 +135,6 @@ if (!names.includes(cur)) {
     .catch(() => { el.innerHTML = '<p>Could not load this document. <a href="' + REPO + 'docs/' + cur + '.md">Open it on GitHub</a>.</p>'; });
 }
 </script>
+<script>if(/\.html$/.test(location.pathname))history.replaceState(null,"",location.pathname.replace(/(^|\/)index\.html$/,"$1").replace(/\.html$/,"")+location.search+location.hash)</script>
 </body>
 </html>
