@@ -173,11 +173,13 @@ def _register_blueprints(app: Flask) -> None:
     from app.routes.admin import admin_bp
     from app.routes.voter import voter_bp
     from app.routes.results import results_bp
+    from app.routes.maintenance import maintenance_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(voter_bp, url_prefix="/api/voter")
     app.register_blueprint(results_bp, url_prefix="/api/results")
+    app.register_blueprint(maintenance_bp, url_prefix="/api/maintenance")
 
 
 def _register_error_handlers(app: Flask) -> None:

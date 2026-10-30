@@ -1,0 +1,79 @@
+# Campus E-Voting System (CEVS) - GNOME DConf Lockdown Profile
+# Applied to /etc/dconf/db/local.d/00-kiosk-lockdown
+
+[org/gnome/desktop/interface]
+enable-hot-corners=false
+show-battery-percentage=false
+
+[org/gnome/desktop/session]
+idle-delay=uint32 0
+
+[org/gnome/settings-daemon/plugins/power]
+idle-dim=false
+sleep-inactive-ac-type='nothing'
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-type='nothing'
+sleep-inactive-battery-timeout=0
+power-button-action='nothing'
+
+[org/gnome/desktop/screensaver]
+lock-enabled=false
+
+[org/gnome/desktop/lockdown]
+disable-lock-screen=true
+disable-log-out=true
+disable-user-switching=true
+disable-command-line=true
+disable-printing=true
+disable-print-setup=true
+disable-save-to-disk=true
+
+[org/gnome/desktop/media-handling]
+automount=false
+automount-open=false
+autorun-never=true
+
+[org/gnome/desktop/wm/keybindings]
+switch-applications=@as []
+switch-applications-backward=@as []
+switch-windows=@as []
+switch-windows-backward=@as []
+cycle-windows=@as []
+cycle-windows-backward=@as []
+cycle-group=@as []
+cycle-group-backward=@as []
+switch-panels=@as []
+switch-panels-backward=@as []
+close=@as []
+minimize=@as []
+maximize=@as []
+toggle-maximized=@as []
+show-desktop=@as []
+
+[org/gnome/settings-daemon/plugins/media-keys]
+terminal=@as []
+screensaver=@as []
+screencast=@as []
+screenshot=@as []
+screenshot-clip=@as []
+window-screenshot=@as []
+window-screenshot-clip=@as []
+area-screenshot=@as []
+area-screenshot-clip=@as []
+custom-keybindings=@as []
+logout=@as []
+suspend=@as []
+hibernate=@as []
+
+[org/gnome/shell/keybindings]
+show-screenshot-ui=@as []
+screenshot=@as []
+screenshot-window=@as []
+show-screen-recording-ui=@as []
+toggle-application-view=@as []
+toggle-overview=@as []
+toggle-message-tray=@as []
+
+[org/gnome/mutter/keybindings]
+toggle-tiled-left=@as []
+toggle-tiled-right=@as []

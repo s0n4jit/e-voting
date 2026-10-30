@@ -1,0 +1,114 @@
+{
+  "policies": {
+    "Kiosk": true,
+    "DisableDeveloperTools": true,
+    "DisableDownloads": true,
+    "DisablePrivateBrowsing": true,
+    "PasswordManagerEnabled": false,
+    "SearchSuggestEnabled": false,
+    "Bookmarks": [],
+    "NoDefaultBookmarks": true,
+    "ExtensionUpdate": false,
+    "DisableFeedbackCommands": true,
+    "BlockAboutConfig": true,
+    "DisableDefaultBrowserAgent": true,
+    "DontCheckDefaultBrowser": true,
+    "HardwareAcceleration": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "DisableAppUpdate": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DisableSetDesktopBackground": true,
+    "DisableMasterPasswordCreation": true,
+    "DisableFormHistory": true,
+    "DisableBuiltinPDFViewer": true,
+    "DisableSafeMode": true,
+    "DisableProfileImport": true,
+    "DisableProfileRefresh": true,
+    "PromptForDownloadLocation": false,
+    "DefaultDownloadDirectory": "/dev/null",
+    "SanitizeOnShutdown": {
+      "Cache": true,
+      "Cookies": true,
+      "History": true,
+      "Sessions": true,
+      "SiteSettings": true,
+      "FormData": true,
+      "Downloads": true,
+      "Locked": true
+    },
+    "EnableTrackingProtection": {
+      "Value": true,
+      "Locked": true,
+      "Cryptomining": true,
+      "Fingerprinting": true,
+      "EmailTracking": true
+    },
+    "PopupBlocking": {
+      "Default": true,
+      "Locked": true
+    },
+    "WebsiteFilter": {
+      "Block": [
+        "<all_urls>"
+      ],
+      "Exceptions": [
+        "https://evote.campus.internal/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ]
+    },
+    "URLAllowlist": [
+      "https://evote.campus.internal/*",
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*"
+    ],
+    "URLBlocklist": [
+      "*"
+    ],
+    "Preferences": {
+      "browser.newtabpage.enabled": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.tabs.warnOnClose": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.tabs.remote.autostart": {
+        "Value": true,
+        "Status": "locked"
+      },
+      "browser.sessionstore.resume_from_crash": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.sessionstore.max_resumed_crashes": {
+        "Value": 0,
+        "Status": "locked"
+      },
+      "browser.shell.checkDefaultBrowser": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "datareporting.policy.dataSubmissionEnabled": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "toolkit.telemetry.enabled": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.download.useDownloadDir": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "dom.serviceWorkers.enabled": {
+        "Value": true,
+        "Status": "locked"
+      }
+    }
+  }
+}

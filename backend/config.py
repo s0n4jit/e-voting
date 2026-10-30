@@ -87,6 +87,17 @@ class Config:
     BACKUP_DIR: str = os.environ.get("BACKUP_DIR", "/var/backups/evoting")
     BACKUP_RETENTION_DAYS: int = int(os.environ.get("BACKUP_RETENTION_DAYS", 30))
 
+    # ── Kiosk & Staff Maintenance ────────────────────────────────────────────
+    BOOTH_ID: str = os.environ.get("BOOTH_ID", "BOOTH-LAB-01")
+    # Default salted hash for default PIN "948201" (generated via werkzeug.security generate_password_hash)
+    STAFF_MAINTENANCE_PIN_HASH: str = os.environ.get(
+        "STAFF_MAINTENANCE_PIN_HASH",
+        "scrypt:32768:8:1$6HRcgykDhu1O5HU6$0b2e7ebcd720d37e898994e034e16463b6d66f29d1aa332f905f902f07adc8a2fa10fa8bd64f78eb2c89953747e5a08df54ae65f127b53e6ff95af79eb50b6e0"
+    )
+    MAINTENANCE_MAX_ATTEMPTS: int = int(os.environ.get("MAINTENANCE_MAX_ATTEMPTS", 5))
+    MAINTENANCE_LOCKOUT_SECONDS: int = int(os.environ.get("MAINTENANCE_LOCKOUT_SECONDS", 900))
+    VOTING_APP_URL: str = os.environ.get("VOTING_APP_URL", "http://localhost:3000/kiosk")
+
 
 class DevelopmentConfig(Config):
     """Development configuration — verbose, SQLite by default."""
@@ -105,7 +116,7 @@ class TestingConfig(Config):
 
     TESTING = True
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
     # Disable CSRF and rate limiting in tests
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False

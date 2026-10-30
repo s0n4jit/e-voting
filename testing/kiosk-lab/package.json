@@ -1,0 +1,14 @@
+{
+  "name": "cevs-kiosk-lab-tests",
+  "version": "1.0.0",
+  "description": "Playwright end-to-end automated tests for Campus E-Voting System Kiosk mode and maintenance system",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

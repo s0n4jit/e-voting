@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
 import { voterApi } from '../../api/voterApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import StaffMaintenanceModal from './StaffMaintenanceModal';
+import NetworkOfflineOverlay from './NetworkOfflineOverlay';
+import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 import { toast } from 'react-hot-toast';
 import {
   ShieldCheckIcon,
@@ -33,6 +36,19 @@ export const KioskLogin = () => {
   const [votingPin, setVotingPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  // Staff Maintenance Modal & Shortcuts
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [maintenanceTab, setMaintenanceTab] = useState('overview');
+
+  useMaintenanceShortcuts({
+    onOpenMaintenance: (tab = 'overview') => {
+      setMaintenanceTab(tab);
+      setMaintenanceOpen(true);
+    },
+    onCloseMaintenance: () => setMaintenanceOpen(false),
+    isMaintenanceOpen: maintenanceOpen,
+  });
 
   useEffect(() => {
     const fetchActiveElections = async () => {
@@ -302,15 +318,41 @@ export const KioskLogin = () => {
       <footer className="px-6 py-4 bg-slate-950/80 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
         <span>Campus Electoral Committee • Secure Polling Station</span>
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              setMaintenanceTab('overview');
+              setMaintenanceOpen(true);
+            }}
+            className="text-slate-600 hover:text-amber-400 transition-colors"
+            title="Open Staff Maintenance Dashboard (Ctrl+Alt+Shift+M)"
+          >
+            Staff Maintenance (Ctrl+Alt+Shift+M)
+          </button>
           <Link
             to="/login"
             className="text-slate-600 hover:text-slate-400 transition-colors"
             title="Administrator or Desk Login"
           >
-            Staff Exit / Unlock
+            Staff Exit
           </Link>
         </div>
       </footer>
+
+      {/* Staff Maintenance Dashboard Modal */}
+      <StaffMaintenanceModal
+        isOpen={maintenanceOpen}
+        onClose={() => setMaintenanceOpen(false)}
+        initialTab={maintenanceTab}
+      />
+
+      {/* Real-time Network Disconnection Protection Overlay */}
+      <NetworkOfflineOverlay
+        onOpenMaintenance={() => {
+          setMaintenanceTab('network');
+          setMaintenanceOpen(true);
+        }}
+      />
     </div>
   );
 };

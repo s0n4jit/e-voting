@@ -1,0 +1,435 @@
+"""
+backend/app/routes/maintenance.py
+==================================
+Staff-Only Maintenance and Network Diagnostics API.
+Accessible exclusively via authorized staff credentials, keyboard shortcuts, or kiosk security headers.
+Strictly disallows arbitrary shell execution and implements rate-limited, salted PIN authentication.
+"""
+
+from datetime import datetime, timezone, timedelta
+import os
+import platform
+import socket
+import subprocess
+import time
+
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt,
+    verify_jwt_in_request,
+)
+from werkzeug.security import check_password_hash
+
+from app.extensions import db
+from app.models.audit_log import AuditLog
+from app.models.kiosk_device import KioskDevice
+from app.utils.validators import sanitize_input
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+maintenance_bp = Blueprint("maintenance", __name__)
+
+# In-memory tracking for failed PIN attempts and lockout protection
+# Format: { "ip_address": { "attempts": int, "lockout_until": float } }
+_pin_attempts = {}
+
+# Strict allowlist of permitted privileged maintenance actions
+PERMITTED_ACTIONS = {
+    "restart_browser",
+    "restart_kiosk",
+    "restart_system",
+    "test_network",
+}
+
+
+def _get_client_ip() -> str:
+    """Resolve real client IP handling proxies."""
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    return request.remote_addr or "127.0.0.1"
+
+
+def _is_maintenance_authorized() -> bool:
+    """
+    Verify that request contains either a valid staff maintenance JWT or an authorized kiosk header.
+    """
+    # 1. Kiosk token header check
+    kiosk_token = request.headers.get("X-Kiosk-Token") or request.headers.get("X-Kiosk-Device")
+    if kiosk_token:
+        is_valid, _ = KioskDevice.verify_token(kiosk_token)
+        if is_valid:
+            return True
+
+    # 2. JWT Bearer token check
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt()
+            if claims and claims.get("role") in ("staff_maintenance", "admin"):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+@maintenance_bp.post("/auth")
+def staff_pin_auth():
+    """
+    Authenticate staff member using high-entropy staff PIN.
+    Implements rate-limiting and temporary 15-minute lockout on repeated failed attempts.
+    Never exposes or logs the PIN in application logs or audit logs.
+    """
+    client_ip = _get_client_ip()
+    now_ts = time.time()
+
+    # Check lockout status
+    ip_state = _pin_attempts.get(client_ip, {"attempts": 0, "lockout_until": 0})
+    if ip_state["lockout_until"] > now_ts:
+        remaining = int(ip_state["lockout_until"] - now_ts)
+        return (
+            jsonify({
+                "error": "Terminal Locked",
+                "message": f"Too many failed attempts. Terminal locked for {remaining} seconds.",
+                "lockout_remaining": remaining,
+            }),
+            429,
+        )
+
+    payload = request.get_json(silent=True) or {}
+    pin = sanitize_input(payload.get("pin"))
+
+    if not pin:
+        return jsonify({"error": "PIN is required.", "message": "Please enter the staff security PIN."}), 400
+
+    configured_hash = current_app.config.get("STAFF_MAINTENANCE_PIN_HASH")
+    max_attempts = current_app.config.get("MAINTENANCE_MAX_ATTEMPTS", 5)
+    lockout_seconds = current_app.config.get("MAINTENANCE_LOCKOUT_SECONDS", 900)
+
+    # Verify PIN against salted hash
+    is_valid = False
+    if configured_hash:
+        try:
+            is_valid = check_password_hash(configured_hash, pin)
+        except Exception:
+            is_valid = False
+    else:
+        # Fallback to default PIN "948201" only if no hash configured
+        is_valid = (pin == "948201")
+
+    if not is_valid:
+        ip_state["attempts"] += 1
+        remaining_attempts = max(0, max_attempts - ip_state["attempts"])
+
+        if ip_state["attempts"] >= max_attempts:
+            ip_state["lockout_until"] = now_ts + lockout_seconds
+            _pin_attempts[client_ip] = ip_state
+            return (
+                jsonify({
+                    "error": "Terminal Locked",
+                    "message": f"Maximum failed attempts exceeded. Locked for {lockout_seconds} seconds.",
+                    "lockout_remaining": lockout_seconds,
+                }),
+                429,
+            )
+
+        _pin_attempts[client_ip] = ip_state
+        return (
+            jsonify({
+                "error": "Authentication Failed",
+                "message": f"Invalid Staff PIN. {remaining_attempts} attempts remaining before lockout.",
+                "remaining_attempts": remaining_attempts,
+            }),
+            401,
+        )
+
+    # Success: Reset failed attempts
+    _pin_attempts[client_ip] = {"attempts": 0, "lockout_until": 0}
+
+    # Issue short-lived 15-minute staff maintenance token
+    token = create_access_token(
+        identity="staff-maintenance-booth",
+        expires_delta=timedelta(minutes=15),
+        additional_claims={
+            "role": "staff_maintenance",
+            "booth_id": current_app.config.get("BOOTH_ID", "BOOTH-LAB-01"),
+        },
+    )
+
+    # Log successful staff access to audit trail (never logging PIN!)
+    try:
+        audit = AuditLog(
+            user_id=None,
+            action="STAFF_MAINTENANCE_AUTH",
+            details=f"Staff maintenance terminal unlocked from IP {client_ip}",
+            ip_address=client_ip,
+            user_agent=request.user_agent.string if request.user_agent else "kiosk-client",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.session.add(audit)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return (
+        jsonify({
+            "authenticated": True,
+            "access_token": token,
+            "booth_id": current_app.config.get("BOOTH_ID", "BOOTH-LAB-01"),
+            "expires_in_seconds": 900,
+            "message": "Staff maintenance session authenticated successfully.",
+        }),
+        200,
+    )
+
+
+@maintenance_bp.get("/diagnostics")
+def get_diagnostics():
+    """
+    Multi-tier network & hardware diagnostic probe.
+    Requires valid staff maintenance token or kiosk header.
+    Distinguishes:
+      1. Physical/Virtual Network Interfaces (IP & link)
+      2. Local default gateway reachability
+      3. DNS name resolution
+      4. Public internet connectivity
+      5. Public HTTPS endpoint availability / local API status
+      6. System information: OS version, system uptime, booth identifier, timestamp
+    """
+    if not _is_maintenance_authorized():
+        return (
+            jsonify({
+                "error": "Unauthorized",
+                "message": "Valid staff maintenance token or authorized kiosk header required.",
+            }),
+            401,
+        )
+
+    booth_id = current_app.config.get("BOOTH_ID", "BOOTH-LAB-01")
+
+    # 1. Interface & IP Resolution
+    interfaces = []
+    if psutil:
+        try:
+            net_addrs = psutil.net_if_addrs()
+            net_stats = psutil.net_if_stats()
+            for iface_name, addrs in net_addrs.items():
+                ipv4 = None
+                for addr in addrs:
+                    if addr.family == socket.AF_INET:
+                        ipv4 = addr.address
+                        break
+                is_up = net_stats[iface_name].isup if iface_name in net_stats else True
+                if ipv4:
+                    interfaces.append({
+                        "name": iface_name,
+                        "ip": ipv4,
+                        "status": "UP" if is_up else "DOWN",
+                        "is_up": is_up,
+                    })
+        except Exception:
+            pass
+
+    if not interfaces:
+        try:
+            hostname = socket.gethostname()
+            primary_ip = socket.gethostbyname(hostname)
+            interfaces.append({
+                "name": "eth0 / wlan0",
+                "ip": primary_ip,
+                "hostname": hostname,
+                "status": "UP",
+                "is_up": True,
+            })
+        except Exception:
+            interfaces.append({
+                "name": "lo",
+                "ip": "127.0.0.1",
+                "status": "UP",
+                "is_up": True,
+            })
+
+    # 2. Local Gateway Test
+    gateway_status = "UNKNOWN"
+    gateway_ip = "192.168.1.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(1.0)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        gateway_status = "REACHABLE"
+        octets = local_ip.split(".")
+        if len(octets) == 4:
+            gateway_ip = f"{octets[0]}.{octets[1]}.{octets[2]}.1"
+    except Exception:
+        gateway_status = "UNREACHABLE"
+
+    # 3. DNS Resolution Test
+    dns_status = "FAILED"
+    resolved_ips = []
+    target_host = "cloudflare.com"
+    for host in ["cloudflare.com", "google.com", "dns.google"]:
+        try:
+            _, _, ips = socket.gethostbyname_ex(host)
+            if ips:
+                resolved_ips = ips
+                target_host = host
+                dns_status = "RESOLVED"
+                break
+        except Exception:
+            continue
+
+    # 4. Public Internet Reachability
+    internet_status = "DISCONNECTED"
+    latency_ms = None
+    for endpoint, port in [("1.1.1.1", 443), ("1.1.1.1", 53), ("8.8.8.8", 53)]:
+        try:
+            t0 = time.time()
+            s = socket.create_connection((endpoint, port), timeout=2.0)
+            s.close()
+            latency_ms = round((time.time() - t0) * 1000, 1)
+            internet_status = "CONNECTED"
+            break
+        except Exception:
+            continue
+
+    # 5. HTTPS Public Endpoint / Voting API Health
+    api_status = "HEALTHY"
+    try:
+        db.session.execute(db.text("SELECT 1"))
+    except Exception:
+        api_status = "DEGRADED"
+
+    # 6. System Uptime & OS
+    uptime_seconds = 0
+    if psutil:
+        try:
+            uptime_seconds = int(time.time() - psutil.boot_time())
+        except Exception:
+            uptime_seconds = 0
+
+    if not uptime_seconds:
+        try:
+            if os.path.exists("/proc/uptime"):
+                with open("/proc/uptime", "r") as f:
+                    uptime_seconds = int(float(f.readline().split()[0]))
+            else:
+                uptime_seconds = 3600
+        except Exception:
+            uptime_seconds = 3600
+
+    return (
+        jsonify({
+            "booth_id": booth_id,
+            "os_info": platform.platform(),
+            "uptime_seconds": uptime_seconds,
+            "interfaces": interfaces,
+            "gateway": {
+                "status": gateway_status,
+                "ip": gateway_ip,
+            },
+            "dns": {
+                "status": dns_status,
+                "target": target_host,
+                "resolved_ip": resolved_ips[0] if resolved_ips else None,
+                "resolved_ips": resolved_ips,
+            },
+            "internet": {
+                "status": internet_status,
+                "latency_ms": latency_ms,
+            },
+            "api_status": api_status,
+            "last_check": datetime.now(timezone.utc).isoformat(),
+        }),
+        200,
+    )
+
+
+@maintenance_bp.post("/action")
+@jwt_required()
+def execute_action():
+    """
+    Execute an authorized maintenance action from the strict allowlist.
+    NEVER accepts or executes raw user-supplied shell input.
+    """
+    claims = get_jwt()
+    if claims.get("role") != "staff_maintenance":
+        return (
+            jsonify({
+                "error": "Forbidden",
+                "message": "Staff maintenance privileges required to execute booth actions.",
+            }),
+            403,
+        )
+
+    payload = request.get_json(silent=True) or {}
+    action = sanitize_input(payload.get("action"))
+
+    if action not in PERMITTED_ACTIONS:
+        return (
+            jsonify({
+                "error": "Invalid Action",
+                "message": f"Action '{action}' is not permitted. Permitted actions: {sorted(list(PERMITTED_ACTIONS))}",
+            }),
+            400,
+        )
+
+    client_ip = _get_client_ip()
+    msg = ""
+    is_testing = current_app.config.get("TESTING", False)
+
+    if action == "restart_browser":
+        # Safe browser restart
+        if not is_testing and platform.system() == "Linux":
+            subprocess.run(["pkill", "-f", "firefox"], check=False)
+        msg = "Firefox browser process restarted."
+
+    elif action == "restart_kiosk":
+        # Safe kiosk session restart via user systemd unit
+        if not is_testing and platform.system() == "Linux":
+            subprocess.run(["systemctl", "--user", "restart", "evote-kiosk.service"], check=False)
+        msg = "Kiosk user session restarted."
+
+    elif action == "restart_system":
+        # Safe system reboot via allowlisted command
+        if not is_testing:
+            if platform.system() == "Linux":
+                subprocess.run(["sudo", "/sbin/reboot"], check=False)
+            elif platform.system() == "Windows":
+                subprocess.run(["shutdown", "/r", "/t", "5"], check=False)
+        msg = "System reboot initiated."
+
+    elif action == "test_network":
+        msg = "Network diagnostic suite executed."
+
+    # Audit log the action
+    try:
+        audit = AuditLog(
+            user_id=None,
+            action="STAFF_MAINTENANCE_ACTION",
+            details=f"Maintenance action '{action}' executed from IP {client_ip}",
+            ip_address=client_ip,
+            user_agent=request.user_agent.string if request.user_agent else "kiosk-client",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.session.add(audit)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return (
+        jsonify({
+            "success": True,
+            "action": action,
+            "message": msg,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }),
+        200,
+    )

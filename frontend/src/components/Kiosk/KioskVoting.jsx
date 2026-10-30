@@ -20,7 +20,11 @@ import {
   SparklesIcon,
   PencilSquareIcon,
   ArrowPathIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
+import StaffMaintenanceModal from './StaffMaintenanceModal';
+import NetworkOfflineOverlay from './NetworkOfflineOverlay';
+import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 export const KioskVoting = () => {
   const { electionId } = useParams();
@@ -47,6 +51,19 @@ export const KioskVoting = () => {
   // Kiosk token from storage
   const kioskToken = localStorage.getItem('kiosk_token') || '';
   const kioskName = localStorage.getItem('kiosk_name') || 'Lab Station';
+
+  // Staff Maintenance Modal & Shortcuts
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [maintenanceTab, setMaintenanceTab] = useState('overview');
+
+  useMaintenanceShortcuts({
+    onOpenMaintenance: (tab = 'overview') => {
+      setMaintenanceTab(tab);
+      setMaintenanceOpen(true);
+    },
+    onCloseMaintenance: () => setMaintenanceOpen(false),
+    isMaintenanceOpen: maintenanceOpen,
+  });
 
   // 1. Fetch structured ballot from backend
   useEffect(() => {
@@ -731,6 +748,21 @@ export const KioskVoting = () => {
           )}
         </div>
       </main>
+
+      {/* Staff Maintenance Dashboard Modal */}
+      <StaffMaintenanceModal
+        isOpen={maintenanceOpen}
+        onClose={() => setMaintenanceOpen(false)}
+        initialTab={maintenanceTab}
+      />
+
+      {/* Real-time Network Disconnection Protection Overlay */}
+      <NetworkOfflineOverlay
+        onOpenMaintenance={() => {
+          setMaintenanceTab('network');
+          setMaintenanceOpen(true);
+        }}
+      />
     </div>
   );
 };
