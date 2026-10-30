@@ -58,7 +58,7 @@ def voter_required(fn=None):
             verify_jwt_in_request()
             claims = get_jwt()
             role = claims.get("role")
-            if role not in ("voter", "admin"):
+            if role not in ("voter", "admin", "polling_officer"):
                 return (
                     jsonify({
                         "error": "Forbidden",

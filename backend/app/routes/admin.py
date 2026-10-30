@@ -586,7 +586,13 @@ def get_desk_voters():
             "pin_expires_at": pin_expires_at,
         })
 
-    return jsonify({"voters": results, "total": len(results)}), 200
+    active_elections = Election.query.filter_by(is_active=True).all()
+    return jsonify({
+        "voters": results,
+        "total": len(results),
+        "election": election.to_dict() if election else None,
+        "elections": [e.to_dict() for e in active_elections],
+    }), 200
 
 
 # ── Authorized Computer Lab Kiosks ───────────────────────────────────────────

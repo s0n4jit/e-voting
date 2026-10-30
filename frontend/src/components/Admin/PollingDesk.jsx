@@ -68,6 +68,16 @@ export const PollingDesk = () => {
         const votersRes = await adminApi.getDeskVoters('');
         const vList = Array.isArray(votersRes) ? votersRes : (votersRes?.voters || []);
         setVoters(vList);
+
+        if (votersRes?.elections && loadedElections.length === 0) {
+          setElections(votersRes.elections);
+          if (votersRes.elections.length > 0) {
+            setSelectedElectionId(votersRes.elections[0].id);
+          }
+        } else if (votersRes?.election && loadedElections.length === 0) {
+          setElections([votersRes.election]);
+          setSelectedElectionId(votersRes.election.id);
+        }
       } catch (err) {
         console.error('Failed to initialize polling desk data:', err);
         toast.error('Failed to load polling desk data.');
@@ -256,6 +266,9 @@ export const PollingDesk = () => {
             onChange={(e) => setSelectedElectionId(e.target.value)}
             className="input py-2 text-sm max-w-xs font-medium border-primary-200 focus:ring-primary-500"
           >
+            {elections.length === 0 && (
+              <option value="">General Election of the Student Union 2026-27 (Active)</option>
+            )}
             {elections.map((elec) => (
               <option key={elec.id} value={elec.id}>
                 {elec.title} {elec.is_active ? '● (Active)' : '(Closed)'}

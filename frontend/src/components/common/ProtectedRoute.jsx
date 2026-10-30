@@ -21,7 +21,12 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     // If authenticated but wrong role, redirect to appropriate home
-    const fallbackPath = role === 'admin' ? '/admin/dashboard' : '/voter/dashboard';
+    const fallbackPath =
+      role === 'admin'
+        ? '/admin/dashboard'
+        : role === 'polling_officer'
+        ? '/desk'
+        : '/voter/dashboard';
     return <Navigate to={fallbackPath} replace />;
   }
 
