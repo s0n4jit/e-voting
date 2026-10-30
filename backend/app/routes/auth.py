@@ -34,23 +34,33 @@ auth_bp = Blueprint("auth", __name__)
 def login():
     """
     Step 1 of 2FA:
-    Authenticate student_id and password.
+    Authenticate student_id or email and password.
     Returns a temporary token for TOTP verification.
     """
     payload = request.get_json(silent=True) or {}
-    student_id = sanitize_input(payload.get("student_id"))
+    identifier = sanitize_input(
+        payload.get("email")
+        or payload.get("student_id")
+        or payload.get("identifier")
+        or payload.get("username")
+    )
     password = payload.get("password")
 
-    if not student_id or not password:
+    if not identifier or not password:
         return (
             jsonify({
                 "error": "Missing credentials.",
-                "message": "Both student_id and password are required.",
+                "message": "Both student ID / email and password are required.",
             }),
             400,
         )
 
-    user = User.query.filter_by(student_id=student_id).first()
+    # Search by email or student_id (case-insensitive)
+    user = User.query.filter(
+        (db.func.lower(User.email) == identifier.lower()) |
+        (db.func.lower(User.student_id) == identifier.lower())
+    ).first()
+
     if not user or not user.check_password(password):
         # Generic message avoids username enumeration
         return (

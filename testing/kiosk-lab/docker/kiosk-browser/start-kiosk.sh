@@ -16,6 +16,7 @@ echo "[Kiosk Browser] Frontend is ready. Launching locked-down Linux kiosk brows
 # Clean up any lingering chromium lock files or previous session profiles
 rm -rf /root/.config/chromium /tmp/kiosk-profile
 mkdir -p /tmp/kiosk-profile
+touch "/tmp/kiosk-profile/First Run"
 
 exec chromium-browser \
   --no-sandbox \
@@ -27,8 +28,11 @@ exec chromium-browser \
   --disable-infobars \
   --no-first-run \
   --no-default-browser-check \
+  --disable-signin-promo \
+  --disable-profile-picker \
+  --disable-search-engine-choice-screen \
   --disable-session-crashed-bubble \
-  --disable-features=TranslateUI,Sync,SignInProfileAvatarBubble,ProfilePicker,InterestFeedContentSuggestions \
+  --disable-features=TranslateUI,Sync,SignInProfileAvatarBubble,ProfilePicker,ProfilePickerOnStartup,InterestFeedContentSuggestions \
   --disable-sync \
   --incognito \
   --user-data-dir=/tmp/kiosk-profile \

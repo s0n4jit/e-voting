@@ -57,12 +57,15 @@ export const AdminDashboard = () => {
         : [];
 
       const activeCount = elections.filter((e) => e.is_active).length;
-      const totalVotesCast = elections.reduce((acc, curr) => acc + (curr.total_votes || curr.votes_count || 0), 0);
+      const totalVotesCast = elections.reduce((acc, curr) => acc + (curr.total_votes || curr.ballots_cast || curr.votes_count || 0), 0);
+      const auditBallotsCast = logsRes.status === 'fulfilled' ? (logsRes.value?.stats?.ballots_cast || 0) : 0;
+      const votersVoted = voters.filter((v) => v.has_voted || v.status === 'voted').length;
+      const ballotsCast = Math.max(totalVotesCast, auditBallotsCast, votersVoted);
 
       setStats({
         totalVoters: voters.length,
         activeElections: activeCount,
-        ballotsCast: totalVotesCast,
+        ballotsCast: ballotsCast,
         auditEvents: logs.length > 0 ? (logsRes.value?.total || logs.length) : 0,
       });
 

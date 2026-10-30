@@ -1,6 +1,7 @@
 {
   "SyncDisabled": true,
   "SigninAllowed": false,
+  "BrowserSignin": 0,
   "BrowserAddPersonEnabled": false,
   "BrowserGuestModeEnabled": false,
   "PromotionalTabsEnabled": false,

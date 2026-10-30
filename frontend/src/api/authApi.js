@@ -1,9 +1,11 @@
 import apiClient from './axiosConfig';
 
 export const authApi = {
-  login: async (student_id, password) => {
+  login: async (identifier, password) => {
     const response = await apiClient.post('/auth/login', {
-      student_id,
+      student_id: identifier,
+      email: identifier,
+      identifier,
       password,
     });
     return response.data;

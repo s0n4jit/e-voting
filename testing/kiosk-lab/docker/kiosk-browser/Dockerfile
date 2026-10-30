@@ -16,10 +16,11 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 # Create directory structure and enterprise policy directories
-RUN mkdir -p /var/log /root/.config/openbox /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
+RUN mkdir -p /var/log /root/.config/openbox /etc/chromium/policies/managed /etc/chromium-browser/policies/managed /etc/opt/chrome/policies/managed
 
 # Enterprise lockdown policies to prevent Sync, Profile Picker, and settings bubbles
 COPY policies.json /etc/chromium/policies/managed/policies.json
+COPY policies.json /etc/chromium-browser/policies/managed/policies.json
 COPY policies.json /etc/opt/chrome/policies/managed/policies.json
 
 # Configure noVNC to automatically connect and auto-scale display on root access

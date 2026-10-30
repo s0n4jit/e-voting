@@ -68,6 +68,14 @@ class Election(db.Model):
 
     def to_dict(self, include_candidates: bool = False) -> dict:
         """Return dict representation."""
+        from app.models.voter_record import VoterRecord
+        try:
+            total_votes = VoterRecord.query.filter_by(election_id=self.id, has_voted=True).count()
+            registered_voters = VoterRecord.query.filter_by(election_id=self.id).count()
+        except Exception:
+            total_votes = 0
+            registered_voters = 0
+
         data = {
             "id": self.id,
             "title": self.title,
@@ -78,6 +86,10 @@ class Election(db.Model):
             "is_ongoing": self.is_ongoing,
             "results_published": self.results_published,
             "created_by": self.created_by,
+            "total_votes": total_votes,
+            "ballots_cast": total_votes,
+            "votes_count": total_votes,
+            "registered_voters": registered_voters,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

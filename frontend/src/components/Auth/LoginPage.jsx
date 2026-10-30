@@ -30,10 +30,10 @@ export const LoginPage = () => {
   // Autofill helper for campus staff demos
   const setDemoCredentials = (role) => {
     if (role === 'admin') {
-      setStudentId('ADMIN001');
+      setStudentId('admin@campus.edu');
       setPassword('Admin@1234');
     } else if (role === 'desk') {
-      setStudentId('DESK001');
+      setStudentId('desk001@campus.edu');
       setPassword('Desk@1234');
     } else {
       setStudentId('STU001');
@@ -154,7 +154,7 @@ export const LoginPage = () => {
                 className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
               >
                 <div className="font-semibold text-indigo-200">Election Officer</div>
-                <div className="text-[11px] text-gray-300 font-mono">ID: ADMIN001</div>
+                <div className="text-[11px] text-gray-300 font-mono">admin@campus.edu</div>
                 <div className="text-[11px] text-gray-300 font-mono">PW: Admin@1234</div>
               </button>
               <button
@@ -163,7 +163,7 @@ export const LoginPage = () => {
                 className="bg-white/10 hover:bg-white/20 p-2 rounded-lg text-left transition-colors border border-white/10"
               >
                 <div className="font-semibold text-amber-300">Desk Officer</div>
-                <div className="text-[11px] text-gray-300 font-mono">ID: DESK001</div>
+                <div className="text-[11px] text-gray-300 font-mono">desk001@campus.edu</div>
                 <div className="text-[11px] text-gray-300 font-mono">PW: Desk@1234</div>
               </button>
             </div>
@@ -181,8 +181,8 @@ export const LoginPage = () => {
               <form onSubmit={handleCredentialsSubmit} className="space-y-5">
                 <div>
                   <label htmlFor="student_id" className="label flex items-center justify-between">
-                    <span>Student / Admin ID</span>
-                    <span className="text-xs text-gray-400 font-normal">e.g. STU001 or ADMIN001</span>
+                    <span>Email or Staff / Student ID</span>
+                    <span className="text-xs text-gray-400 font-normal">e.g. admin@campus.edu or ADMIN001</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -195,8 +195,8 @@ export const LoginPage = () => {
                       autoComplete="username"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
-                      placeholder="Enter Student ID"
-                      className="input pl-10 uppercase tracking-wider font-mono text-sm"
+                      placeholder="admin@campus.edu or ID"
+                      className="input pl-10 text-sm font-medium"
                     />
                   </div>
                 </div>
