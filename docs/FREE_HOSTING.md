@@ -48,6 +48,7 @@ Free tiers are fine for trying the system and small class elections. For a real 
 | `CORS_ORIGINS` | The web app's URL, e.g. `https://evoting-web.onrender.com` (no trailing slash) |
 | `APP_URL` | **This API's own** URL, e.g. `https://evoting-api.onrender.com`. Turns on the self-ping, see below |
 | `PROXY_HOPS` | `1` |
+| `ALLOWED_HOSTS` | Optional: your API's custom domain, e.g. `api.evoting.example.edu`. See "Hiding the onrender.com addresses" below |
 | `SETUP_TOKEN` | Optional but recommended: protects the installation wizard until you finish it |
 
 ## 3. Web app
@@ -74,6 +75,17 @@ Free Render services stop after about 15 minutes without a request, and the next
 - If `APP_URL` is empty (your own server), nothing is started.
 - Render's free plan has a monthly hour allowance (about 750 hours, enough for one always-on service). Staying awake uses it; if you also need other free services, keep that in mind.
 - The ping is for convenience, not a guarantee. Open the portal a few minutes before the election starts and check `/healthz`.
+
+## Hiding the onrender.com addresses
+
+The browser must be able to reach the API, so it can't be made private, but you can make the default `*.onrender.com` address dead and stop people opening API addresses in a browser:
+
+1. Give the API a custom domain (**evoting-api → Settings → Custom Domains**, for example `api.evoting.example.edu`, with the CNAME record Render shows).
+2. On the API set `ALLOWED_HOSTS=api.evoting.example.edu`, `APP_URL=https://api.evoting.example.edu` and `CORS_ORIGINS=https://evoting.example.edu`. Requests to any other hostname, including the `onrender.com` one, now get an empty 404. `/healthz` stays open for Render's health check.
+3. On the web app set `VITE_API_URL=https://api.evoting.example.edu` and redeploy it.
+4. The API also returns an empty 404 when someone types an API address into a browser address bar (requests from the web app are unaffected).
+
+These checks keep casual visitors out. They do not replace the real protection: sign-in, two-step verification, booth tokens and rate limits.
 
 ## Voting booths
 

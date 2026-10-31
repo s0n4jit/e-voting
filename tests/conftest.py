@@ -8,6 +8,12 @@ Provides:
   - sample_candidates              : two Candidate rows
   - sample_voters                  : two Voter (User) rows
 """
+import os
+
+# A developer's own .env must not leak into the tests (set before the app reads its configuration).
+for _name in ("SETUP_TOKEN", "ALLOWED_HOSTS", "APP_URL"):
+    os.environ[_name] = ""
+
 import pytest
 import pyotp
 from datetime import datetime, timedelta, timezone

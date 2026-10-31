@@ -33,3 +33,13 @@ def test_self_ping_targets_healthz(monkeypatch):
 
 def test_db_ping_runs_a_query(app):
     keepalive._ping_db(app)  # must not raise
+
+
+def test_only_allowed_hosts_and_no_browser_navigation(app, client):
+    app.config["ALLOWED_HOSTS"] = ["api.example.edu"]
+    assert client.get("/api/setup/status", headers={"Host": "x.onrender.com"}).status_code == 404
+    assert client.get("/healthz", headers={"Host": "x.onrender.com"}).status_code == 200   # health checks always work
+    assert client.get("/api/setup/status", headers={"Host": "api.example.edu"}).status_code == 200
+    assert client.get("/api/setup/status", headers={"Host": "api.example.edu", "Sec-Fetch-Mode": "navigate"}).status_code == 404
+    assert client.get("/api/setup/status", headers={"Host": "api.example.edu", "Sec-Fetch-Mode": "cors"}).status_code == 200
+    app.config["ALLOWED_HOSTS"] = []

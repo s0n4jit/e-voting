@@ -10,7 +10,7 @@ import os
 from http import HTTPStatus
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
@@ -85,6 +85,23 @@ def create_app(config_object=None) -> Flask:
 
     # ── Error handlers ────────────────────────────────────────────────────────
     _register_error_handlers(app)
+
+    # Only answer on the hostnames we are meant to serve (e.g. api.example.edu), so the host's default
+    # address (*.onrender.com) is dead, and never render API responses for a person opening a URL.
+    # shortcut: both checks stop casual visits, not a determined client that forges headers; the real
+    # protection is authentication, booth tokens and rate limits.
+    app.config.setdefault("ALLOWED_HOSTS", [h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()])
+
+    @app.before_request
+    def _restrict_access():
+        if request.path in ("/healthz", "/health", "/api/health"):
+            return None  # platform health checks and the keep-alive ping
+        hosts = app.config.get("ALLOWED_HOSTS")
+        if hosts and request.host.split(":")[0].lower() not in hosts:
+            return "", 404
+        if request.headers.get("Sec-Fetch-Mode") == "navigate":  # someone typed the address into a browser
+            return "", 404
+        return None
 
     # ── Health check ──────────────────────────────────────────────────────────
     @app.route("/api/health")

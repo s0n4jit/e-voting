@@ -27,6 +27,8 @@ services:
         sync: false
       - key: SETUP_TOKEN
         sync: false
+      - key: ALLOWED_HOSTS       # optional: your API's custom domain; the *.onrender.com address then stops answering
+        sync: false
 
   - type: web
     name: evoting-web
