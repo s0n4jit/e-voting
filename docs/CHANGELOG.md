@@ -5,11 +5,16 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
+_Nothing yet._
+
+## 1.1.0 — 2026-10-31
+
 - Voting is now controlled only by the Election Officer: **Open voting**, **Pause voting** / **Resume voting** (for a break) and **Close voting**. The scheduled date and time is shown for information only and no longer opens or closes voting.
 - A browser that is set up as a voting booth is locked to the booth screens: typing another address, refreshing or pressing Back always returns to `/kiosk/vote` (the sign-in page can no longer be reached). Deleting the booth in the officer panel releases the browser.
 - Importing a backup clears every account's two-step verification, so each officer sets it up again on the next sign-in; a stale secret from the backup can no longer lock the officer out.
 - Two-step verification is now enforced by the server for Election Officers: until it is on, every officer and desk endpoint answers 403 `two_step_required` (only the set-up endpoints work). The wizard explains this and its last screen is the authenticator set-up.
 - Setup wizard: the programmes and departments step is now a ticked list built from the standard college template (untick, edit terms, add your own) with a plain explanation, instead of a CSV box. The Programmes page offers "Add the standard list" when empty.
+- Setup on slow hosting: the wizard waits longer for the server and recovers if the answer is lost; the Render blueprint no longer sets a region.
 - The setup wizard is always protected in production: without a `SETUP_TOKEN`, a random one is generated and printed in the server log.
 - **Backup, reset and import** (Election Officer, sidebar "Backup and reset"): download everything as a ZIP, reset the system back to the setup screen (needs a fresh backup, the officer's authenticator code and typing RESET), and import a backup after setting up again.
 - When the officer closes voting, every booth resets at once (even mid-ballot) and shows "Voting has ended"; students can no longer be registered, PINs can no longer be issued and unused PINs are cancelled.
