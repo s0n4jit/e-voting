@@ -19,6 +19,7 @@ wanted = {
     "POSTGRES_PASSWORD": secrets.token_hex(16),  # letters and digits only: it is embedded in a URL
     "SECRET_KEY": secrets.token_hex(32),
     "JWT_SECRET_KEY": secrets.token_hex(32),
+    "SETUP_TOKEN": secrets.token_urlsafe(12),  # asked by the installation wizard
 }
 added = [k for k in wanted if not have.get(k)]
 if added:
@@ -26,4 +27,5 @@ if added:
         f.write("\n" if path.exists() and path.read_text(encoding="utf-8")[-1:] not in ("", "\n") else "")
         for k in added:
             f.write(f"{k}={wanted[k]}\n")
+print("Setup token for the installation wizard: " + (wanted["SETUP_TOKEN"] if "SETUP_TOKEN" in added else have["SETUP_TOKEN"]))
 print(f".env ready ({'added ' + ', '.join(added) if added else 'nothing to add'}).")

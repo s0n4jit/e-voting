@@ -68,7 +68,7 @@ The wizard is protected by a setup token. Set `SETUP_TOKEN` in `.env` to choose 
 docker compose logs backend | grep "SETUP TOKEN"
 ```
 
-Enter it on the wizard's first step. After a reset (Backup and reset) the wizard asks for it again.
+Enter it on the wizard's first step. The easiest way is to put `SETUP_TOKEN=<your choice>` in `.env` (`python scripts/make_env.py` does this and prints it): then it never changes and you do not need the log. After a reset (Backup and reset) the wizard asks for it again.
 
 ## 4. After installing
 
