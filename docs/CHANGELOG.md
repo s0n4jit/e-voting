@@ -5,7 +5,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
-_Nothing yet._
+- Website: mobile layout fixed (no sideways scrolling or zooming out) and a hamburger menu on small screens.
 
 ## 1.1.0 — 2026-10-31
 
