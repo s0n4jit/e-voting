@@ -951,3 +951,20 @@ def test_officer_without_two_step_verification_is_locked_out_server_side(client,
         assert r.status_code == 403 and r.get_json()["error"] == "two_step_required", url
     assert client.get("/api/auth/totp/setup", headers=H(installed)).status_code == 200      # the way out stays open
     assert client.get("/api/desk/registrations", headers=H(desk_token)).status_code == 200  # desk officers are not affected
+
+
+def test_signed_out_tokens_stay_dead_after_a_restart(client, db):
+    from app.extensions import token_blacklist
+    r = client.post("/api/setup/complete", json=wizard_payload()).get_json()
+    access, refresh = r["access_token"], r["refresh_token"]
+    assert client.get("/api/auth/me", headers=H(access)).status_code == 200
+    assert client.post("/api/auth/refresh", headers=H(refresh)).status_code == 200      # silent renewal works
+    assert client.post("/api/auth/logout", headers=H(access), json={"refresh_token": refresh}).status_code == 200
+    token_blacklist.clear()                                                             # what a server restart does to the in-memory set
+    assert client.get("/api/auth/me", headers=H(access)).status_code == 401
+    assert client.post("/api/auth/refresh", headers=H(refresh)).status_code == 401
+
+
+def test_staff_session_defaults_are_short(app):
+    assert app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds() in (15 * 60, 5 * 60)   # 15 minutes (tests use 5)
+    assert app.config["JWT_REFRESH_TOKEN_EXPIRES"].total_seconds() == 12 * 3600

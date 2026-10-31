@@ -5,6 +5,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
+- Staff sessions: 15-minute idle sign-out with a warning, silent renewal while active, 12-hour hard cap, and signed-out tokens stored in the database (they stay revoked after a restart). Settings: `JWT_ACCESS_TOKEN_EXPIRES_MINUTES` (15), `JWT_REFRESH_TOKEN_EXPIRES_HOURS` (12).
 - `docker compose up` now starts the app (8080), the landing page and guides (8081) and exposes the API on localhost (5000), all on fixed, configurable ports; `python scripts/make_env.py` creates `.env` with random secrets for a fresh clone.
 - Website: mobile layout fixed (no sideways scrolling or zooming out) and a hamburger menu on small screens.
 

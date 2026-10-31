@@ -39,10 +39,10 @@ class Config:
     # ── JWT ──────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY", "jwt-dev-secret-change-me")
     JWT_ACCESS_TOKEN_EXPIRES: timedelta = timedelta(
-        minutes=int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", 60))
+        minutes=int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", 15))
     )
     JWT_REFRESH_TOKEN_EXPIRES: timedelta = timedelta(
-        days=int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_DAYS", 7))
+        hours=int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_HOURS", 12))  # hard cap of a staff session
     )
     # Use cookies or headers — we use Authorization header (Bearer)
     JWT_TOKEN_LOCATION: list = ["headers"]

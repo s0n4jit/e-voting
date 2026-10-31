@@ -89,6 +89,10 @@ export const LoginPage = () => {
               : 'For Election Officers and Desk Officers.'}
           </p>
 
+          {location.state?.reason === 'idle' && !forgot && !tempToken && (
+            <p className="text-sm bg-recessed rounded-lg px-3 py-2 mb-5" role="status">You were signed out because of inactivity. Sign in again to continue.</p>
+          )}
+
           {forgot ? (
             forgot.done ? (
               <div className="text-center space-y-4 animate-pop-in" role="status">

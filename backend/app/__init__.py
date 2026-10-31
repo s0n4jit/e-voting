@@ -137,6 +137,7 @@ def create_app(config_object=None) -> Flask:
             election_position,
             candidate_photo,
             booth_create_token,
+            revoked_token,
         )
         from app.migrations import run_migrations
 
@@ -200,6 +201,10 @@ def _register_jwt_callbacks(app: Flask) -> None:
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         if jwt_payload.get("jti") in _token_blacklist:
+            return True
+        from app.models.revoked_token import RevokedToken
+
+        if db.session.get(RevokedToken, jwt_payload.get("jti")):
             return True
         # A deactivated or removed account loses its session on the very next request.
         from app.models.user import User

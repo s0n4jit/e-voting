@@ -20,7 +20,7 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
-    if (token) {
+    if (token && !config.headers.Authorization) {  // a call may carry its own (the refresh token)
       config.headers.Authorization = `Bearer ${token}`;
     }
     const booth = localStorage.getItem('kiosk_token');

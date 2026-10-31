@@ -21,7 +21,7 @@ export const authApi = {
 
   logout: async () => {
     try {
-      const response = await apiClient.post('/auth/logout');
+      const response = await apiClient.post('/auth/logout', { refresh_token: localStorage.getItem('refresh_token') });
       return response.data;
     } catch (err) {
       // In case server fails or is unreachable, client will still clear tokens

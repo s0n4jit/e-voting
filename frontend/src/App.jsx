@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useBrand } from './context/BrandContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import SessionGuard from './components/common/SessionGuard';
 import AppShell from './components/layout/AppShell';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
@@ -70,6 +71,7 @@ function BoothLock({ children }) {
 function AppRoutes() {
   return (
     <BoothLock>
+    <SessionGuard />
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/setup" element={<SetupWizard />} />

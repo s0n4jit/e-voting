@@ -21,7 +21,7 @@ Known limitation: a ballot row carries the time the ballot was cast, and the vot
 ## Authentication and sessions
 
 - Staff sign in with email or username and a password (bcrypt). **Two-step verification (TOTP) is mandatory for Election Officers** and optional for Desk Officers.
-- Sessions are short-lived signed tokens. Deactivating or deleting an account ends its sessions on the next request.
+- Staff sessions: a 15-minute access token that the app renews silently while the person is working, a **15-minute idle sign-out** with a one-minute warning, and a **12-hour hard cap** (then sign in again). Signing out revokes both tokens, and the list of revoked tokens is stored in the database, so a server restart does not bring them back. Deactivating or deleting an account ends its sessions on the next request.
 - Rate limits: sign-in 10/min, voter PIN login 30/min, booth set-up 5/min, password change 5/min, per address. A voter's PIN is cancelled after 5 wrong entries.
 - Passwords can be changed in the profile with the current password, or reset with an authenticator code. If an account has no two-step verification, an Election Officer resets a Desk Officer's password, and the operator can run `python backend/manage.py set-password <username>`. A lost authenticator is reset by the operator with `python backend/manage.py reset-2fa <username>`.
 

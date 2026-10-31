@@ -333,9 +333,21 @@ def refresh_token():
 @jwt_required()
 def logout():
     """Revoke the current access token by adding its jti to the blocklist."""
-    jti = get_jwt().get("jti")
+    from flask_jwt_extended import decode_token
+    from app.models.revoked_token import RevokedToken
+
+    payload = get_jwt()
+    jti = payload.get("jti")
     if jti:
         token_blacklist.add(jti)
+        RevokedToken.revoke(payload)
+    refresh = (request.get_json(silent=True) or {}).get("refresh_token")
+    if refresh:  # the matching refresh token must not be usable either
+        try:
+            RevokedToken.revoke(decode_token(refresh))
+        except Exception:
+            pass
+    RevokedToken.purge_expired()
 
     user_id = get_jwt_identity()
     if user_id and str(user_id).isdigit():
