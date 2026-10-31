@@ -135,3 +135,13 @@ img,svg{max-width:100%}
 p code,li code,td code,summary code{overflow-wrap:anywhere}
 .doc ol,.doc ul,.md ol,.md ul{min-width:0}
 .doc table,.md table{display:block;overflow-x:auto}
+
+/* docs: one navigation on phones (the menu button plus a document picker, not the sidebar list) */
+.docs-pick{display:none}
+@media(max-width:860px){
+  .docs aside{display:none}
+  .docs{padding-top:20px;gap:0}
+  .docs-pick{display:block;margin:0 0 22px}
+  .docs-pick span{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .docs-pick select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:16px}
+}

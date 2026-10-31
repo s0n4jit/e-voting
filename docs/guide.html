@@ -124,16 +124,20 @@ document.getElementById('side').innerHTML = '<h5>Documentation</h5>' +
   DOCS.map(([n, t]) => '<a href="guide?doc=' + n + '"' + (n === cur ? ' class="on"' : '') + '>' + t + '</a>').join('') +
   '<h5>More</h5><a href="self-hosting">Quick self-hosting guide</a><a href="https://github.com/s0n4jit/e-voting/tree/main/docs/report">Project report (LaTeX)</a>';
 
+const picker = '<label class="docs-pick"><span>Document</span><select onchange="location.href=this.value" aria-label="Choose a document">' +
+  '<option value="guide"' + (names.includes(cur) ? '' : ' selected') + '>All documents</option>' +
+  DOCS.map(([n, t]) => '<option value="guide?doc=' + n + '"' + (n === cur ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label>';
+
 const el = document.getElementById('content');
 if (!names.includes(cur)) {
-  el.innerHTML = '<h1>Documentation</h1><p class="sub">Guides for installing, hosting, running and securing the system.</p><div class="cards">' +
+  el.innerHTML = picker + '<h1>Documentation</h1><p class="sub">Guides for installing, hosting, running and securing the system.</p><div class="cards">' +
     DOCS.map(([n, t]) => '<a class="dcard" href="guide?doc=' + n + '"><b>' + t + '</b></a>').join('') + '</div>';
 } else {
   const title = DOCS.find(d => d[0] === cur)[1];
   document.title = title + ' — Campus E-Voting docs';
   fetch(cur + '.md').then(r => { if (!r.ok) throw 0; return r.text(); })
-    .then(t => { el.innerHTML = render(t); if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView(); })
-    .catch(() => { el.innerHTML = '<p>Could not load this document. <a href="' + REPO + 'docs/' + cur + '.md">Open it on GitHub</a>.</p>'; });
+    .then(t => { el.innerHTML = picker + render(t); if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView(); })
+    .catch(() => { el.innerHTML = picker + '<p>Could not load this document. <a href="' + REPO + 'docs/' + cur + '.md">Open it on GitHub</a>.</p>'; });
 }
 </script>
 <script>if(/\.html$/.test(location.pathname))history.replaceState(null,"",location.pathname.replace(/(^|\/)index\.html$/,"$1").replace(/\.html$/,"")+location.search+location.hash)</script>
