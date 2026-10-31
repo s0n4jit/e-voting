@@ -9,6 +9,7 @@ initial Election Officer.
 import hmac
 import os
 import re
+import secrets
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -36,6 +37,17 @@ setup_bp = Blueprint("setup", __name__)
 LANGUAGES = {"en": "English", "hi": "Hindi", "bn": "Bengali", "as": "Assamese"}
 LOGO_RE = re.compile(r"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$")
 MAX_LOGO_CHARS = 400_000
+
+
+def ensure_setup_token(app) -> None:
+    """In production the wizard is always protected: without a SETUP_TOKEN, make one and print it in the log."""
+    if app.config.get("TESTING") or os.environ.get("FLASK_ENV", "").lower() != "production":
+        return
+    if os.environ.get("SETUP_TOKEN") or SystemSetting.is_installed():
+        return
+    token = secrets.token_urlsafe(18)
+    os.environ["SETUP_TOKEN"] = token  # one gunicorn process, so the environment is shared by all requests
+    print(f"SETUP TOKEN (enter it in the setup wizard): {token}", flush=True)
 
 
 def _setup_token_ok() -> bool:

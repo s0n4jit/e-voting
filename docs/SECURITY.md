@@ -48,6 +48,10 @@ Counts, candidate votes and winners are **not sent to any browser** until the El
 
 The wizard works only until the installation completes; a database row with a unique key makes a second installation impossible. Set `SETUP_TOKEN` on a server that is reachable before you have finished the wizard.
 
+## Backup, reset and import
+
+Only the Election Officer can download a backup, reset the system or import a backup. Reset and import need the officer's current authenticator code and a typed confirmation; reset also needs a backup downloaded in the last 30 minutes and refuses while voting is open. An import is checked completely before anything changes and is applied in one transaction, so a damaged file changes nothing. The backup ZIP contains password hashes, authenticator secrets and all ballots: store it encrypted and offline.
+
 ## Other protections
 
 - Input is sanitised on the server; the interface escapes output; candidate photos are validated as real PNG/JPEG/WebP images and served with `nosniff`.

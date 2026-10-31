@@ -19,6 +19,7 @@ import KioskManager from './components/Admin/KioskManager';
 import OfficerManager from './components/Admin/OfficerManager';
 import ProgrammeManager from './components/Admin/ProgrammeManager';
 import SettingsPage from './components/Admin/SettingsPage';
+import SystemPage from './components/Admin/SystemPage';
 import RegisterStudent from './components/Desk/RegisterStudent';
 import Registrations from './components/Desk/Registrations';
 import CheckIn from './components/Desk/CheckIn';
@@ -79,6 +80,7 @@ function AppRoutes() {
       <Route path="/admin/kiosks" element={page(ADMIN, <KioskManager />)} />
       <Route path="/admin/audit" element={page(ADMIN, <AuditLog />)} />
       <Route path="/admin/settings" element={page(ADMIN, <SettingsPage />)} />
+      <Route path="/admin/system" element={page(ADMIN, <SystemPage />)} />
       <Route path="/admin/results" element={page(ADMIN, <ResultsPage />)} />
       <Route path="/admin/results/:electionId/present" element={<ProtectedRoute allowedRoles={ADMIN}><ResultsPresenter /></ProtectedRoute>} />
 

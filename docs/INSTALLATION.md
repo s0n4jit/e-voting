@@ -49,6 +49,16 @@ Open `http://<server>:<WEB_PORT>/`. While the portal is not installed you are ta
 
 The wizard is available only until the first install completes. The "installed" flag lives in the database, so a second request cannot create another initial officer. If you set `SETUP_TOKEN`, complete setup immediately after deployment anyway, because it is the only protection before that point.
 
+### The setup token
+
+The wizard is protected by a setup token. Set `SETUP_TOKEN` in `.env` to choose it. If you leave it empty, the server makes a random one every time it starts without an installation, and prints it in the log:
+
+```bash
+docker compose logs backend | grep "SETUP TOKEN"
+```
+
+Enter it on the wizard's first step. After a reset (Backup and reset) the wizard asks for it again.
+
 ## 4. After installing
 
 1. **Programmes** – add the programmes/classes students belong to (Programmes page).

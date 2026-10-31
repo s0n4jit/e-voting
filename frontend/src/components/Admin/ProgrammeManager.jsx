@@ -106,6 +106,20 @@ export default function ProgrammeManager() {
     }
   };
 
+  const addStandard = async () => {
+    setBusy(true);
+    try {
+      const csv = await setupApi.programmeTemplate();
+      const res = await adminApi.importProgrammes(new File([csv], 'standard.csv', { type: 'text/csv' }));
+      toast.success(`${res.created ?? 'The'} standard programmes added`);
+      load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const upload = async (file) => {
     if (!file) return;
     setBusy(true);
@@ -126,7 +140,7 @@ export default function ProgrammeManager() {
     <div>
       <PageHeader
         title="Programmes"
-        subtitle="The programmes, departments and streams Desk Officers choose from when registering students, and candidates are assigned to."
+        subtitle="Configure your college, school or university programmes and departments. Desk Officers choose from this list when registering a student, and candidates are assigned a department from it."
         actions={
           <>
             <button className="btn-secondary" onClick={() => setImporting(true)}>
@@ -142,8 +156,13 @@ export default function ProgrammeManager() {
         {!rows ? (
           <TableSkeleton rows={4} cols={5} />
         ) : rows.length === 0 ? (
-          <EmptyState icon={AcademicCapIcon} title="No programmes yet" action={<button className="btn-primary" onClick={() => setImporting(true)}>Import CSV</button>}>
-            Add them one by one, or import a CSV with the level, programme, department and number of terms.
+          <EmptyState icon={AcademicCapIcon} title="No programmes yet" action={
+            <div className="flex flex-wrap gap-2 justify-center">
+              <button className="btn-primary" onClick={addStandard} disabled={busy}>Add the standard list</button>
+              <button className="btn-secondary" onClick={() => setImporting(true)}>Import CSV</button>
+            </div>}>
+            A <b>programme</b> is a course of study (for example Bachelor of Science), a <b>department</b> or stream is the subject inside it (Physics, Arts)
+            and <b>terms</b> are its semesters or years. Add the college&rsquo;s standard list in one click, add rows one by one, or import a CSV.
           </EmptyState>
         ) : (
           <div className="overflow-x-auto">

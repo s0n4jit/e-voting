@@ -43,3 +43,23 @@ def test_only_allowed_hosts_and_no_browser_navigation(app, client):
     assert client.get("/api/setup/status", headers={"Host": "api.example.edu", "Sec-Fetch-Mode": "navigate"}).status_code == 404
     assert client.get("/api/setup/status", headers={"Host": "api.example.edu", "Sec-Fetch-Mode": "cors"}).status_code == 200
     app.config["ALLOWED_HOSTS"] = []
+
+
+def test_setup_token_is_generated_in_production_when_missing(monkeypatch, db):
+    import os
+    from app.routes.setup import ensure_setup_token
+
+    class FakeApp:
+        config = {}
+
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.setenv("SETUP_TOKEN", "")
+    ensure_setup_token(FakeApp)
+    assert len(os.environ["SETUP_TOKEN"]) >= 20
+    keep = os.environ["SETUP_TOKEN"]
+    ensure_setup_token(FakeApp)                     # an existing token is never replaced
+    assert os.environ["SETUP_TOKEN"] == keep
+    monkeypatch.setenv("SETUP_TOKEN", "")
+    FakeApp.config = {"TESTING": True}
+    ensure_setup_token(FakeApp)                     # tests and development stay open
+    assert os.environ["SETUP_TOKEN"] == ""

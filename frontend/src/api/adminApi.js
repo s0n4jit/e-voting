@@ -102,6 +102,15 @@ export const adminApi = {
     form.append('file', file);
     return (await apiClient.post('/admin/programmes/import', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
   },
+  exportSystem: async () => (await apiClient.post('/admin/system/export', null, { responseType: 'blob', timeout: 120000 })).data,
+  resetSystem: async (code, confirm) => (await apiClient.post('/admin/system/reset', { code, confirm }, { timeout: 120000 })).data,
+  importSystem: async (file, code, confirm) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('code', code);
+    form.append('confirm', confirm);
+    return (await apiClient.post('/admin/system/import', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 })).data;
+  },
   getSettings: async () => (await apiClient.get('/admin/settings')).data,
   saveSettings: async (data) => (await apiClient.put('/admin/settings', data)).data,
   updateOfficer: async (id, data) => (await apiClient.patch(`/admin/officers/${id}`, data)).data,

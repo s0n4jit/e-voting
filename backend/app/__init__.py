@@ -141,6 +141,9 @@ def create_app(config_object=None) -> Flask:
         from app.migrations import run_migrations
 
         applied = run_migrations()
+        from app.routes.setup import ensure_setup_token
+
+        ensure_setup_token(app)
         app.logger.info("Database ready (applied migrations: %s).", ", ".join(applied) or "none")
 
     return app
@@ -239,6 +242,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.routes.manage import manage_bp
     from app.routes.photos import photos_bp
     from app.routes.booth import booth_bp
+    from app.routes.system import system_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
@@ -250,6 +254,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(manage_bp, url_prefix="/api/admin")
     app.register_blueprint(photos_bp, url_prefix="/api/photos")
     app.register_blueprint(booth_bp, url_prefix="/api/booth")
+    app.register_blueprint(system_bp, url_prefix="/api/admin/system")
 
 
 def _register_error_handlers(app: Flask) -> None:

@@ -10,6 +10,22 @@ from app.extensions import db
 from app.models.user import User
 
 
+def _two_step_missing(claims):
+    """Election Officers must have two-step verification on: without it only the set-up endpoints work."""
+    if claims.get("role") != "admin":
+        return False
+    identity = get_jwt_identity()
+    user = db.session.get(User, int(identity)) if identity and str(identity).isdigit() else None
+    return bool(user) and not user.otp_enabled
+
+
+def _two_step_response():
+    return jsonify({
+        "error": "two_step_required",
+        "message": "Turn on two-step verification to continue. It is required for Election Officers.",
+    }), 403
+
+
 def admin_required(fn=None):
     """
     Decorator that checks for valid JWT with admin role / privileges.
@@ -23,6 +39,8 @@ def admin_required(fn=None):
             claims = get_jwt()
             role = claims.get("role")
             if role == "admin":
+                if _two_step_missing(claims):
+                    return _two_step_response()
                 return func(*args, **kwargs)
 
             # Fallback verification in database
@@ -88,6 +106,8 @@ def desk_required(fn=None):
             claims = get_jwt()
             role = claims.get("role")
             if role in ("admin", "polling_officer"):
+                if _two_step_missing(claims):
+                    return _two_step_response()
                 return func(*args, **kwargs)
 
             # Fallback DB verification

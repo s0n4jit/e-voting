@@ -31,6 +31,12 @@ The scheduled date and time is shown to staff and voters for information only: *
 ### Results
 Nothing is visible until you press **Publish results**. Then open **Results**: **Present on projector** reveals one position at a time (Space or → to reveal and continue, ← to go back, F for full screen); **Create public link** shares the results with anyone; the CSV report is downloadable. Equal top votes show as a draw.
 
+### Backup, reset and import
+**Backup and reset** in the sidebar:
+1. **Download a backup**: a ZIP with everything (settings, elections, candidates and photos, accounts, registrations, ballots, audit log). It holds password hashes and all ballots, so keep it offline and private.
+2. **Reset the system**: erases all data and brings back the setup screen. It needs a backup downloaded in the last 30 minutes, your authenticator code, the word `RESET`, and voting must not be open.
+3. **Import a backup**: after a reset, go through the setup screen with temporary details, turn on two-step verification, then import your ZIP. It replaces everything with the backup, so afterwards you sign in with the accounts from the backup. Authenticator secrets are not restored: the Election Officer is taken to the two-step verification set-up at the next sign-in (Desk Officers can set it up again in their profile).
+
 ### Your account
 Click your name (top right): change your password (with the current password, or with an authenticator code if you forgot it), change your photo, manage two-step verification. The audit log lists every important action.
 

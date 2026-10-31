@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRightOnRectangleIcon,
   AcademicCapIcon,
+  ArchiveBoxArrowDownIcon,
   Bars3Icon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -41,6 +42,7 @@ const navFor = (role) => {
       { label: 'Results', to: '/admin/results', icon: PresentationChartBarIcon },
       { label: 'Audit log', to: '/admin/audit', icon: DocumentTextIcon },
       { label: 'Settings', to: '/admin/settings', icon: Cog6ToothIcon },
+      { label: 'Backup and reset', to: '/admin/system', icon: ArchiveBoxArrowDownIcon },
     ];
   }
   return [

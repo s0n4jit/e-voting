@@ -43,6 +43,10 @@ def installed(client, db):
     r = client.post("/api/setup/complete", json=wizard_payload())
     assert r.status_code == 201, r.get_json()
     tok = r.get_json()["access_token"]
+    import pyotp
+    officer = User.query.filter_by(role="admin").first()      # two-step verification is mandatory for officers
+    officer.otp_enabled, officer.otp_secret = True, pyotp.random_base32()
+    _db.session.commit()
     for body in ({"level": "degree", "programme": "Bachelor of Science", "department": "Physics", "term_count": 8},
                  {"level": "degree", "programme": "Bachelor of Arts", "department": "English", "term_count": 6}):
         assert client.post("/api/admin/programmes", headers=H(tok), json=body).status_code == 201
@@ -137,6 +141,9 @@ def test_setup_token_protects_wizard(client, db, monkeypatch):
 
 
 def test_officer_login_without_2fa_and_no_universal_otp(client, installed):
+    _off = User.query.filter_by(role="admin").first()
+    _off.otp_enabled, _off.otp_secret = False, None
+    _db.session.commit()
     r = client.post("/api/auth/login", json={"identifier": "meera@test.edu", "password": "Strong@1234"})
     assert r.status_code == 200 and "access_token" in r.get_json()
     # enabling 2FA with an unknown secret must not be bypassable with a fixed code
@@ -644,6 +651,9 @@ def test_password_can_be_changed_with_an_authenticator_code_instead_of_the_old_p
 
 
 def test_last_login_shows_the_previous_sign_in_and_its_address(client, installed):
+    _off = User.query.filter_by(role="admin").first()
+    _off.otp_enabled, _off.otp_secret = False, None
+    _db.session.commit()
     assert client.get("/api/auth/last-login").status_code == 401
     assert client.get("/api/auth/last-login", headers=H(installed)).get_json()["at"] is None     # wizard sign-in is not logged
     first = client.post("/api/auth/login", json={"identifier": "meera", "password": "Strong@1234"},
@@ -699,7 +709,11 @@ def test_booth_ids_are_generated_per_election_from_a_panel_token_and_the_officer
 def test_booth_setup_rules_for_who_may_approve(client, installed, desk_token):
     import pyotp
     assert client.post("/api/admin/booth-tokens", headers=H(desk_token)).status_code == 403       # desk officers cannot
-    assert client.post("/api/admin/booth-tokens", headers=H(installed)).status_code == 409        # officer has no two-step verification yet
+    _off = User.query.filter_by(role="admin").first()
+    _off.otp_enabled, _off.otp_secret = False, None
+    _db.session.commit()
+    r = client.post("/api/admin/booth-tokens", headers=H(installed))                              # officer has no two-step verification
+    assert r.status_code == 403 and r.get_json()["error"] == "two_step_required"
     token = create_booth_token(client, installed).get_json()["token"]
     desk = User.query.filter_by(student_id="desk1").first()
     desk.otp_enabled, desk.otp_secret = True, pyotp.random_base32()
@@ -813,6 +827,7 @@ def test_slip_letters_come_from_the_wizard_and_default_to_sue(client, db):
     tok = client.post("/api/setup/complete", json=p).get_json()["access_token"]
     from app.models.election import Election
     assert _db.session.get(Election, 1).slip_prefix == "PDU30-E1-"
+    _officer_code()                                  # two-step verification is mandatory for officer endpoints
     assert client.put("/api/admin/settings", headers=H(tok), json={"slip_code": "abc"}).get_json()["slip_code"] == "ABC"
 
 
@@ -839,3 +854,100 @@ def test_audit_log_groups_and_new_events(client, installed, desk_token, booth):
     assert data["stats"]["desk_enrollments"] >= 2 and data["stats"]["kiosk_actions"] >= 1
     row = next(l for l in data["logs"] if l["action"] == "DESK_CHECKIN")
     assert row["category"] == "desk" and row["action_label"] == "Desk checkin" and "no PIN yet" in row["details"]
+
+
+# ── backup and reset ─────────────────────────────────────────────────────────
+
+def _officer_code():
+    import pyotp
+    officer = User.query.filter_by(role="admin").first()
+    if not officer.otp_enabled:
+        officer.otp_enabled, officer.otp_secret = True, pyotp.random_base32()
+        _db.session.commit()
+    return pyotp.TOTP(officer.otp_secret).now()
+
+
+def test_backup_zip_has_every_table_and_is_officer_only(client, installed, desk_token):
+    import io, json, zipfile
+    assert client.post("/api/admin/system/export", headers=H(desk_token)).status_code == 403
+    assert client.post("/api/admin/system/export").status_code == 401
+    r = client.post("/api/admin/system/export", headers=H(installed))
+    assert r.status_code == 200 and r.mimetype == "application/zip"
+    z = zipfile.ZipFile(io.BytesIO(r.data))
+    names = z.namelist()
+    assert {"manifest.json", "README.txt", "db/users.json", "db/elections.json", "db/system_settings.json"} <= set(names)
+    assert json.loads(z.read("manifest.json"))["rows"]["users"] >= 1
+
+
+def test_reset_needs_backup_code_and_confirmation_then_wizard_returns(client, installed):
+    body = lambda **k: {"confirm": "RESET", "code": _officer_code(), **k}
+    # no backup yet
+    r = client.post("/api/admin/system/reset", headers=H(installed), json=body())
+    assert r.status_code == 409 and "backup" in r.get_json()["error"].lower()
+    client.post("/api/admin/system/export", headers=H(installed))
+    # missing confirmation word / wrong authenticator code
+    assert client.post("/api/admin/system/reset", headers=H(installed), json=body(confirm="no")).status_code == 400
+    assert client.post("/api/admin/system/reset", headers=H(installed), json=body(code="000000")).status_code == 403
+    assert User.query.count() >= 1
+    # everything correct
+    assert client.post("/api/admin/system/reset", headers=H(installed), json=body()).status_code == 200
+    assert client.get("/api/setup/status").get_json()["installed"] is False
+    assert User.query.count() == 0
+    r = client.post("/api/setup/complete", json=wizard_payload())      # a fresh installation works again
+    assert r.status_code == 201
+
+
+def test_reset_refused_while_voting_is_open(client, installed, desk_token):
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    client.post("/api/admin/system/export", headers=H(installed))
+    r = client.post("/api/admin/system/reset", headers=H(installed), json={"confirm": "RESET", "code": _officer_code()})
+    assert r.status_code == 409 and "voting is open" in r.get_json()["error"].lower()
+
+
+def test_backup_can_be_imported_after_a_reset(client, installed):
+    import io
+    # something worth keeping
+    assert client.post("/api/admin/programmes", headers=H(installed),
+                       json={"level": "degree", "programme": "Bachelor of Science", "department": "Botany", "term_count": 6}).status_code == 201
+    zip_bytes = client.post("/api/admin/system/export", headers=H(installed)).data
+    assert client.post("/api/admin/system/reset", headers=H(installed), json={"confirm": "RESET", "code": _officer_code()}).status_code == 200
+
+    # set up again with temporary details, as an operator would
+    temp = wizard_payload(officer={"name": "Temp Officer", "email": "temp@test.edu", "username": "temp",
+                                   "password": "Strong@1234", "confirm_password": "Strong@1234"})
+    tok = client.post("/api/setup/complete", json=temp).get_json()["access_token"]
+    code = _officer_code()
+
+    def upload(**form):
+        return client.post("/api/admin/system/import", headers=H(tok), data={"file": (io.BytesIO(zip_bytes), "b.zip"), **form},
+                           content_type="multipart/form-data")
+
+    assert upload(confirm="no", code=code).status_code == 400
+    assert upload(confirm="IMPORT", code="000000").status_code == 403
+    bad = client.post("/api/admin/system/import", headers=H(tok), data={"file": (io.BytesIO(b"not a zip"), "b.zip"), "confirm": "IMPORT", "code": code},
+                      content_type="multipart/form-data")
+    assert bad.status_code == 400 and User.query.filter_by(email="temp@test.edu").count() == 1   # a bad file changes nothing
+    assert upload(confirm="IMPORT", code=code).status_code == 200
+
+    emails = {u.email for u in User.query.all()}
+    assert "meera@test.edu" in emails and "temp@test.edu" not in emails        # the old accounts are back
+    assert all(not u.otp_enabled and u.otp_secret is None for u in User.query.all())   # authenticators are set up again
+    assert client.get("/api/setup/status").get_json()["installed"] is True
+    from app.models.programme import Programme
+    assert Programme.query.filter_by(department="Botany").count() == 1
+
+
+def test_officer_without_two_step_verification_is_locked_out_server_side(client, installed, desk_token):
+    off = User.query.filter_by(role="admin").first()
+    off.otp_enabled, off.otp_secret = False, None
+    _db.session.commit()
+    for method, url in (("get", "/api/admin/officers"), ("get", "/api/admin/settings"), ("post", "/api/admin/system/export"),
+                        ("get", "/api/desk/registrations"), ("post", "/api/admin/elections")):
+        r = getattr(client, method)(url, headers=H(installed))
+        assert r.status_code == 403 and r.get_json()["error"] == "two_step_required", url
+    assert client.get("/api/auth/totp/setup", headers=H(installed)).status_code == 200      # the way out stays open
+    assert client.get("/api/desk/registrations", headers=H(desk_token)).status_code == 200  # desk officers are not affected

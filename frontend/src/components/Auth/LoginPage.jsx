@@ -149,7 +149,7 @@ export const LoginPage = () => {
               <button type="submit" className="btn-primary w-full" disabled={busy || code.length !== 6}>
                 {busy ? 'Verifying…' : 'Verify'}
               </button>
-              <button type="button" className="btn-ghost w-full" onClick={() => { setTempToken(null); setCode(''); setError(''); }}>
+              <button type="button" className="btn-ghost w-full" onClick={() => { setTempToken(null); setCode(''); setError(''); setIdentifier(''); setPassword(''); }}>
                 Use a different account
               </button>
             </form>

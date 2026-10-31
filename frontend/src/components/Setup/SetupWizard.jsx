@@ -8,6 +8,7 @@ import { fileToAvatarDataUrl } from '../ui/image';
 import { TwoStep } from '../Profile/ProfilePage';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
+import ProgrammePlanner from './ProgrammePlanner';
 
 const STEPS = ['Welcome', 'System', 'Officer account', 'Election', 'Review'];
 const LANGUAGES = { en: 'English', hi: 'Hindi', bn: 'Bengali', as: 'Assamese' };
@@ -68,11 +69,6 @@ export default function SetupWizard() {
   });
 
   useEffect(() => {
-    setupApi.programmeTemplate().then((csv) => set('election', 'programmes_csv', csv)).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     setFavicon(data.system.logo); // the chosen logo becomes the browser tab icon right away
   }, [data.system.logo]);
 
@@ -81,8 +77,9 @@ export default function SetupWizard() {
       <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-2xl space-y-6 animate-page-in">
           <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Installation complete</h1>
-            <p className="text-muted mt-2">Two-step verification is required for the Election Officer. It approves new voting booths and lets you reset a forgotten password.</p>
+            <p className="text-xs font-medium text-brand-fg uppercase tracking-wide">Last step</p>
+            <h1 className="text-2xl font-semibold tracking-tight">Turn on two-step verification</h1>
+            <p className="text-muted mt-2">The portal is installed, but the Election Officer account cannot be used until two-step verification is on. It is required: it approves new voting booths, protects resets and backups, and lets you recover a forgotten password. Scan the code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…) and enter the 6-digit code.</p>
           </div>
           <TwoStep />
           <div className="text-center">
@@ -287,7 +284,7 @@ export default function SetupWizard() {
                 <>
                   <div>
                     <h2 className="text-xl font-semibold tracking-tight">Election Officer account</h2>
-                    <p className="text-sm text-muted mt-1">This account has full control of the portal.</p>
+                    <p className="text-sm text-muted mt-1">This account has full control of the portal. After installing you will set up <b>two-step verification</b> with an authenticator app. It is required, so have your phone ready.</p>
                   </div>
                   <Field label="Photo (optional)" error={errors.photo} hint="Shown next to your name at the top of every page. You can change it later.">
                     <div className="flex items-center gap-4">
@@ -392,20 +389,10 @@ export default function SetupWizard() {
                     </div>
                   </Field>
 
-                  <Field
-                    label="Programmes and departments"
-                    htmlFor="election-programmes_csv"
-                    error={errors.programmes_csv}
-                    hint="One row per department or stream: level (degree or hs), programme, department, number of terms. Edit, add or delete rows as needed. You can change them later or import a CSV from the Programmes page."
-                  >
-                    <textarea
-                      id="election-programmes_csv"
-                      className="input font-mono text-xs min-h-[200px]"
-                      spellCheck={false}
-                      value={election.programmes_csv}
-                      onChange={(e) => set('election', 'programmes_csv', e.target.value)}
-                    />
-                  </Field>
+                  <div>
+                    <ProgrammePlanner onChange={(csv) => set('election', 'programmes_csv', csv)} />
+                    {errors.programmes_csv && <p className="error-text mt-2" role="alert">{errors.programmes_csv}</p>}
+                  </div>
                 </>
               )}
 
@@ -453,7 +440,7 @@ export default function SetupWizard() {
                   </button>
                 ) : (
                   <button type="button" className="btn-primary" onClick={install} disabled={busy}>
-                    {busy ? 'Installing…' : 'Install and open dashboard'}
+                    {busy ? 'Installing…' : 'Install and set up two-step verification'}
                   </button>
                 )}
               </div>
