@@ -5,6 +5,7 @@ services:
     name: evoting-api
     runtime: docker
     plan: free
+    region: frankfurt          # same region as the database: every query is a round trip
     rootDir: backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz

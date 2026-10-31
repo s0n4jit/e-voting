@@ -37,6 +37,8 @@ Free tiers are fine for trying the system and small class elections. For a real 
 2. **Health check path**: `/healthz`
 3. Add the environment variables below.
 
+Create the Render service in the **same region as your Supabase project** (for example Frankfurt for `eu-central-1`). The API makes many small database calls, and a service on another continent makes installation and every page slower; the default Render region is Oregon.
+
 ### API environment variables
 
 | Variable | Value |

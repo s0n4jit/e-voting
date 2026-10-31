@@ -15,9 +15,10 @@ export const deskApi = {
 export const setupApi = {
   programmeTemplate: async () => (await apiClient.get('/setup/programme-template', { responseType: 'text', transformResponse: (d) => d })).data,
   validate: async (step, data, token) =>
-    (await apiClient.post('/setup/validate', { step, data }, token ? { headers: { 'X-Setup-Token': token } } : undefined)).data,
+    (await apiClient.post('/setup/validate', { step, data }, { timeout: 60000, ...(token ? { headers: { 'X-Setup-Token': token } } : {}) })).data,
   complete: async (payload, token) =>
-    (await apiClient.post('/setup/complete', payload, token ? { headers: { 'X-Setup-Token': token } } : undefined)).data,
+    (await apiClient.post('/setup/complete', payload, { timeout: 180000, ...(token ? { headers: { 'X-Setup-Token': token } } : {}) })).data,
+  status: async () => (await apiClient.get('/setup/status')).data,
 };
 
 export const saveBlob = (blob, filename) => {

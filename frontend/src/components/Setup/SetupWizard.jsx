@@ -130,6 +130,17 @@ export default function SetupWizard() {
       setSecure(true);
       setBusy(false);
     } catch (err) {
+      if (!err?.response) {
+        // No answer (slow free hosting, dropped connection): the server may still have finished installing.
+        try {
+          if ((await setupApi.status()).installed) {
+            window.location.assign('/login');
+            return;
+          }
+        } catch {
+          /* still unreachable: show the error below */
+        }
+      }
       const found = err?.response?.data?.errors;
       if (found) {
         const first = ['system', 'officer', 'election'].findIndex((s) => found[s]);
