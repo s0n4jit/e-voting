@@ -5,7 +5,7 @@ services:
     name: evoting-api
     runtime: docker
     plan: free
-    region: frankfurt          # same region as the database: every query is a round trip
+    # region: frankfurt        # new services only: pick the database's region. An existing service cannot change region.
     rootDir: backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
