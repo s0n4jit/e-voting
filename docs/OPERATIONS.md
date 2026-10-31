@@ -28,7 +28,7 @@ docker compose start backend frontend
 git pull                     # or copy in the new release
 docker compose up -d --build
 docker compose logs backend --tail 50
-curl -fsS http://localhost:${WEB_PORT:-80}/api/health
+curl -fsS http://localhost:${WEB_PORT:-8080}/api/health
 ```
 
 Schema upgrades run automatically at start-up and are recorded in the `schema_migrations` table, so they are safe to repeat. To run them explicitly: `docker compose exec backend python manage.py migrate`. Existing data is preserved: upgrades only add tables/columns and fill derived values.

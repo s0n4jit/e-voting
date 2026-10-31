@@ -42,11 +42,20 @@ Campus E-Voting runs a complete student-union election on campus hardware:
 ```bash
 git clone https://github.com/s0n4jit/e-voting.git
 cd e-voting
-cp .env.example .env        # set POSTGRES_PASSWORD, SECRET_KEY, JWT_SECRET_KEY
+python scripts/make_env.py  # writes .env with random secrets (or: cp .env.example .env and fill it in)
 docker compose up -d --build
 ```
 
-Open `http://localhost/` and complete the installation wizard. See the [installation guide](docs/INSTALLATION.md) for HTTPS, reverse proxies and your own PostgreSQL, and the [deployment guide](docs/DEPLOYMENT.md) for Render + Supabase + Vercel.
+One command starts everything on fixed ports:
+
+| What | Address | Setting |
+|---|---|---|
+| **App** (voters, desk, officer panel; also serves `/api`) | http://localhost:8080 | `WEB_PORT` |
+| **Landing page and guides** (same site as GitHub Pages) | http://localhost:8081 | `SITE_PORT` |
+| **API** directly (health: `/healthz`) | http://localhost:5000 | `API_PORT` (this machine only) |
+| Voting booth screen | http://localhost:8080/kiosk/vote | |
+
+Open the app and complete the installation wizard; it asks for the setup token printed by `docker compose logs backend | grep "SETUP TOKEN"` (or the `SETUP_TOKEN` you put in `.env`). See the [installation guide](docs/INSTALLATION.md) for HTTPS, reverse proxies and your own PostgreSQL, and the [deployment guide](docs/DEPLOYMENT.md) for Render + Supabase + Vercel.
 
 ## Repository layout
 

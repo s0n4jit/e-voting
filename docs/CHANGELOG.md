@@ -5,6 +5,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
+- `docker compose up` now starts the app (8080), the landing page and guides (8081) and exposes the API on localhost (5000), all on fixed, configurable ports; `python scripts/make_env.py` creates `.env` with random secrets for a fresh clone.
 - Website: mobile layout fixed (no sideways scrolling or zooming out) and a hamburger menu on small screens.
 
 ## 1.1.0 — 2026-10-31

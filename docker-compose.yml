@@ -1,4 +1,8 @@
-# Self-hosted deployment. Copy .env.example to .env, fill it in, then:  docker compose up -d --build
+# Self-hosted deployment / local run of everything. Fixed ports (change them in .env):
+#   App (web + API)  http://localhost:8080   WEB_PORT
+#   Landing page     http://localhost:8081   SITE_PORT   (the same site as GitHub Pages)
+#   API directly     http://localhost:5000   API_PORT    (localhost only)
+# First run:  python scripts/make_env.py && docker compose up -d --build
 # See docs/INSTALLATION.md. For a throwaway local test instance use testing/local/ instead.
 name: evoting
 
@@ -34,8 +38,8 @@ services:
       PROXY_HOPS: ${PROXY_HOPS:-1}
     volumes:
       - backend_logs:/app/logs
-    expose:
-      - "5000"
+    ports:
+      - "127.0.0.1:${API_PORT:-5000}:5000"  # direct API access from this machine only
 
   frontend:
     build: ./frontend
@@ -43,7 +47,16 @@ services:
     depends_on:
       - backend
     ports:
-      - "${WEB_PORT:-80}:80"
+      - "${WEB_PORT:-8080}:80"
+
+  site:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+      - ./scripts/site.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${SITE_PORT:-8081}:80"
 
 volumes:
   db_data:

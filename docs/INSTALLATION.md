@@ -8,12 +8,21 @@ This guide installs the portal on any server with Docker. It does not depend on 
 - A DNS name and HTTPS in front of the portal for real elections (see [Reverse proxy](#reverse-proxy-with-https))
 - About 1 GB RAM and 2 GB disk
 
+## Ports at a glance
+
+| Service | Default | Notes |
+|---|---|---|
+| App (web + `/api`) | 8080 | `WEB_PORT`; the voting booth is `/kiosk/vote` |
+| Landing page and guides | 8081 | `SITE_PORT`; the same pages as GitHub Pages |
+| API (direct) | 5000 | `API_PORT`; bound to `127.0.0.1` only |
+| PostgreSQL | none | not published; use `docker compose exec db psql -U evoting` |
+
 ## 1. Get the code and configure
 
 ```bash
 git clone <your-fork-or-copy-of-this-repository> evoting
 cd evoting
-cp .env.example .env
+python scripts/make_env.py        # or: cp .env.example .env and fill it in
 ```
 
 Edit `.env` and set at least:
@@ -22,7 +31,9 @@ Edit `.env` and set at least:
 |---|---|
 | `POSTGRES_PASSWORD` | Database password (letters and digits only) |
 | `SECRET_KEY`, `JWT_SECRET_KEY` | Two different long random values: `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `WEB_PORT` | Port the portal is published on (default 80) |
+| `WEB_PORT` | Port the app (web and `/api`) is published on. Default **8080**; set `80` on a server without another web server |
+| `SITE_PORT` | Port of the landing page and guides. Default **8081** |
+| `API_PORT` | Port of the API on this machine only (`127.0.0.1`). Default **5000** |
 | `CORS_ORIGINS` | Only needed if the frontend is served from a different origin than the API |
 | `SETUP_TOKEN` | Optional. If set, the person running first-time setup must enter it |
 
@@ -39,7 +50,7 @@ The database schema is created and upgraded automatically on every start. To run
 
 ## 3. Run the installation wizard
 
-Open `http://<server>:<WEB_PORT>/`. While the portal is not installed you are taken to the wizard:
+Open `http://<server>:8080/` (or the `WEB_PORT` you set; the landing page and guides are on `:8081`). While the portal is not installed you are taken to the wizard:
 
 1. **Welcome**
 2. **System** – institution name, portal name, logo, timezone, default language
