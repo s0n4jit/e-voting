@@ -1,5 +1,5 @@
-import React from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useBrand } from './context/BrandContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -48,8 +48,28 @@ const page = (roles, element) => (
   </ProtectedRoute>
 );
 
+/**
+ * A browser that has been set up as a voting booth stays on the booth screens: any other address
+ * (typed, refreshed or reached with the back button) returns to /kiosk/vote.
+ * shortcut: this guards the app, not the browser; the booth's browser policy (kiosk/ubuntu) blocks other sites.
+ */
+function BoothLock({ children }) {
+  const { pathname } = useLocation();
+  const locked = Boolean(localStorage.getItem('kiosk_token'));
+  useEffect(() => {
+    if (!locked) return undefined;
+    const stay = () => window.history.pushState(null, '', window.location.href);
+    stay();
+    window.addEventListener('popstate', stay);
+    return () => window.removeEventListener('popstate', stay);
+  }, [locked, pathname]);
+  if (locked && !pathname.startsWith('/kiosk/vote')) return <Navigate to="/kiosk/vote" replace />;
+  return children;
+}
+
 function AppRoutes() {
   return (
+    <BoothLock>
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/setup" element={<SetupWizard />} />
@@ -86,6 +106,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </BoothLock>
   );
 }
 

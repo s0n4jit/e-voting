@@ -6,6 +6,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 ## Unreleased
 
 - Voting is now controlled only by the Election Officer: **Open voting**, **Pause voting** / **Resume voting** (for a break) and **Close voting**. The scheduled date and time is shown for information only and no longer opens or closes voting.
+- A browser that is set up as a voting booth is locked to the booth screens: typing another address, refreshing or pressing Back always returns to `/kiosk/vote` (the sign-in page can no longer be reached). Deleting the booth in the officer panel releases the browser.
 - Importing a backup clears every account's two-step verification, so each officer sets it up again on the next sign-in; a stale secret from the backup can no longer lock the officer out.
 - Two-step verification is now enforced by the server for Election Officers: until it is on, every officer and desk endpoint answers 403 `two_step_required` (only the set-up endpoints work). The wizard explains this and its last screen is the authenticator set-up.
 - Setup wizard: the programmes and departments step is now a ticked list built from the standard college template (untick, edit terms, add your own) with a plain explanation, instead of a CSV box. The Programmes page offers "Add the standard list" when empty.
