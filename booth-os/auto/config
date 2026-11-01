@@ -21,5 +21,5 @@ lb config noauto \
 	--iso-publisher "Campus E-Voting" \
 	--iso-volume "EVOTE-BOOTH" \
 	--image-name "evote-booth-os" \
-	--bootappend-live "boot=live components username=evote nosudo noroot noautologin quiet loglevel=3 evote.url=${PLACEHOLDER}" \
+	--bootappend-live "boot=live components noautologin quiet loglevel=3 evote.url=${PLACEHOLDER}" \
 	"${@}"

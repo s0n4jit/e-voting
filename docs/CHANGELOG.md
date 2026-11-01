@@ -9,6 +9,7 @@ _Nothing yet._
 
 ## 1.2.0 — 2026-10-31
 
+- **Booth OS**: a bootable Debian-based image (Cage + Firefox kiosk, nothing installed or saved) built by a GitHub Actions workflow. The portal address is embedded into the downloaded ISO with `booth-os/embed-url.py`. See `docs/BOOTH_OS.md`.
 - The booth installer detects the distribution (Ubuntu, Debian, Fedora/RHEL family, Arch with GNOME/GDM) and installs Firefox and its policy the way each one ships it; `--detect` prints the result. Only Ubuntu has been tried on real hardware.
 - Booth installer (`kiosk/ubuntu/setup-kiosk.sh`): the `VOTING_URL` you pass is now really used (it was ignored and the example `localhost:3000` kept) and is added to the browser policy, so a booth works against any site, not only the example address.
 - Staff sessions: 15-minute idle sign-out with a warning, silent renewal while active, 12-hour hard cap, and signed-out tokens stored in the database (they stay revoked after a restart). Settings: `JWT_ACCESS_TOKEN_EXPIRES_MINUTES` (15), `JWT_REFRESH_TOKEN_EXPIRES_HOURS` (12).

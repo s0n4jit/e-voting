@@ -1,6 +1,10 @@
 #!/bin/sh
 # Final touches inside the image: services on, text consoles and key combinations off.
 set -e
+chmod 644 /etc/systemd/logind.conf.d/evote.conf /etc/modprobe.d/evote-block-storage.conf /etc/sysctl.d/90-evote.conf /etc/systemd/system/evote-booth.service /usr/share/evote/*
+# The booth account: no password, no shell, only what the display needs.
+id evote >/dev/null 2>&1 || useradd -m -s /usr/sbin/nologin -G video,render,input evote
+passwd -l evote
 systemctl enable evote-booth.service NetworkManager systemd-timesyncd
 systemctl set-default graphical.target
 for n in 2 3 4 5 6; do systemctl mask "getty@tty${n}.service" "autovt@tty${n}.service"; done

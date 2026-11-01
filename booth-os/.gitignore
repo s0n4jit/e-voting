@@ -1,0 +1,18 @@
+# live-build output and work files
+/chroot/
+/binary/
+/cache/
+/.build/
+/*.iso
+/*.hybrid.iso
+/*.contents
+/*.files
+/*.packages
+/*.log
+/config/binary
+/config/bootstrap
+/config/chroot
+/config/common
+/config/source
+/live-image-*
+/config/bootloaders/
