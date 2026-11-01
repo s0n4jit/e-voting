@@ -135,7 +135,16 @@ export const AdminDashboard = () => {
               </dl>
             </>
           ) : (
-            <EmptyState title="No election yet">Create an election to get started.</EmptyState>
+            <EmptyState
+              title="No active election"
+              action={
+                <Link to="/admin/elections" className="btn-primary btn-sm">
+                  Go to Elections
+                </Link>
+              }
+            >
+              The previous election is archived. Create a new election to get started.
+            </EmptyState>
           )}
         </div>
 

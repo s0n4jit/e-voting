@@ -1,0 +1,8 @@
+#!/bin/bash
+# Started by cage as the booth user: Firefox in kiosk mode with a throw-away profile (nothing is kept).
+set -euo pipefail
+
+url="$(cat /run/evote/url)"
+profile="$(mktemp -d /tmp/evote-profile.XXXXXX)"
+export MOZ_ENABLE_WAYLAND=1
+exec firefox-esr --kiosk --no-remote --profile "${profile}" "${url}"

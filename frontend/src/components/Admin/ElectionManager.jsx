@@ -19,7 +19,9 @@ const NEXT = {
 };
 
 const toLocalInput = (iso) => {
+  if (!iso) return '';
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
@@ -84,14 +86,24 @@ export const ElectionManager = () => {
             description: election.description || '',
             start_time: toLocalInput(election.start_time),
             end_time: toLocalInput(election.end_time),
-            positions: election.positions.join('\n'),
+            positions: (election.positions || []).join('\n'),
           }
         : {
             title: '',
             description: '',
             start_time: toLocalInput(now),
             end_time: toLocalInput(new Date(now.getTime() + 86400000)),
-            positions: ['Vice President', 'General Secretary', 'Cultural Secretary', 'Magazine Secretary', 'Assistant General Secretary', 'Major Games Secretary', 'Minor Games Secretary', 'Boys’ Common Room Secretary', 'Girls’ Common Room Secretary'].join(chr(10)),
+            positions: [
+              'Vice President',
+              'General Secretary',
+              'Cultural Secretary',
+              'Magazine Secretary',
+              'Assistant General Secretary',
+              'Major Games Secretary',
+              'Minor Games Secretary',
+              'Boys’ Common Room Secretary',
+              'Girls’ Common Room Secretary',
+            ].join('\n'),
           },
     });
   };
@@ -102,11 +114,23 @@ export const ElectionManager = () => {
     setBusy(true);
     setFormError('');
     const locked = election && ORDER.indexOf(election.status) >= ORDER.indexOf('voting_active');
+    const start = new Date(form.start_time);
+    const end = new Date(form.end_time);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      setFormError('Please enter valid scheduled start and end dates.');
+      setBusy(false);
+      return;
+    }
+    if (end <= start) {
+      setFormError('Scheduled end must be after scheduled start.');
+      setBusy(false);
+      return;
+    }
     const payload = {
       title: form.title,
       description: form.description,
-      start_time: new Date(form.start_time).toISOString(),
-      end_time: new Date(form.end_time).toISOString(),
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
     };
     const positions = form.positions.split('\n').map((p) => p.trim()).filter(Boolean);
     try {

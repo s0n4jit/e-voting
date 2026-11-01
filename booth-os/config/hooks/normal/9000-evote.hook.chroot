@@ -1,0 +1,9 @@
+#!/bin/sh
+# Final touches inside the image: services on, text consoles and key combinations off.
+set -e
+systemctl enable evote-booth.service NetworkManager systemd-timesyncd
+systemctl set-default graphical.target
+for n in 2 3 4 5 6; do systemctl mask "getty@tty${n}.service" "autovt@tty${n}.service"; done
+systemctl mask ctrl-alt-del.target getty@tty1.service autovt@tty1.service
+systemctl mask ssh.service sshd.service 2>/dev/null || true
+echo "evote-booth" > /etc/hostname
