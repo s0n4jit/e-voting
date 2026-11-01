@@ -5,7 +5,7 @@ import { deskApi } from '../../api/deskApi';
 import { Field, errorMessage } from '../ui';
 import StatusBadge from '../common/StatusBadge';
 import SlipCard from './SlipCard';
-import { useDeskOpen } from '../../hooks/useDeskOpen';
+import { useDeskState } from '../../hooks/useDeskOpen';
 import ProgrammePicker from './ProgrammePicker';
 
 const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
@@ -79,7 +79,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
     }
   };
 
-  const deskOpen = useDeskOpen();
+  const { open: deskOpen, paused } = useDeskState();
   const voted = current.status === 'voted';
 
   if (pin) {
@@ -129,12 +129,13 @@ export default function StudentPanel({ student, programmes, onChanged }) {
           {error && <p className="error-text" role="alert">{error}</p>}
 
           <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" onClick={issue} disabled={busy || voted || !deskOpen}>
+            <button className="btn-primary" onClick={issue} disabled={busy || voted || !deskOpen || paused}>
               <TicketIcon className="w-4 h-4" /> {current.status === 'pin_active' ? 'Issue new PIN' : 'Issue voting PIN'}
             </button>
             <button className="btn-secondary" onClick={startEdit} disabled={voted}>Edit details</button>
           </div>
           {!deskOpen && <p className="hint">Voting has ended. PINs can no longer be issued.</p>}
+          {deskOpen && paused && <p className="hint">Voting is paused. PINs can be issued again when the officer resumes voting.</p>}
           {voted && <p className="hint">This voter has already voted. A PIN cannot be issued and details are locked.</p>}
 
           <details className="group">

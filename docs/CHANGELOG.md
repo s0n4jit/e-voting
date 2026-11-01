@@ -9,6 +9,10 @@ _Nothing yet._
 
 ## 1.2.0 — 2026-10-31
 
+- Student lists: register many students from a CSV (installation wizard step and the Registrations page), with the slip IDs returned.
+- Results: "None of the Above" is shown as a count, never as a candidate: it cannot win or tie. Votes are shown as numbers instead of percentages, the report is counts only, and results can be printed on white paper with signature lines.
+- While voting is paused, voting PINs cannot be issued.
+- Booth OS: the boot image can read exFAT/FAT sticks, so it boots from Ventoy and loopback setups (it hung there before).
 - **Booth OS**: a bootable Debian-based image (Cage + Firefox kiosk, nothing installed or saved) built by a GitHub Actions workflow. The portal address is embedded into the downloaded ISO with `booth-os/embed-url.py`. See `docs/BOOTH_OS.md`.
 - The booth installer detects the distribution (Ubuntu, Debian, Fedora/RHEL family, Arch with GNOME/GDM) and installs Firefox and its policy the way each one ships it; `--detect` prints the result. Only Ubuntu has been tried on real hardware.
 - Booth installer (`kiosk/ubuntu/setup-kiosk.sh`): the `VOTING_URL` you pass is now really used (it was ignored and the example `localhost:3000` kept) and is added to the browser policy, so a booth works against any site, not only the example address.

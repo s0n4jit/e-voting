@@ -132,7 +132,7 @@ export const ResultsPage = () => {
             <>So the surprise is kept for the announcement, only the turnout is shown. Use <strong>Present on projector</strong> to reveal the {data.by_position.length} positions one at a time.</>
           )}
         </p>
-        <p className="text-sm mt-3">{data.turnout.ballots_cast} of {data.turnout.total_registered} registered voters have voted ({data.turnout.turnout_percentage}% turnout).</p>
+        <p className="text-sm mt-3">{data.turnout.ballots_cast} of {data.turnout.total_registered} registered voters have voted.</p>
         <ol className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm list-decimal pl-5">
           {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
         </ol>

@@ -1,6 +1,11 @@
 import apiClient from './axiosConfig';
 
 export const deskApi = {
+  importStudents: async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await apiClient.post('/desk/registrations/import', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data;
+  },
   state: async () => (await apiClient.get('/desk/state')).data,
   getProgrammes: async () => (await apiClient.get('/desk/programmes')).data,
   register: async (data) => (await apiClient.post('/desk/registrations', data)).data,
@@ -13,6 +18,7 @@ export const deskApi = {
 };
 
 export const setupApi = {
+  studentTemplate: async () => (await apiClient.get('/setup/student-template', { responseType: 'text', transformResponse: (d) => d })).data,
   programmeTemplate: async () => (await apiClient.get('/setup/programme-template', { responseType: 'text', transformResponse: (d) => d })).data,
   validate: async (step, data, token) =>
     (await apiClient.post('/setup/validate', { step, data }, { timeout: 60000, ...(token ? { headers: { 'X-Setup-Token': token } } : {}) })).data,

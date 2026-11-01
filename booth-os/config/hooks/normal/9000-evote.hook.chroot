@@ -1,7 +1,7 @@
 #!/bin/sh
 # Final touches inside the image: services on, text consoles and key combinations off.
 set -e
-chmod 644 /etc/systemd/logind.conf.d/evote.conf /etc/modprobe.d/evote-block-storage.conf /etc/sysctl.d/90-evote.conf /etc/systemd/system/evote-booth.service /usr/share/evote/*
+chmod 644 /etc/systemd/logind.conf.d/evote.conf /etc/modprobe.d/evote-block-storage.conf /etc/sysctl.d/90-evote.conf /etc/systemd/system/evote-booth.service /usr/share/evote/* /etc/initramfs-tools/modules
 # The booth account: no password, no shell, only what the display needs.
 id evote >/dev/null 2>&1 || useradd -m -s /usr/sbin/nologin -G video,render,input evote
 passwd -l evote
@@ -11,3 +11,5 @@ for n in 2 3 4 5 6; do systemctl mask "getty@tty${n}.service" "autovt@tty${n}.se
 systemctl mask ctrl-alt-del.target getty@tty1.service autovt@tty1.service
 systemctl mask ssh.service sshd.service 2>/dev/null || true
 echo "evote-booth" > /etc/hostname
+# rebuild the boot ramdisk so it can read exFAT / NTFS / FAT sticks (Ventoy, loopback boots)
+update-initramfs -u -k all

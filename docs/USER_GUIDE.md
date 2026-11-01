@@ -43,6 +43,7 @@ Click your name (top right): change your password (with the current password, or
 ## Desk Officer
 
 - **Register student**: name, programme, department or stream, semester or year → a Voter Slip ID is generated and can be printed. A warning appears if the same name is already registered for that programme and semester.
+- **Import list** (Registrations page, and an optional step in the installation wizard): register many students from a CSV with the columns `name, programme, department, semester`. Programme and department must match the Programmes list. Nothing is imported unless every row is correct; duplicates are skipped; every student gets a Voter Slip ID and you can download the new slip IDs.
 - **Registrations**: search by name or slip ID, filter, edit details (until the student has voted), export a CSV. Statuses (Registered, PIN active, Voted) update live.
 - **Voter check-in**: enter the slip ID, check the status, and **Issue voting PIN**. The PIN works once and for 20 minutes. Hand the student their slip and PIN.
 

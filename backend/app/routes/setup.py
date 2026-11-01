@@ -135,6 +135,15 @@ def validate_payload(data: dict, steps=("system", "officer", "election")) -> dic
             db.session.rollback()  # dry run only
             if bad:
                 e["programmes_csv"] = " ".join(bad[:5])
+        if (el.get("students_csv") or "").strip():
+            from app.student_import import import_students
+
+            if (el.get("programmes_csv") or "").strip():
+                import_programme_csv(el["programmes_csv"])  # students are checked against the programmes being created
+            _made, _skipped, bad_students = import_students(el["students_csv"], None, dry_run=True)
+            db.session.rollback()
+            if bad_students:
+                e["students_csv"] = " ".join(bad_students[:5])
         if e:
             errors["election"] = e
 
@@ -159,6 +168,14 @@ def status():
 @limiter.exempt
 def programme_template():
     """CSV of the college's departments, used to pre-fill the wizard and as the import template."""
+    return Response(TEMPLATE_CSV, mimetype="text/csv")
+
+
+@setup_bp.get("/student-template")
+@limiter.exempt
+def student_template():
+    from app.student_import import TEMPLATE_CSV
+
     return Response(TEMPLATE_CSV, mimetype="text/csv")
 
 
@@ -236,6 +253,14 @@ def complete():
 
         if (el.get("programmes_csv") or "").strip():
             import_programme_csv(el["programmes_csv"])
+        if (el.get("students_csv") or "").strip():
+            from app.student_import import import_students
+
+            db.session.flush()
+            made, _skipped, bad_students = import_students(el["students_csv"], election, officer.id)
+            if bad_students:
+                raise ValueError("student list: " + bad_students[0])
+            current_app.logger.info("Imported %d students during setup.", len(made))
 
         db.session.add(AuditLog(
             user_id=officer.id,

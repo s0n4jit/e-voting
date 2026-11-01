@@ -149,6 +149,12 @@
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: fixed; top: 2rem; left: 0; right: 0; margin: 0 auto; width: 24rem; box-shadow: none !important; border-color: #000 !important; }
   .no-print { display: none !important; }
+
+  /* Results: print the results block on white paper, one position per block */
+  .results-print, .results-print * { visibility: visible; }
+  .results-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0 1rem; }
+  .results-print .card { box-shadow: none !important; border: 1px solid #999 !important; break-inside: avoid; margin-bottom: 1rem; }
+  html, body { background: #fff !important; color: #000 !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -217,7 +217,7 @@ export default function ResultsPresenter() {
                       <p className={`font-semibold leading-none mt-[0.8vh] ${win ? 'text-ok' : tie ? 'text-warn' : ''}`} style={{ fontSize: '6.5vh' }}>
                         <VoteCount votes={c.votes} run={pos.revealed} />
                       </p>
-                      <p className="text-muted h-[2.4vh]" style={{ fontSize: '1.8vh' }}>{pos.revealed ? `${c.votes === 1 ? 'vote' : 'votes'} · ${c.percentage}%` : ''}</p>
+                      <p className="text-muted h-[2.4vh]" style={{ fontSize: '1.8vh' }}>{pos.revealed ? (c.votes === 1 ? 'vote' : 'votes') : ''}</p>
                     </div>
                   </div>
                 );
@@ -225,7 +225,7 @@ export default function ResultsPresenter() {
             </div>
 
             <p className="text-center text-muted mt-[2vh] flex items-center justify-center gap-2" style={{ fontSize: '2.2vh' }}>
-              <NoSymbolIcon className="w-5 h-5" /> None of the Above:{' '}
+              <NoSymbolIcon className="w-5 h-5" /> None of the Above (NOTA, not a candidate):{' '}
               <span className="font-semibold text-fg"><VoteCount votes={current.nota_count} run={pos.revealed} /></span>
             </p>
 

@@ -393,13 +393,13 @@ def election_report(election_id):
     w.writerow(["Status", election.STATUS_LABELS[election.effective_status]])
     w.writerow(["Registered voters", turnout["total_registered"]])
     w.writerow(["Ballots cast", turnout["ballots_cast"]])
-    w.writerow(["Turnout %", turnout["turnout_percentage"]])
+    w.writerow(["Registered voters who did not vote", turnout["total_registered"] - turnout["ballots_cast"]])
     w.writerow([])
-    w.writerow(["Position", "Candidate", "Votes", "Percent"])
+    w.writerow(["Position", "Candidate", "Votes"])
     for pos in results["by_position"]:
         for c in pos["candidates"]:
-            w.writerow([pos["position"], c["name"], c["votes"], c["percentage"]])
-        w.writerow([pos["position"], "None of the Above", pos["nota_count"], pos["nota_percentage"]])
+            w.writerow([pos["position"], c["name"], c["votes"]])
+        w.writerow([pos["position"], "NOTA (None of the Above, not a candidate)", pos["nota_count"]])
     _audit("REPORT_GENERATED", f"Downloaded the results report for \u201c{election.title}\u201d.")
     db.session.commit()
     return Response(

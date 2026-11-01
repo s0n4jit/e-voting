@@ -498,6 +498,8 @@ def issue_desk_pin():
 
     if not election:
         return jsonify({"error": "No active election found."}), 404
+    if election.voting_paused:
+        return jsonify({"error": "Voting paused", "message": "Voting is paused, so voting PINs cannot be issued. Try again when the officer resumes voting."}), 409
     if not election.desk_open:
         return jsonify({"error": "Voting ended", "message": "Voting has ended, so no more students can be registered and no more PINs can be issued."}), 409
 

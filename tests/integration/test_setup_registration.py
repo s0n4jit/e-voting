@@ -1,6 +1,7 @@
 """Installation wizard, student registration, lifecycle and access-control tests."""
 import base64
 import io
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -548,20 +549,28 @@ def test_equal_votes_are_a_draw_not_a_winner(client, installed):
     assert not any(c["is_winner"] for c in pos["candidates"]) and all(c["is_tied"] for c in pos["candidates"])
 
 
-def test_clear_winner_nota_and_candidate_nota_draw(client, installed):
+def test_nota_is_a_count_never_a_winner_or_a_tie(client, installed):
     eid = _election_with_votes(client, installed, [0, 0, 1])
     assert _president(client, installed, eid)["outcome"] == {"type": "winner", "label": "Ann", "names": ["Ann"]}
     from app.models.ballot_entry import BallotEntry
     BallotEntry.query.delete()
+    # NOTA has the most votes (2), but a candidate with 1 vote still wins: NOTA is not a person
     _db.session.add_all([BallotEntry(election_id=eid, position="President", blind_token="a", is_nota=True),
                          BallotEntry(election_id=eid, position="President", blind_token="b", is_nota=True),
                          BallotEntry(election_id=eid, position="President", blind_token="c", candidate_id=1)])
     _db.session.commit()
-    assert _president(client, installed, eid)["outcome"]["type"] == "nota"
+    pos = _president(client, installed, eid)
+    assert pos["outcome"]["type"] == "winner" and pos["nota_count"] == 2
+    # a tie between NOTA and a candidate is not a draw either
     _db.session.add(BallotEntry(election_id=eid, position="President", blind_token="d", candidate_id=1))
     _db.session.commit()
-    assert "None of the Above" in _president(client, installed, eid)["outcome"]["label"]
-    assert _president(client, installed, eid)["outcome"]["type"] == "draw"
+    pos = _president(client, installed, eid)
+    assert pos["outcome"]["type"] == "winner" and pos["outcome"]["names"] == ["Ann"]
+    # only NOTA votes: nobody wins
+    BallotEntry.query.delete()
+    _db.session.add(BallotEntry(election_id=eid, position="President", blind_token="e", is_nota=True))
+    _db.session.commit()
+    assert _president(client, installed, eid)["outcome"] == {"type": "none", "label": "No candidate received a vote", "names": []}
 
 
 def test_results_stay_hidden_until_published_and_public_link_follows(client, installed):
@@ -968,3 +977,69 @@ def test_signed_out_tokens_stay_dead_after_a_restart(client, db):
 def test_staff_session_defaults_are_short(app):
     assert app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds() in (15 * 60, 5 * 60)   # 15 minutes (tests use 5)
     assert app.config["JWT_REFRESH_TOKEN_EXPIRES"].total_seconds() == 12 * 3600
+
+
+def test_pin_cannot_be_issued_while_voting_is_paused(client, installed, desk_token):
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    slip = register(client, desk_token).get_json()["slip_id"]
+    client.post(f"/api/admin/elections/{eid}/pause", headers=H(installed))
+    assert client.get("/api/desk/state", headers=H(desk_token)).get_json()["paused"] is True
+    r = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip})
+    assert r.status_code == 409 and "paused" in r.get_json()["message"].lower()
+    client.post(f"/api/admin/elections/{eid}/resume", headers=H(installed))
+    assert client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).status_code == 200
+
+
+# ── student list import ──────────────────────────────────────────────────────
+
+def _csv_upload(client, headers, text):
+    import io
+    return client.post("/api/desk/registrations/import", headers=headers, data={"file": (io.BytesIO(text.encode()), "students.csv")},
+                       content_type="multipart/form-data")
+
+
+def test_student_list_import_creates_slips_and_skips_duplicates(client, installed, desk_token):
+    from app.models.voter_record import VoterRecord
+    text = ("name,programme,department,semester\n"
+            "Anita Das,Bachelor of Science,Physics,3\n"
+            "Rahul Borah,Bachelor of Arts,English,1\n")
+    r = _csv_upload(client, H(desk_token), text)
+    assert r.status_code == 201 and r.get_json()["created"] == 2
+    slips = [s["slip_id"] for s in r.get_json()["students"]]
+    assert all(re.fullmatch(r"SUE\d\d-E1-\d{6}", s) for s in slips) and len(set(slips)) == 2
+    assert VoterRecord.query.count() == 2                                     # they can be issued PINs straight away
+    r2 = _csv_upload(client, H(desk_token), text)                              # the same list again
+    assert r2.get_json()["created"] == 0 and r2.get_json()["skipped"] == 2
+    pin = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slips[0]})
+    assert pin.status_code == 200
+
+
+def test_student_list_import_is_all_or_nothing_and_checks_every_row(client, installed, desk_token):
+    bad = ("name,programme,department,semester\n"
+           "Good Name,Bachelor of Science,Physics,3\n"
+           "X,Bachelor of Science,Physics,3\n"
+           "Some One,Bachelor of Science,Chemistry,3\n"
+           "Other One,Bachelor of Science,Physics,99\n")
+    r = _csv_upload(client, H(desk_token), bad)
+    assert r.status_code == 400 and len(r.get_json()["errors"]) == 3
+    assert User.query.filter_by(role="voter").count() == 0                     # the good row was not kept either
+    assert _csv_upload(client, H(installed), "").status_code == 400
+
+
+def test_student_list_can_be_imported_in_the_setup_wizard(client, db):
+    p = wizard_payload()
+    p["election"]["programmes_csv"] = "level,programme,department,terms\ndegree,Bachelor of Science,Botany,6\n"
+    p["election"]["students_csv"] = "name,programme,department,semester\nAnita Das,Bachelor of Science,Botany,2\nRaju Nath,Bachelor of Science,Botany,4\n"
+    assert client.post("/api/setup/validate", json={"step": "election", "data": p}).get_json()["errors"] == {}
+    p["election"]["students_csv"] += "Zeno Mali,Bachelor of Science,Botany,99\n"
+    err = client.post("/api/setup/validate", json={"step": "election", "data": p}).get_json()["errors"]
+    assert "students_csv" in err["election"]
+    p["election"]["students_csv"] = p["election"]["students_csv"].replace(",99", ",2")
+    assert client.post("/api/setup/complete", json=p).status_code == 201
+    assert User.query.filter_by(role="voter").count() == 3
+    from app.models.voter_record import VoterRecord
+    assert VoterRecord.query.count() == 3

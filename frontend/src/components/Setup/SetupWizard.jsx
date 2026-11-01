@@ -65,6 +65,7 @@ export default function SetupWizard() {
       end_time: '17:00',
       positions: [],
       programmes_csv: '',
+      students_csv: '',
     },
   });
 
@@ -404,6 +405,48 @@ export default function SetupWizard() {
                     <ProgrammePlanner onChange={(csv) => set('election', 'programmes_csv', csv)} />
                     {errors.programmes_csv && <p className="error-text mt-2" role="alert">{errors.programmes_csv}</p>}
                   </div>
+
+                  <Field
+                    label="Student voter list (optional)"
+                    hint="A CSV with the columns name, programme, department, semester. Each student gets a Voter Slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
+                    error={errors.students_csv}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="btn-secondary btn-sm cursor-pointer">
+                        Choose CSV file
+                        <input
+                          type="file"
+                          accept=".csv,text/csv"
+                          className="sr-only"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (f) set('election', 'students_csv', await f.text());
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={async () => {
+                          const blob = new Blob([await setupApi.studentTemplate()], { type: 'text/csv' });
+                          const a = document.createElement('a');
+                          a.href = URL.createObjectURL(blob);
+                          a.download = 'students-template.csv';
+                          a.click();
+                          URL.revokeObjectURL(a.href);
+                        }}
+                      >
+                        Download the template
+                      </button>
+                      {election.students_csv && (
+                        <span className="text-sm text-muted">
+                          {Math.max(election.students_csv.trim().split(/\r?\n/).length - 1, 0)} students in the file{' '}
+                          <button type="button" className="text-brand-fg hover:underline" onClick={() => set('election', 'students_csv', '')}>Remove</button>
+                        </span>
+                      )}
+                    </div>
+                  </Field>
                 </>
               )}
 

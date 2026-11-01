@@ -135,6 +135,7 @@ def desk_state():
     """Polled by the desk screens: false once the officer has closed voting."""
     election = Election.current()
     return jsonify({"open": bool(election.desk_open) if election else True,
+                    "paused": bool(election and election.voting_paused),
                     "status": election.effective_status if election else None}), 200
 
 
@@ -211,6 +212,32 @@ def register_student():
     db.session.commit()
 
     return jsonify(_serialize(user, "registered", {programme.id: programme}, election)), 201
+
+
+@desk_bp.post("/registrations/import")
+@desk_required
+def import_registrations():
+    """Register many students from a CSV (name, programme, department, semester). All or nothing."""
+    from app.student_import import import_students
+
+    election = Election.current()
+    if election and not election.desk_open:
+        return jsonify({"error": "Voting has ended, so no more students can be registered.", "code": "voting_ended"}), 409
+    upload = request.files.get("file")
+    raw = upload.read(2_000_001) if upload else b""
+    if not raw or len(raw) > 2_000_000:
+        return jsonify({"error": "Choose a CSV file under 2 MB."}), 400
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return jsonify({"error": "The file is not a valid UTF-8 CSV."}), 400
+    created, skipped, errors = import_students(text, election, _actor_id())
+    if errors:
+        db.session.rollback()
+        return jsonify({"error": f"{len(errors)} problem(s) found. Nothing was imported.", "errors": errors[:30]}), 400
+    _audit("STUDENTS_IMPORTED", f"Imported {len(created)} students from a list ({skipped} duplicates skipped).")
+    db.session.commit()
+    return jsonify({"created": len(created), "skipped": skipped, "students": created}), 201
 
 
 @desk_bp.get("/registrations")

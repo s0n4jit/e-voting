@@ -33,6 +33,8 @@ sudo dd if=evote-booth-os.iso of=/dev/sdX bs=4M status=progress conv=fsync
 
 Replace `/dev/sdX` with the stick (check with `lsblk`; the wrong device erases that disk). The same image boots on BIOS and UEFI PCs. Turn Secure Boot off if the PC refuses to start from the stick.
 
+**Ventoy sticks:** the image can be booted from a Ventoy stick (choose GRUB2 mode if normal mode fails). The image can now read the exFAT and FAT formats Ventoy uses. If it still cannot find itself, write the ISO directly with Rufus (DD mode) or balenaEtcher instead.
+
 ## 4. Boot a PC from it and approve the booth
 
 1. Plug in the network cable, insert the stick and start the PC, using its boot menu key (often F12, F11 or Esc) to boot from USB.

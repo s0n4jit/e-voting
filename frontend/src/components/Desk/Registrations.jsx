@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 import StudentPanel from './StudentPanel';
+import ImportStudents from './ImportStudents';
 import { usePolling } from '../../hooks/usePolling';
 
 const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
@@ -67,6 +68,7 @@ export default function Registrations() {
         subtitle={`${state.total} registered ${state.total === 1 ? 'student' : 'students'} · updates live`}
         actions={
           <>
+            <ImportStudents onDone={load} />
             <button className="btn-secondary" onClick={exportCsv}>
               <ArrowDownTrayIcon className="w-4 h-4" /> Export CSV
             </button>

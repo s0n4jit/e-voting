@@ -494,15 +494,16 @@ class VoteService:
                 candidates_for_pos.append(c_dict)
 
             nota_pct = round((nota_votes / pos_total * 100), 2) if pos_total > 0 else 0.0
-            # The result of a position depends only on the vote counts: the highest count wins; if
-            # two or more (candidates, or a candidate and NOTA) share it, the position is a draw.
-            top = max(max_cand_votes, nota_votes)
+            # The result of a position depends only on the candidates' vote counts: the highest wins and an
+            # equal highest count is a draw. "None of the Above" is a count shown beside the result, not a
+            # person, so it never wins and never ties.
             winner_details = None
-            if pos_total == 0 or top == 0:
-                outcome = {"type": "none", "label": "No votes cast", "names": []}
+            if max_cand_votes == 0:
+                label = "No candidate received a vote" if nota_votes else "No votes cast"
+                outcome = {"type": "none", "label": label, "names": []}
             else:
-                leaders = [c for c in candidates_for_pos if c["votes"] == top]
-                names = [c["name"] for c in leaders] + (["None of the Above"] if nota_votes == top else [])
+                leaders = [c for c in candidates_for_pos if c["votes"] == max_cand_votes]
+                names = [c["name"] for c in leaders]
                 if len(names) > 1:
                     outcome = {
                         "type": "draw",
@@ -511,8 +512,6 @@ class VoteService:
                     }
                     for c in leaders:
                         c["is_tied"] = True
-                elif nota_votes == top:
-                    outcome = {"type": "nota", "label": "None of the Above won. Position unfilled", "names": names}
                 else:
                     leaders[0]["is_winner"] = True
                     winner_details = leaders[0]

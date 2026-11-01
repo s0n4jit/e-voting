@@ -1,0 +1,8 @@
+# Filesystems the boot stick may use (Ventoy sticks are exFAT or NTFS), so the live system can find its ISO
+exfat
+ntfs3
+nls_utf8
+nls_cp437
+nls_iso8859-1
+vfat
+ext4
