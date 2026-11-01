@@ -1,13 +1,13 @@
-# Voting booth setup (Ubuntu)
+# Voting booth setup (Linux)
 
-A **voting booth** is an Ubuntu computer locked down so that it can only show the voting page, `/kiosk/vote`. Votes are accepted only from computers set up this way. This page is also available in the officer panel under **Voting booths → Setup guide**.
+A **voting booth** is a Linux computer locked down so that it can only show the voting page, `/kiosk/vote`. Votes are accepted only from computers set up this way. This page is also available in the officer panel under **Voting booths → Setup guide**.
 
 ## 1. Requirements
 
-- Ubuntu **24.04 or 26.04 LTS** with GNOME on Wayland, 4 GB RAM or more, a reliable network connection to the portal
+- **Ubuntu** (24.04 or 26.04 LTS, tested design), **Debian**, **Fedora / RHEL family** or **Arch** (including derivatives such as Mint, Manjaro and Rocky) with **GNOME and GDM**, 4 GB RAM or more, a reliable network connection to the portal. The installer detects the distribution by itself (check with `sudo bash setup-kiosk.sh --detect`) and installs Firefox the way that distribution ships it: Snap on Ubuntu, `firefox-esr` on Debian, `dnf` on Fedora, `pacman` on Arch. Only Ubuntu has been exercised on real hardware; the other families are new. Desktops other than GNOME/GDM (KDE, XFCE, LightDM, SDDM) are not supported.
 - An administrator account with `sudo`, and `openssh-server` so the booth can be managed remotely (the locked-down screen has no terminal)
 - The portal's HTTPS address, for example `https://evote.campus.internal`
-- Internet access during installation (the script installs the Firefox snap)
+- Internet access during installation (the script installs Firefox if it is missing)
 - An Election Officer account with two-step verification, and the officer's phone with the authenticator app
 
 ```bash

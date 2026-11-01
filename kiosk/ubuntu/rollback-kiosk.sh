@@ -102,6 +102,7 @@ rm -f /etc/systemd/logind.conf.d/kiosk-no-vt.conf
 log_step "Step 5: Removing Firefox Enterprise Policies..."
 rm -f /etc/firefox/policies/policies.json
 rm -f /var/snap/firefox/current/policies/policies.json 2>/dev/null || true
+rm -f /usr/lib/firefox/distribution/policies.json /usr/lib64/firefox/distribution/policies.json /usr/lib/firefox-esr/distribution/policies.json 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # 6. Remove Maintenance Sudoers Entry

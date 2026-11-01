@@ -31,6 +31,56 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
 }
 
+
+# ------------------------------------------------------------------------------
+# Distribution detection (Ubuntu/Debian, Fedora/RHEL family, Arch). Run with --detect to only print it.
+# ------------------------------------------------------------------------------
+detect_distro() {
+    local file="${OS_RELEASE_FILE:-/etc/os-release}" id="" like=""
+    if [[ -r "${file}" ]]; then
+        id="$(. "${file}"; echo "${ID:-}")"
+        like="$(. "${file}"; echo "${ID_LIKE:-}")"
+    fi
+    DISTRO_ID="${id:-unknown}"
+    case " ${id} ${like} " in
+        *" ubuntu "*)                           FAMILY="ubuntu" ;;
+        *" debian "*)                           FAMILY="debian" ;;
+        *" fedora "*|*" rhel "*|*" centos "*)   FAMILY="fedora" ;;
+        *" arch "*)                             FAMILY="arch" ;;
+        *)                                      FAMILY="unknown" ;;
+    esac
+}
+
+detect_distro
+if [[ "${1:-}" == "--detect" ]]; then
+    echo "distribution: ${DISTRO_ID}  family: ${FAMILY}"
+    exit 0
+fi
+if [[ "${FAMILY}" == "unknown" ]]; then
+    echo "[ERROR] Unsupported distribution '${DISTRO_ID}'. Supported: Ubuntu, Debian, Fedora/RHEL and Arch (with GNOME/GDM)." >&2
+    exit 1
+fi
+
+# Install Firefox the way each distribution ships it.
+install_firefox() {
+    case "${FAMILY}" in
+        ubuntu)
+            command -v snap >/dev/null 2>&1 || { log_warn "Snapd not detected. Installing snapd..."; apt-get update -qq && apt-get install -y -qq snapd; }
+            snap list firefox >/dev/null 2>&1 || { log_info "Installing Firefox via Snap..."; snap install firefox; }
+            ;;
+        debian)
+            command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1 || { log_info "Installing Firefox ESR (apt)..."; apt-get update -qq && apt-get install -y -qq firefox-esr; }
+            ;;
+        fedora)
+            command -v firefox >/dev/null 2>&1 || { log_info "Installing Firefox (dnf)..."; dnf install -y firefox; }
+            ;;
+        arch)
+            command -v firefox >/dev/null 2>&1 || { log_info "Installing Firefox (pacman)..."; pacman -S --noconfirm --needed firefox; }
+            ;;
+    esac
+    command -v python3 >/dev/null 2>&1 || log_warn "python3 not found: the booth address cannot be added to the browser policy."
+}
+
 # ------------------------------------------------------------------------------
 # Pre-Flight Checks
 # ------------------------------------------------------------------------------
@@ -39,7 +89,7 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
-log_step "Starting CEVS Ubuntu 26.04 Kiosk Installation & Lockdown..."
+log_step "Starting CEVS Kiosk Installation & Lockdown (${DISTRO_ID}, ${FAMILY} family)..."
 
 # Detect GDM config file location
 GDM_CONF="/etc/gdm3/custom.conf"
@@ -115,18 +165,9 @@ fi
 # ------------------------------------------------------------------------------
 # Step 3: Install & Deploy Firefox Snap with Enterprise Policies
 # ------------------------------------------------------------------------------
-log_step "Step 3: Deploying Firefox Snap Enterprise Policies..."
+log_step "Step 3: Installing Firefox and its enterprise policy..."
 
-# Check Snap Firefox
-if ! command -v snap >/dev/null 2>&1; then
-    log_warn "Snapd not detected. Installing snapd..."
-    apt-get update -qq && apt-get install -y -qq snapd
-fi
-
-if ! snap list firefox >/dev/null 2>&1; then
-    log_info "Installing Firefox via Snap..."
-    snap install firefox
-fi
+install_firefox
 
 # System-wide enterprise policy paths
 mkdir -p /etc/firefox/policies
@@ -134,13 +175,21 @@ mkdir -p /var/snap/firefox/current/policies 2>/dev/null || true
 
 POLICIES_SRC="${SCRIPT_DIR}/policies/policies.json"
 if [[ -f "${POLICIES_SRC}" ]]; then
-    cp -f "${POLICIES_SRC}" /etc/firefox/policies/policies.json
-    chmod 644 /etc/firefox/policies/policies.json
-    
+    POLICY_TARGETS=(/etc/firefox/policies/policies.json)
     if [[ -d "/var/snap/firefox/current" ]]; then
-        cp -f "${POLICIES_SRC}" /var/snap/firefox/current/policies/policies.json
-        chmod 644 /var/snap/firefox/current/policies/policies.json
+        POLICY_TARGETS+=(/var/snap/firefox/current/policies/policies.json)
     fi
+    for dist_dir in /usr/lib/firefox/distribution /usr/lib64/firefox/distribution /usr/lib/firefox-esr/distribution /usr/lib/firefox-esr/distribution; do
+        [[ -d "$(dirname "${dist_dir}")" ]] && POLICY_TARGETS+=("${dist_dir}/policies.json")
+    done
+    for target in "${POLICY_TARGETS[@]}"; do
+        # shellcheck disable=SC2174
+        mkdir -p "$(dirname "${target}")"
+        # a distribution directory that is a link to /etc/firefox/policies already is the same file
+        [[ "${target}" -ef /etc/firefox/policies/policies.json && "${target}" != /etc/firefox/policies/policies.json ]] && continue
+        cp -f "${POLICIES_SRC}" "${target}"
+        chmod 644 "${target}"
+    done
     log_info "Firefox Enterprise Policies deployed to /etc/firefox/policies/policies.json."
 
     # Allow the booth address given in VOTING_URL (the shipped policy only knows the example addresses).
@@ -149,7 +198,7 @@ if [[ -f "${POLICIES_SRC}" ]]; then
             log_error "VOTING_URL must look like https://your-site.example/kiosk/vote (got: ${VOTING_URL})."
             exit 1
         fi
-        for POLICY_FILE in /etc/firefox/policies/policies.json /var/snap/firefox/current/policies/policies.json; do
+        for POLICY_FILE in "${POLICY_TARGETS[@]}"; do
             [[ -f "${POLICY_FILE}" ]] || continue
             python3 - "${POLICY_FILE}" "${VOTING_URL}*" <<'PYEOF'
 import json, sys
@@ -247,6 +296,11 @@ chmod 644 "${EVOTE_HOME}/.config/autostart/evote-kiosk.desktop"
 # Fix permissions on all home directory assets
 chown -R "${EVOTE_USER}:${EVOTE_USER}" "${EVOTE_HOME}"
 
+# SELinux (Fedora/RHEL): give the files we copied their proper labels
+if command -v restorecon >/dev/null 2>&1; then
+    restorecon -RF /usr/local/bin/kiosk-launcher.sh /etc/systemd/user /etc/default/evote-kiosk "${EVOTE_HOME}" 2>/dev/null || true
+fi
+
 # ------------------------------------------------------------------------------
 # Step 7: Configure Minimal Sudoers File (evote-maintenance)
 # ------------------------------------------------------------------------------
@@ -281,7 +335,7 @@ echo -e "${GREEN}===============================================================
 echo -e "User Account:       ${BOLD}${EVOTE_USER}${NC} (Locked password, non-root)"
 echo -e "Display Manager:    GDM3 (Auto-login: ${EVOTE_USER}, Wayland: Enabled)"
 echo -e "Target URL:         $(grep VOTING_URL /etc/default/evote-kiosk | cut -d'=' -f2)"
-echo -e "Browser Engine:     Snap Firefox (Enterprise Lockdown Active)"
+echo -e "Browser Engine:     Firefox on ${DISTRO_ID} (Enterprise Lockdown Active)"
 echo -e "DConf Hardening:    App Switcher, Hot Corners, TTY, Power, USB Storage Disabled"
 echo -e "Service:            evote-kiosk.service (User systemd unit enabled)"
 echo -e "Maintenance Sudo:   Restricted to restart, reboot, and network check commands"

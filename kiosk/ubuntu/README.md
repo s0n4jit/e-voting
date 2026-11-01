@@ -1,6 +1,6 @@
 # Ubuntu voting booth kit
 
-Scripts and policies that turn an Ubuntu 24.04/26.04 computer into a locked-down voting booth.
+Scripts and policies that turn a Linux computer (Ubuntu, Debian, Fedora/RHEL family or Arch, with GNOME/GDM) into a locked-down voting booth. The installer detects the distribution automatically: `sudo bash setup-kiosk.sh --detect` prints what it found.
 
 | File | Purpose |
 |---|---|
