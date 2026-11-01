@@ -142,6 +142,28 @@ if [[ -f "${POLICIES_SRC}" ]]; then
         chmod 644 /var/snap/firefox/current/policies/policies.json
     fi
     log_info "Firefox Enterprise Policies deployed to /etc/firefox/policies/policies.json."
+
+    # Allow the booth address given in VOTING_URL (the shipped policy only knows the example addresses).
+    if [[ -n "${VOTING_URL:-}" ]]; then
+        if [[ ! "${VOTING_URL}" =~ ^https?://[^/]+/kiosk/vote$ ]]; then
+            log_error "VOTING_URL must look like https://your-site.example/kiosk/vote (got: ${VOTING_URL})."
+            exit 1
+        fi
+        for POLICY_FILE in /etc/firefox/policies/policies.json /var/snap/firefox/current/policies/policies.json; do
+            [[ -f "${POLICY_FILE}" ]] || continue
+            python3 - "${POLICY_FILE}" "${VOTING_URL}*" <<'PYEOF'
+import json, sys
+path, allowed = sys.argv[1], sys.argv[2]
+policy = json.load(open(path))
+p = policy["policies"]
+for lst in (p["WebsiteFilter"]["Exceptions"], p["URLAllowlist"]):
+    if allowed not in lst:
+        lst.append(allowed)
+json.dump(policy, open(path, "w"), indent=2)
+PYEOF
+        done
+        log_info "Browser policy now also allows ${VOTING_URL}."
+    fi
 else
     log_error "Policies file ${POLICIES_SRC} not found!"
     exit 1
@@ -163,8 +185,12 @@ else
     exit 1
 fi
 
-# Install default environment file if missing
-if [[ ! -f "/etc/default/evote-kiosk" ]]; then
+# The address given in VOTING_URL always wins; otherwise keep an existing file or write the default.
+if [[ -n "${VOTING_URL:-}" ]]; then
+    printf '# Campus E-Voting System (CEVS) - Kiosk Configuration\nVOTING_URL="%s"\n' "${VOTING_URL}" > /etc/default/evote-kiosk
+    chmod 644 /etc/default/evote-kiosk
+    log_info "Booth address set to ${VOTING_URL}."
+elif [[ ! -f "/etc/default/evote-kiosk" ]]; then
     cat <<'EOF' > /etc/default/evote-kiosk
 # Campus E-Voting System (CEVS) - Kiosk Configuration
 VOTING_URL="http://localhost:3000/kiosk/vote"

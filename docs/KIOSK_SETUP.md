@@ -34,7 +34,7 @@ The installer:
 5. installs `evote-kiosk.service`, a user service with a crash watchdog that restarts the browser;
 6. installs a tightly limited sudoers file (`/etc/sudoers.d/evote-maintenance`) for restarting the service and checking the network.
 
-The booth address is stored in `/etc/default/evote-kiosk` (`VOTING_URL`). `/kiosk` and `/vote` redirect to `/kiosk/vote`, but the browser policy allows only `/kiosk/vote…`, so use that address.
+The booth address given in `VOTING_URL` is written to `/etc/default/evote-kiosk` and added to the browser policy, so it works for any host (for example `https://evoting.example.edu/kiosk/vote`). To change it later, run the script again with the new address. `/kiosk` and `/vote` redirect to `/kiosk/vote`, but the browser policy allows only `/kiosk/vote…`, so use that address.
 
 ## 3. Turn the computer into a booth
 
