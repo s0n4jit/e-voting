@@ -7,7 +7,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 _Nothing yet._
 
-## 1.2.0 — 2026-10-31
+## 1.3.0 — 2026-11-01
 
 - Student lists: register many students from a CSV (installation wizard step and the Registrations page), with the slip IDs returned.
 - Results: "None of the Above" is shown as a count, never as a candidate: it cannot win or tie. Votes are shown as numbers instead of percentages, the report is counts only, and results can be printed on white paper with signature lines.
@@ -16,6 +16,9 @@ _Nothing yet._
 - **Booth OS**: a bootable Debian-based image (Cage + Firefox kiosk, nothing installed or saved) built by a GitHub Actions workflow. The portal address is embedded into the downloaded ISO with `booth-os/embed-url.py`. See `docs/BOOTH_OS.md`.
 - The booth installer detects the distribution (Ubuntu, Debian, Fedora/RHEL family, Arch with GNOME/GDM) and installs Firefox and its policy the way each one ships it; `--detect` prints the result. Only Ubuntu has been tried on real hardware.
 - Booth installer (`kiosk/ubuntu/setup-kiosk.sh`): the `VOTING_URL` you pass is now really used (it was ignored and the example `localhost:3000` kept) and is added to the browser policy, so a booth works against any site, not only the example address.
+
+## 1.2.0 — 2026-10-31
+
 - Staff sessions: 15-minute idle sign-out with a warning, silent renewal while active, 12-hour hard cap, and signed-out tokens stored in the database (they stay revoked after a restart). Settings: `JWT_ACCESS_TOKEN_EXPIRES_MINUTES` (15), `JWT_REFRESH_TOKEN_EXPIRES_HOURS` (12).
 - `docker compose up` now starts the app (8080), the landing page and guides (8081) and exposes the API on localhost (5000), all on fixed, configurable ports; `python scripts/make_env.py` creates `.env` with random secrets for a fresh clone.
 - Website: mobile layout fixed (no sideways scrolling or zooming out) and a hamburger menu on small screens.
