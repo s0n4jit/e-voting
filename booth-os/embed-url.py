@@ -48,8 +48,7 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     source, url = sys.argv[1], sys.argv[2]
     if not os.path.isfile(source):
-        raise SystemExit(f"File not found: {source}
-Give the full path of the downloaded ISO, for example booth-os/evote-booth-os.iso")
+        raise SystemExit(f"File not found: {source}. Give the full path of the downloaded ISO, for example booth-os/evote-booth-os.iso")
     host = re.sub(r"[^a-z0-9.-]", "", (url.split("//")[-1].split("/")[0]).lower()) or "booth"
     out = sys.argv[3] if len(sys.argv) == 4 else f"{os.path.splitext(source)[0]}-{host}.iso"
     if os.path.abspath(out) == os.path.abspath(source):
@@ -59,5 +58,5 @@ Give the full path of the downloaded ISO, for example booth-os/evote-booth-os.is
     if not count:
         os.remove(out)
         raise SystemExit("No placeholder found: this is not an unmodified Booth OS ISO (or it already has an address). Download a fresh copy.")
-    print(f"Done: {out}
-The address is written in {count} boot menu entr{'y' if count == 1 else 'ies'}. Write this file to the USB stick.")
+    print(f"Done: {out}")
+    print(f"The address is written in {count} boot menu entr{'y' if count == 1 else 'ies'}. Write this file to the USB stick.")
