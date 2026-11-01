@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Put your portal address into a downloaded Campus E-Voting Booth OS ISO.
 
-    python embed-url.py evote-booth-os.iso https://vote.example.edu/kiosk/vote
+    python embed-url.py evote-booth-os.iso https://vote.example.edu/kiosk/vote [output.iso]
 
-The ISO carries a fixed-size placeholder on its boot command line. This tool overwrites it in place
-(same length, so the image stays valid) in every boot menu entry it finds. Works on Windows, macOS and
-Linux with plain Python 3. The ISO is changed in place; keep a copy of the original if you need other addresses.
+The ISO carries a fixed-size placeholder on its boot command line. This tool copies the ISO and overwrites
+the placeholder in the copy (same length, so the image stays valid) in every boot menu entry it finds. The
+original is left untouched, so you can make one per address. Works on Windows, macOS and Linux with plain Python 3.
 """
+import os
 import re
+import shutil
 import sys
 
 PLACEHOLDER = b"@EVOTEURL@" + b"x" * 190  # must match booth-os/auto/config
@@ -42,9 +44,20 @@ def patch(path: str, url: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         raise SystemExit(__doc__)
-    count = patch(sys.argv[1], sys.argv[2])
+    source, url = sys.argv[1], sys.argv[2]
+    if not os.path.isfile(source):
+        raise SystemExit(f"File not found: {source}
+Give the full path of the downloaded ISO, for example booth-os/evote-booth-os.iso")
+    host = re.sub(r"[^a-z0-9.-]", "", (url.split("//")[-1].split("/")[0]).lower()) or "booth"
+    out = sys.argv[3] if len(sys.argv) == 4 else f"{os.path.splitext(source)[0]}-{host}.iso"
+    if os.path.abspath(out) == os.path.abspath(source):
+        raise SystemExit("The output file must differ from the original.")
+    shutil.copyfile(source, out)
+    count = patch(out, url)
     if not count:
+        os.remove(out)
         raise SystemExit("No placeholder found: this is not an unmodified Booth OS ISO (or it already has an address). Download a fresh copy.")
-    print(f"Done: address written in {count} boot menu entr{'y' if count == 1 else 'ies'}.")
+    print(f"Done: {out}
+The address is written in {count} boot menu entr{'y' if count == 1 else 'ies'}. Write this file to the USB stick.")

@@ -21,7 +21,7 @@ You need Python 3 (any computer) and the `embed-url.py` file from the `booth-os`
 python embed-url.py evote-booth-os.iso https://vote.example.edu/kiosk/vote
 ```
 
-It changes the downloaded file in place and prints how many boot entries were updated. The address must end in `/kiosk/vote`. To use a different address later, download a fresh copy of the ISO.
+It makes a **copy** of the ISO with your address in it (for example `evote-booth-os-vote.example.edu.iso`) and leaves the original untouched, so you can make one per address. Use the full path to the ISO if it is in another folder. The address must end in `/kiosk/vote`.
 
 ## 3. Write it to a USB stick
 
