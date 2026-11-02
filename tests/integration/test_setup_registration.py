@@ -862,7 +862,7 @@ def test_audit_log_groups_and_new_events(client, installed, desk_token, booth):
     assert [c["id"] for c in data["categories"]][:3] == ["ballot", "pin", "desk"]
     assert data["stats"]["desk_enrollments"] >= 2 and data["stats"]["kiosk_actions"] >= 1
     row = next(l for l in data["logs"] if l["action"] == "DESK_CHECKIN")
-    assert row["category"] == "desk" and row["action_label"] == "Desk checkin" and "no PIN yet" in row["details"]
+    assert row["category"] == "desk" and row["action_label"] == "Desk checkin" and "PIN already issued" in row["details"]
 
 
 # ── backup and reset ─────────────────────────────────────────────────────────
@@ -1085,3 +1085,36 @@ def test_registrations_belong_to_the_election_and_can_be_removed_before_voting(c
     for s in ("registration", "ready", "voting_active"):
         client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
     assert client.delete("/api/desk/registrations", headers=H(installed), json={"confirm": "DELETE"}).status_code == 409
+
+
+def test_pins_are_pre_issued_with_the_slip_and_stay_valid_until_used(client, installed, desk_token, booth):
+    from datetime import datetime, timedelta, timezone
+    from app.models.voting_token import VotingToken
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    reg = register(client, desk_token).get_json()
+    assert re.fullmatch(r"\d{6}", reg["pin"])                                   # the slip already carries the PIN
+    token = VotingToken.query.filter_by(student_id=reg["slip_id"]).first()
+    exp = token.expires_at if token.expires_at.tzinfo else token.expires_at.replace(tzinfo=timezone.utc)
+    assert exp > datetime.now(timezone.utc) + timedelta(days=30)               # not a 20-minute PIN any more
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    # no check-in step: slip ID + PIN works at the booth straight away
+    login = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": reg["slip_id"], "voting_pin": reg["pin"]})
+    assert login.status_code == 200 and "access_token" in login.get_json()
+
+
+def test_imported_students_get_working_pins(client, installed, desk_token, booth):
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    r = _csv_upload(client, H(desk_token), "name,programme,department,semester\nAnita Das,Bachelor of Science,Physics,3\nRahul Borah,Bachelor of Arts,English,1\n")
+    students = r.get_json()["students"]
+    assert all(re.fullmatch(r"\d{6}", s["pin"]) for s in students)
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    bad = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": students[0]["slip_id"], "voting_pin": "000000" if students[0]["pin"] != "000000" else "111111"})
+    assert bad.status_code == 401
+    ok = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": students[1]["slip_id"], "voting_pin": students[1]["pin"]})
+    assert ok.status_code == 200

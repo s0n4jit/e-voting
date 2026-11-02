@@ -27,6 +27,10 @@ class PinResult(str):
         yield self.token
 
 
+# Pre-issued voting PINs stay valid until they are used or voting closes (not for a few minutes).
+STATIC_PIN_MINUTES = 60 * 24 * 60
+
+
 class VotingToken(db.Model):
     __tablename__ = "voting_tokens"
 
@@ -77,6 +81,7 @@ class VotingToken(db.Model):
         election_id: int,
         created_by=None,
         validity_minutes: int = 20,
+        rounds: int = 10,
     ) -> PinResult:
         """
         Generate a random single-use 6-digit PIN valid for validity_minutes (default 20m).
@@ -88,7 +93,7 @@ class VotingToken(db.Model):
 
         student_id_clean = str(student_id).strip()
         raw_pin = f"{secrets.randbelow(1_000_000):06d}"
-        salt = bcrypt.gensalt(rounds=10, prefix=b"2b")
+        salt = bcrypt.gensalt(rounds=rounds, prefix=b"2b")
         pin_hash = bcrypt.hashpw(raw_pin.encode("utf-8"), salt).decode("utf-8")
 
         now = datetime.now(timezone.utc)

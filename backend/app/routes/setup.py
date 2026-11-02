@@ -210,6 +210,7 @@ def complete():
     start, end = voting_window(el, s["timezone"])
     username, email = o["username"].strip(), o["email"].strip().lower()
 
+    slips = []
     try:
         # The primary key on "installed" makes this the single winner of any race.
         db.session.add(SystemSetting(key="installed", value="true"))
@@ -257,10 +258,11 @@ def complete():
             from app.student_import import import_students
 
             db.session.flush()
-            made, _skipped, bad_students = import_students(el["students_csv"], election, officer.id)
+            imported, _skipped, bad_students = import_students(el["students_csv"], election, officer.id)
             if bad_students:
                 raise ValueError("student list: " + bad_students[0])
-            current_app.logger.info("Imported %d students during setup.", len(made))
+            slips = imported
+            current_app.logger.info("Imported %d students during setup.", len(imported))
 
         db.session.add(AuditLog(
             user_id=officer.id,
@@ -283,4 +285,6 @@ def complete():
         "access_token": create_access_token(identity=str(officer.id), additional_claims=claims),
         "refresh_token": create_refresh_token(identity=str(officer.id), additional_claims=claims),
         "user": officer.to_dict(),
+        "election_title": election.title,
+        "students": slips,  # the slips with their voting PINs, shown once so they can be printed
     }), 201

@@ -9,6 +9,7 @@ import { TwoStep } from '../Profile/ProfilePage';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ProgrammePlanner from './ProgrammePlanner';
+import SlipSheet, { slipsCsv } from '../Desk/SlipSheet';
 import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const STEPS = ['Welcome', 'System', 'Officer account', 'Election', 'Review'];
@@ -28,6 +29,7 @@ const today = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 export default function SetupWizard() {
   const { ready, installed, requiresToken } = useBrand();
   const { loadCurrentUser, user: signedIn } = useAuth();
+  const [slips, setSlips] = useState({ students: [], title: '' });
   const [secure, setSecure] = useState(false); // after installing: offer two-step verification
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -72,6 +74,32 @@ export default function SetupWizard() {
             <h1 className="text-2xl font-semibold tracking-tight">Turn on two-step verification</h1>
             <p className="text-muted mt-2">The portal is installed, but the Election Officer account cannot be used until two-step verification is on. It is required: it approves new voting booths, protects resets and backups, and lets you recover a forgotten password. Scan the code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…) and enter the 6-digit code.</p>
           </div>
+          {slips.students.length > 0 && (
+            <div className="card card-body space-y-3">
+              <p className="font-medium">{slips.students.length} students registered with a Voter Slip ID and a voting PIN</p>
+              <p className="text-sm text-muted">
+                Give each student their slip before the election; they can then just come to a booth and vote. The PINs are shown only now and cannot be read again.
+                A lost PIN can be replaced at the desk.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-secondary" onClick={() => window.print()}>Print slips</button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob([slipsCsv(slips.students)], { type: 'text/csv' }));
+                    a.download = 'voter-slips-with-pins.csv';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  }}
+                >
+                  Download (CSV)
+                </button>
+              </div>
+              <SlipSheet students={slips.students} electionTitle={slips.title} />
+            </div>
+          )}
           <TwoStep />
           <div className="text-center">
             <button className="btn-primary btn-lg" disabled={!signedIn?.otp_enabled} onClick={() => window.location.replace('/admin/dashboard')}>Go to the dashboard</button>
@@ -118,6 +146,7 @@ export default function SetupWizard() {
       localStorage.setItem('refresh_token', res.refresh_token);
       localStorage.setItem('user', JSON.stringify(res.user));
       await loadCurrentUser();
+      setSlips({ students: res.students || [], title: res.election_title || '' });
       setSecure(true);
       setBusy(false);
     } catch (err) {

@@ -28,7 +28,7 @@
 | "No programmes configured" | Election Officer: Programmes → add or import a CSV. |
 | Duplicate student warning | The same name, programme and semester already exists. Confirm only if it is a different student. |
 | PIN cannot be issued / student cannot be registered | Voting has been closed (registration and PINs end with it), or the student has already voted, or the slip ID is wrong (check the prefix, e.g. `SUE26-E1-`). |
-| PIN stopped working | It expires after 20 minutes, works once, and is cancelled after 5 wrong entries. Issue a new one. |
+| PIN stopped working | It works once, stays valid until it is used or voting closes, and is cancelled after 5 wrong entries. Issue a new PIN at the desk (it replaces the old one). |
 
 ## Booths
 

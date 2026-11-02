@@ -19,7 +19,7 @@ Election Officer & Administrator who installs, configures and runs the election 
 Desk Officer & Staff who register students and issue PINs (role \code{polling\_officer}) \\
 Voter & A registered student who votes at a booth \\
 Voter Slip ID & Generated identifier printed on the voter's slip, e.g.\ \code{SUE26-E1-483920} \\
-PIN & Single-use six-digit code issued by a Desk Officer, valid 20 minutes \\
+PIN & Single-use six-digit code created with each registration and printed on the voter slip, valid until used or until voting closes \\
 Booth & A locked-down computer authorised to accept votes \\
 Booth token & Secret kept by a booth after set-up \\
 NOTA & ``None of the Above'' (abstain) \\
@@ -109,7 +109,7 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \req{FR-16}{The system shall generate a unique Voter Slip ID automatically; officers shall not type it.}{High}
 \req{FR-17}{The system shall warn about a possible duplicate and require confirmation.}{Medium}
 \req{FR-18}{Desk Officers shall search, filter, edit (until voted), print and export registrations.}{High}
-\req{FR-19}{A Desk Officer shall issue a single-use PIN, valid 20 minutes, to a registered voter who has not voted.}{High}
+\req{FR-19}{A single-use PIN shall be created for every registered voter together with the slip, so that slips and PINs can be handed out before the election; a Desk Officer shall be able to replace a lost PIN.}{High}
 \req{FR-20}{Registration statuses shall update without page refresh.}{Low}
 \bottomrule
 \end{tabularx}

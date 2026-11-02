@@ -3,6 +3,7 @@ import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { deskApi, saveBlob, setupApi } from '../../api/deskApi';
 import { errorMessage } from '../ui';
 import Modal from '../common/Modal';
+import SlipSheet, { slipsCsv } from './SlipSheet';
 
 /** Register many students at once from a CSV: name, programme, department, semester. */
 export default function ImportStudents({ onDone }) {
@@ -37,10 +38,7 @@ export default function ImportStudents({ onDone }) {
     }
   };
 
-  const downloadSlips = () => {
-    const rows = ['name,slip_id,programme,semester', ...result.students.map((s) => `"${s.name}",${s.slip_id},"${s.programme}",${s.semester}`)];
-    saveBlob(new Blob([rows.join('\n') + '\n'], { type: 'text/csv' }), 'new-voter-slips.csv');
-  };
+  const downloadSlips = () => saveBlob(new Blob([slipsCsv(result.students)], { type: 'text/csv' }), 'voter-slips-with-pins.csv');
 
   return (
     <>
@@ -52,10 +50,14 @@ export default function ImportStudents({ onDone }) {
           <div className="space-y-4">
             <p className="text-sm">
               <b>{result.created}</b> {result.created === 1 ? 'student was' : 'students were'} registered
-              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a Voter Slip ID.
+              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a Voter Slip ID and a voting PIN.
+            </p>
+            <p className="text-sm text-warn bg-warn-soft rounded-lg px-3 py-2">
+              Print or download the slips now. The PINs are shown only here and cannot be read again; a lost PIN can be replaced at the desk.
             </p>
             <div className="flex justify-end gap-2">
-              {result.created > 0 && <button className="btn-secondary" onClick={downloadSlips}>Download slip IDs (CSV)</button>}
+              {result.created > 0 && <button className="btn-secondary" onClick={downloadSlips}>Download (CSV)</button>}
+              {result.created > 0 && <button className="btn-secondary" onClick={() => window.print()}>Print slips</button>}
               <button className="btn-primary" onClick={close}>Done</button>
             </div>
           </div>
@@ -86,6 +88,7 @@ export default function ImportStudents({ onDone }) {
           </div>
         )}
       </Modal>
+      {result && <SlipSheet students={result.students} electionTitle={result.election_title} />}
     </>
   );
 }

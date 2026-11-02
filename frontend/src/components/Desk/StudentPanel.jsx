@@ -91,7 +91,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
           <p className="text-sm text-slate-600">{current.name}</p>
           <p className="font-mono text-xs text-slate-500 mt-1">{current.slip_id}</p>
           <p className="text-xs text-slate-500 mt-4">
-            Valid for {pin.validity_minutes} minutes and works once. Enter it together with the slip ID at a voting booth.
+            Works once and stays valid until it is used or voting closes. Enter it together with the slip ID at a voting booth. A new PIN replaces this one.
           </p>
         </div>
         <div className="no-print flex justify-center gap-2">

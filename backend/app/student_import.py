@@ -10,11 +10,14 @@ import csv
 import io
 import itertools
 import secrets
+import bcrypt
+from datetime import datetime, timedelta, timezone
 
 from app.extensions import db
 from app.models.programme import Programme
 from app.models.user import User
 from app.models.voter_record import VoterRecord
+from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
 from app.utils.validators import clean_name, sanitize_input, validate_person_name
 
 MAX_STUDENTS = 5000
@@ -55,6 +58,7 @@ def import_students(text, election, actor_id=None, dry_run=False):
     shared.set_password(secrets.token_urlsafe(24))  # voters never sign in with a password: one unusable hash for all rows
 
     created, skipped, errors = [], 0, []
+    users = []
     for line, row in enumerate(rows, start=2):
         row = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items() if isinstance(v, (str, type(None)))}
         name = clean_name(row.get("name", ""))
@@ -91,4 +95,18 @@ def import_students(text, election, actor_id=None, dry_run=False):
         if make_record:
             db.session.add(VoterRecord(election_id=election.id, voter_hash=User.hash_student_id(slip), has_voted=False))
         created.append({"name": name, "slip_id": slip, "programme": programme.name, "semester": semester})
+        users.append(user)
+
+    if make_record and users:
+        db.session.flush()  # ids for the PIN rows
+        now = datetime.now(timezone.utc)
+        for user, row in zip(users, created):
+            pin = f"{secrets.randbelow(1_000_000):06d}"
+            # cost 8 keeps a few hundred students quick on small servers; online guesses are limited to 5 per PIN
+            pin_hash = bcrypt.hashpw(pin.encode(), bcrypt.gensalt(rounds=8, prefix=b"2b")).decode()
+            db.session.add(VotingToken(
+                election_id=election.id, user_id=user.id, student_id=user.student_id, pin_hash=pin_hash,
+                expires_at=now + timedelta(minutes=STATIC_PIN_MINUTES), is_used=False, created_at=now, created_by=actor_id,
+            ))
+            row["pin"] = pin
     return created, skipped, errors

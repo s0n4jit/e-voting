@@ -19,7 +19,7 @@ from app.models.election_position import ElectionPosition
 from app.models.programme import Programme
 from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
-from app.models.voting_token import VotingToken
+from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
 from app.models.kiosk_device import KioskDevice
 from app.utils.decorators import admin_required, desk_required
 from app.audit_categories import ACTIONS, ALIASES, CATEGORIES, action_label, category_of
@@ -545,7 +545,7 @@ def issue_desk_pin():
         student_id=user.student_id,
         election_id=election.id,
         created_by=admin_id,
-        validity_minutes=20,
+        validity_minutes=STATIC_PIN_MINUTES,
     )
 
     # Audit log PIN issuance
@@ -568,7 +568,7 @@ def issue_desk_pin():
             "pin": str(raw_pin),
             "voting_pin": str(raw_pin),
             "expires_at": token_record.expires_at.isoformat(),
-            "validity_minutes": 20,
+            "validity_minutes": STATIC_PIN_MINUTES,
             "election_id": election.id,
             "election_title": election.title,
             "is_new_registration": is_new_registration,

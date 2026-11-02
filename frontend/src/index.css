@@ -155,6 +155,11 @@
   .results-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0 1rem; }
   .results-print .card { box-shadow: none !important; border: 1px solid #999 !important; break-inside: avoid; margin-bottom: 1rem; }
   html, body { background: #fff !important; color: #000 !important; }
+
+  /* Voter slips with PINs: a sheet of cut-out slips, two per row */
+  .slips-print, .slips-print * { visibility: visible; }
+  .slips-print { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6mm; position: absolute; left: 0; top: 0; width: 100%; }
+  .slips-print .slip { break-inside: avoid; border: 1px dashed #666; padding: 4mm; color: #000; background: #fff; }
 }
 
 @media (prefers-reduced-motion: reduce) {

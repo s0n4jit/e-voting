@@ -220,7 +220,7 @@ Opening voting requires every position to have at least one candidate. From \emp
   \node[proc, below=of print] (chk) {At voting time: check in, verify status};
   \node[dec, below=of chk] (voted) {Already voted?};
   \node[fail, right=1.5cm of voted] (no) {No PIN issued};
-  \node[term, below=1.0cm of voted] (pin) {Issue single-use PIN (20 min)};
+  \node[term, below=1.0cm of voted] (pin) {Issue replacement PIN (if lost)};
   \draw[flow] (s) -- (in); \draw[flow] (in) -- (val);
   \draw[flow] (val) -- node[lbl, above]{no} (err);
   \draw[flow] (val) -- node[lbl, right]{yes} (dup);

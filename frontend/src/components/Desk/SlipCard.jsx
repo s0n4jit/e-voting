@@ -20,6 +20,12 @@ export default function SlipCard({ slip, showPrint = true }) {
           <p className="text-xs uppercase tracking-widest text-slate-500">Voter Slip ID</p>
           <p className="font-mono text-3xl font-semibold tracking-wider mt-2 break-all text-slate-900">{slip.slip_id}</p>
         </div>
+        {slip.pin && (
+          <div className="px-6 pb-4 text-center">
+            <p className="text-xs uppercase tracking-widest text-slate-500">Voting PIN</p>
+            <p className="font-mono text-4xl font-semibold tracking-[0.3em] pl-[0.3em] mt-1 text-slate-900">{slip.pin}</p>
+          </div>
+        )}
         <dl className="px-6 pb-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
           <div className="col-span-2">
             <dt className="text-xs text-slate-500">Name</dt>
@@ -39,7 +45,9 @@ export default function SlipCard({ slip, showPrint = true }) {
           </div>
         </dl>
         <p className="px-6 py-3 bg-slate-50 text-xs text-slate-500 text-center border-t border-dashed border-slate-300">
-          Keep this slip safe. Show it at the voting desk to receive your voting PIN.
+          {slip.pin
+            ? 'Keep this slip and the PIN secret. At the voting booth, enter the slip ID and this PIN to vote once.'
+            : 'Keep this slip safe. Show it at the voting desk to receive your voting PIN.'}
         </p>
       </div>
       {showPrint && (

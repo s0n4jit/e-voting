@@ -23,7 +23,7 @@ from app.models.programme import Programme
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.models.voter_record import VoterRecord
-from app.models.voting_token import VotingToken
+from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
 from app.utils.decorators import admin_required, desk_required
 from app.utils.timeutil import utc_iso
 from app.utils.validators import clean_name, sanitize_input, validate_person_name
@@ -211,14 +211,18 @@ def register_student():
     if user is None:
         return jsonify({"error": "Could not generate a unique Voter Slip ID. Please try again."}), 503
 
+    pin = None
     if election and election.desk_open:
         db.session.add(VoterRecord(
             election_id=election.id, voter_hash=User.hash_student_id(user.student_id), has_voted=False
         ))
+        db.session.flush()
+        # a pre-issued PIN: printed on the slip, valid until it is used or voting closes
+        pin, _token = VotingToken.generate_pin(user.student_id, election.id, _actor_id(), STATIC_PIN_MINUTES)
     _audit("STUDENT_REGISTERED", f"Registered {user.name} ({user.student_id}) in {programme.name}, {programme.term_name(semester)}.")
     db.session.commit()
 
-    return jsonify(_serialize(user, "registered", {programme.id: programme}, election)), 201
+    return jsonify({**_serialize(user, "registered", {programme.id: programme}, election), "pin": pin}), 201
 
 
 @desk_bp.post("/registrations/import")
@@ -244,7 +248,8 @@ def import_registrations():
         return jsonify({"error": f"{len(errors)} problem(s) found. Nothing was imported.", "errors": errors[:30]}), 400
     _audit("STUDENTS_IMPORTED", f"Imported {len(created)} students from a list ({skipped} duplicates skipped).")
     db.session.commit()
-    return jsonify({"created": len(created), "skipped": skipped, "students": created}), 201
+    return jsonify({"created": len(created), "skipped": skipped, "students": created,
+                    "election_title": election.title if election else ""}), 201
 
 
 @desk_bp.delete("/registrations")

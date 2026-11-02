@@ -46,7 +46,8 @@ Click your name (top right): change your password (with the current password, or
 - **Import list** (Registrations page, and an optional step in the installation wizard): register many students from a CSV with the columns `name, programme, department, semester`. Programme and department must match the Programmes list. Nothing is imported unless every row is correct; duplicates are skipped; every student gets a Voter Slip ID and you can download the new slip IDs.
 - **Remove all** (Election Officer, Registrations page, before voting opens): removes every student registered for the election, with their slips and PINs. The Registrations page only ever shows the current election's students.
 - **Registrations**: search by name or slip ID, filter, edit details (until the student has voted), export a CSV. Statuses (Registered, PIN active, Voted) update live.
-- **Voter check-in**: enter the slip ID, check the status, and **Issue voting PIN**. The PIN works once and for 20 minutes. Hand the student their slip and PIN.
+- **Voter slip and PIN**: every registered student already has a **voting PIN**, created with the slip and printed on it (registering at the desk, importing a list, or the installation wizard). Slips and PINs can be handed out before the election; on the day the student only goes to a booth and enters the slip ID and the PIN. The PIN works once and stays valid until it is used or voting closes.
+- **Voter check-in** (lost PIN or slip): enter the slip ID, check the status, and **Issue voting PIN**. It replaces the old PIN. A PIN is cancelled after 5 wrong entries; issue a new one.
 
 ## Voter
 
