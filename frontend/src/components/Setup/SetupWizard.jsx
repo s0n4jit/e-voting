@@ -9,20 +9,10 @@ import { TwoStep } from '../Profile/ProfilePage';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ProgrammePlanner from './ProgrammePlanner';
+import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const STEPS = ['Welcome', 'System', 'Officer account', 'Election', 'Review'];
 const LANGUAGES = { en: 'English', hi: 'Hindi', bn: 'Bengali', as: 'Assamese' };
-const SUGGESTED_POSITIONS = [
-  'Vice President',
-  'General Secretary',
-  'Cultural Secretary',
-  'Magazine Secretary',
-  'Assistant General Secretary',
-  'Major Games Secretary',
-  'Minor Games Secretary',
-  'Boys’ Common Room Secretary',
-  'Girls’ Common Room Secretary',
-];
 const MAX_LOGO_BYTES = 250 * 1024;
 
 const timezones = () => {
@@ -63,7 +53,7 @@ export default function SetupWizard() {
       date: today(),
       start_time: '09:00',
       end_time: '17:00',
-      positions: [],
+      positions: [...DEFAULT_POSITIONS],
       programmes_csv: '',
       students_csv: '',
     },
@@ -359,46 +349,8 @@ export default function SetupWizard() {
                   </div>
                   {errors.schedule && <p className="error-text -mt-3" role="alert">{errors.schedule}</p>}
 
-                  <Field label="Available positions" error={errors.positions}>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {election.positions.map((p) => (
-                        <span key={p} className="badge-brand gap-1.5 pr-1.5">
-                          {p}
-                          <button
-                            type="button"
-                            className="rounded-full hover:bg-brand/20 p-0.5"
-                            onClick={() => set('election', 'positions', election.positions.filter((x) => x !== p))}
-                            aria-label={`Remove ${p}`}
-                          >
-                            <XMarkIcon className="w-3.5 h-3.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        className="input"
-                        value={positionDraft}
-                        placeholder="Type a position and press Enter"
-                        onChange={(e) => setPositionDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addPosition(positionDraft);
-                          }
-                        }}
-                      />
-                      <button type="button" className="btn-secondary" onClick={() => addPosition(positionDraft)}>
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {SUGGESTED_POSITIONS.filter((s) => !election.positions.includes(s)).map((s) => (
-                        <button key={s} type="button" className="badge-neutral hover:bg-line transition-colors" onClick={() => addPosition(s)}>
-                          + {s}
-                        </button>
-                      ))}
-                    </div>
+                  <Field label="Positions, in the order of the election notice" error={errors.positions}>
+                    <PositionsEditor value={election.positions} onChange={(v) => set('election', 'positions', v)} />
                   </Field>
 
                   <div>

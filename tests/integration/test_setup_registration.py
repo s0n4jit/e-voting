@@ -1043,3 +1043,18 @@ def test_student_list_can_be_imported_in_the_setup_wizard(client, db):
     assert User.query.filter_by(role="voter").count() == 3
     from app.models.voter_record import VoterRecord
     assert VoterRecord.query.count() == 3
+
+
+def test_positions_follow_the_election_notice_order_in_ballot_and_results(client, installed):
+    from app.services.vote_service import VoteService
+    notice = ["President", "Vice President", "General Secretary", "Assistant General Secretary", "Cultural Secretary",
+              "Magazine Secretary", "Major Games Secretary", "Minor Games Secretary", "Boys’ Common Room Secretary",
+              "Girls’ Common Room Secretary"]
+    eid = _open_election(client, installed)
+    assert client.put(f"/api/admin/elections/{eid}/positions", headers=H(installed), json={"positions": notice}).status_code == 200
+    for pos in reversed(notice):                                # candidates added in the opposite order
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    assert [p["position"] for p in VoteService.get_results(election_id=eid, force=True)["by_position"]] == notice
+    moved = notice[1:2] + notice[:1] + notice[2:]               # the officer moves President below Vice President
+    client.put(f"/api/admin/elections/{eid}/positions", headers=H(installed), json={"positions": moved})
+    assert [p["position"] for p in VoteService.get_results(election_id=eid, force=True)["by_position"]] == moved

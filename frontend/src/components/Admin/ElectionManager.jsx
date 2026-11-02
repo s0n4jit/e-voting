@@ -7,6 +7,7 @@ import { saveBlob } from '../../api/deskApi';
 import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
+import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const ORDER = ['setup', 'registration', 'ready', 'voting_active', 'voting_closed', 'results_published', 'archived'];
 const NEXT = {
@@ -86,24 +87,14 @@ export const ElectionManager = () => {
             description: election.description || '',
             start_time: toLocalInput(election.start_time),
             end_time: toLocalInput(election.end_time),
-            positions: (election.positions || []).join('\n'),
+            positions: [...(election.positions || [])],
           }
         : {
             title: '',
             description: '',
             start_time: toLocalInput(now),
             end_time: toLocalInput(new Date(now.getTime() + 86400000)),
-            positions: [
-              'Vice President',
-              'General Secretary',
-              'Cultural Secretary',
-              'Magazine Secretary',
-              'Assistant General Secretary',
-              'Major Games Secretary',
-              'Minor Games Secretary',
-              'Boys’ Common Room Secretary',
-              'Girls’ Common Room Secretary',
-            ].join('\n'),
+            positions: [...DEFAULT_POSITIONS],
           },
     });
   };
@@ -132,7 +123,7 @@ export const ElectionManager = () => {
       start_time: start.toISOString(),
       end_time: end.toISOString(),
     };
-    const positions = form.positions.split('\n').map((p) => p.trim()).filter(Boolean);
+    const positions = form.positions;
     try {
       if (election) {
         await adminApi.updateElection(election.id, payload);
@@ -279,8 +270,8 @@ export const ElectionManager = () => {
             <p className="text-xs text-muted -mt-2">
               The date and time are shown to staff and voters for information only. Voting starts when you press Open voting and ends when you press Close voting.
             </p>
-            <Field label="Positions" htmlFor="el-pos" hint={lockedEditing ? 'Positions are locked once voting has opened.' : 'One per line, in the order voters will see them.'}>
-              <textarea id="el-pos" className="input min-h-[110px]" disabled={lockedEditing} value={editor.form.positions} onChange={(e) => setEditor({ ...editor, form: { ...editor.form, positions: e.target.value } })} />
+            <Field label="Positions" hint={lockedEditing ? 'Positions are locked once voting has opened.' : 'In the order voters see them and the order of the results.'}>
+              <PositionsEditor value={editor.form.positions} onChange={(v) => setEditor({ ...editor, form: { ...editor.form, positions: v } })} disabled={lockedEditing} />
             </Field>
             {formError && <p className="error-text" role="alert">{formError}</p>}
             <div className="flex justify-end gap-2 pt-2">

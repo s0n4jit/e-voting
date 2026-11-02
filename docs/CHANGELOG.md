@@ -5,7 +5,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
-_Nothing yet._
+- Positions: President is added, and the standard list follows the 2026-27 Students' Union election notice (President, Vice President, General Secretary, Assistant General Secretary, Cultural Secretary, Magazine Secretary, Major Games Secretary, Minor Games Secretary, Boys' and Girls' Common Room Secretary). The installation wizard starts with this list. Positions can be added, removed and **reordered** (arrows) in the wizard and in Edit election; the ballot and the results follow that order.
 
 ## 1.3.0 — 2026-11-01
 

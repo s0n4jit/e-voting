@@ -8,7 +8,7 @@
 
 ### Prepare the election
 - **Programmes**: add programmes and departments, or import a CSV (`level,programme,department,terms`).
-- **Elections → Edit details**: title, voting start and end, positions (in the order voters see them).
+- **Elections → Edit details**: title, scheduled date and time, and positions. The positions list is ordered: use the arrows to move a position, ✕ to remove it, add your own, or bring back a standard one. The order is the order on the ballot and in the results. Positions can only be changed before voting opens.
 - **Candidates**: add each candidate with a photo and department.
 - **Desk Officers**: create an account for each person staffing a desk.
 - **Voting booths**: generate booth tokens and set up each booth ([booth guide](KIOSK_SETUP.md)).
