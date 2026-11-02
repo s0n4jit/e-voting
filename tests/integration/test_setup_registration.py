@@ -862,7 +862,7 @@ def test_audit_log_groups_and_new_events(client, installed, desk_token, booth):
     assert [c["id"] for c in data["categories"]][:3] == ["ballot", "pin", "desk"]
     assert data["stats"]["desk_enrollments"] >= 2 and data["stats"]["kiosk_actions"] >= 1
     row = next(l for l in data["logs"] if l["action"] == "DESK_CHECKIN")
-    assert row["category"] == "desk" and row["action_label"] == "Desk checkin" and "PIN already issued" in row["details"]
+    assert row["category"] == "desk" and row["action_label"] == "Desk checkin" and "no PIN yet" in row["details"]
 
 
 # ── backup and reset ─────────────────────────────────────────────────────────
@@ -1094,7 +1094,9 @@ def test_pins_are_pre_issued_with_the_slip_and_stay_valid_until_used(client, ins
     for pos in ("President", "Secretary"):
         cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
     reg = register(client, desk_token).get_json()
-    assert re.fullmatch(r"\d{6}", reg["pin"])                                   # the slip already carries the PIN
+    assert reg["pin"] is None                                                   # registering never issues a PIN by itself
+    reg["pin"] = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": reg["slip_id"]}).get_json()["pin"]
+    assert re.fullmatch(r"\d{6}", reg["pin"])
     token = VotingToken.query.filter_by(student_id=reg["slip_id"]).first()
     exp = token.expires_at if token.expires_at.tzinfo else token.expires_at.replace(tzinfo=timezone.utc)
     assert exp > datetime.now(timezone.utc) + timedelta(days=30)               # not a 20-minute PIN any more
@@ -1103,6 +1105,8 @@ def test_pins_are_pre_issued_with_the_slip_and_stay_valid_until_used(client, ins
     # no check-in step: slip ID + PIN works at the booth straight away
     login = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": reg["slip_id"], "voting_pin": reg["pin"]})
     assert login.status_code == 200 and "access_token" in login.get_json()
+    row = client.get(f"/api/desk/registrations/{reg['slip_id']}", headers=H(desk_token)).get_json()
+    assert row["status"] == "active"                                            # authenticated at a booth, not voted yet
 
 
 def test_imported_students_get_working_pins(client, installed, desk_token, booth):
@@ -1110,10 +1114,11 @@ def test_imported_students_get_working_pins(client, installed, desk_token, booth
     for pos in ("President", "Secretary"):
         cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
     r = _csv_upload(client, H(desk_token), "name,programme,department,semester\nAnita Das,Bachelor of Science,Physics,3\nRahul Borah,Bachelor of Arts,English,1\n")
-    students = r.get_json()["students"]
-    assert all(re.fullmatch(r"\d{6}", s["pin"]) for s in students)
+    assert "pin" not in r.get_json()["students"][0]                             # importing issues no PINs
     for s in ("registration", "ready", "voting_active"):
         client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    students = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token)).get_json()["students"]
+    assert all(re.fullmatch(r"\d{6}", s["pin"]) for s in students)
     bad = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": students[0]["slip_id"], "voting_pin": "000000" if students[0]["pin"] != "000000" else "111111"})
     assert bad.status_code == 401
     ok = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": students[1]["slip_id"], "voting_pin": students[1]["pin"]})
@@ -1135,6 +1140,7 @@ def test_issue_pins_for_all_keeps_existing_pins(client, installed, desk_token):
     _open_election(client, installed)
     reg = register(client, desk_token).get_json()
     r = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token))
-    assert r.status_code == 200
-    slips = r.get_json()["students"]
-    assert r.get_json()["issued"] == 0 and slips[0]["pin"] == reg["pin"]
+    assert r.status_code == 200 and r.get_json()["issued"] == 1
+    pin = r.get_json()["students"][0]["pin"]
+    again = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token)).get_json()
+    assert again["issued"] == 0 and again["students"][0]["pin"] == pin          # existing PINs are kept

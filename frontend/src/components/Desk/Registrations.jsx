@@ -12,8 +12,8 @@ import IssuePins from './IssuePins';
 import { useAuth } from '../../context/AuthContext';
 import { usePolling } from '../../hooks/usePolling';
 
-const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', voted: 'Voted' };
-const TONE = { registered: 'brand', pin_active: 'warn', voted: 'ok' };
+const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', active: 'Active', voted: 'Voted' };
+const TONE = { registered: 'brand', pin_active: 'warn', active: 'ok', voted: 'ok' };
 
 export default function Registrations() {
   const [programmes, setProgrammes] = useState([]);

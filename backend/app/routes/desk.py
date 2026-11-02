@@ -54,7 +54,7 @@ def new_slip_id(prefix=None) -> str:
 
 
 def _statuses(users, election):
-    """slip -> 'voted' | 'pin_active' | 'registered', using two queries for the whole page."""
+    """slip -> 'voted' | 'active' | 'pin_active' | 'registered', using two queries for the whole page."""
     if not users or not election:
         return {u.student_id: "registered" for u in users}
     by_hash = {User.hash_student_id(u.student_id): u.student_id for u in users}
@@ -67,7 +67,7 @@ def _statuses(users, election):
         )
     }
     now = datetime.now(timezone.utc)
-    pins = set()
+    pins, active = set(), set()
     for t in VotingToken.query.filter(
         VotingToken.election_id == election.id,
         VotingToken.student_id.in_([u.student_id for u in users]),
@@ -76,8 +76,12 @@ def _statuses(users, election):
         exp = t.expires_at if t.expires_at.tzinfo else t.expires_at.replace(tzinfo=timezone.utc)
         if exp > now:
             pins.add(t.student_id)
+            auth = t.authenticated_at
+            if auth and (now - (auth if auth.tzinfo else auth.replace(tzinfo=timezone.utc))).total_seconds() < 30 * 60:
+                active.add(t.student_id)  # entered the PIN at a booth within the voter session length
     return {
-        u.student_id: "voted" if u.student_id in voted else "pin_active" if u.student_id in pins else "registered"
+        u.student_id: "voted" if u.student_id in voted else "active" if u.student_id in active
+        else "pin_active" if u.student_id in pins else "registered"
         for u in users
     }
 
@@ -216,9 +220,7 @@ def register_student():
         db.session.add(VoterRecord(
             election_id=election.id, voter_hash=User.hash_student_id(user.student_id), has_voted=False
         ))
-        db.session.flush()
-        # a pre-issued PIN: printed on the slip, valid until it is used or voting closes
-        pin, _token = VotingToken.generate_pin(user.student_id, election.id, _actor_id(), STATIC_PIN_MINUTES)
+        # no PIN yet: the officer issues it with "Issue PIN" (one student) or "Issue PINs" (all)
     _audit("STUDENT_REGISTERED", f"Registered {user.name} ({user.student_id}) in {programme.name}, {programme.term_name(semester)}.")
     db.session.commit()
 
@@ -384,7 +386,7 @@ def get_registration(slip_id):
     election = Election.current()
     status = _statuses([user], election)[user.student_id]
     if request.args.get("checkin") == "1":
-        said = {"registered": "no PIN yet", "pin_active": "PIN already issued", "voted": "already voted"}[status]
+        said = {"registered": "no PIN yet", "active": "at a booth now", "pin_active": "PIN already issued", "voted": "already voted"}[status]
         _audit("DESK_CHECKIN", f"Checked in {user.name} ({user.student_id}) at the desk: {said}.")
         db.session.commit()
     return jsonify(_serialize(user, status, _programme_map(), election)), 200

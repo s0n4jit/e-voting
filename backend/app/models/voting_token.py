@@ -53,6 +53,8 @@ class VotingToken(db.Model):
     is_used = db.Column(db.Boolean, default=False, nullable=False)
     # The PIN, encrypted with a key derived from SECRET_KEY, so the desk can print the slip again before the PIN is used.
     pin_enc = db.Column(db.Text, nullable=True)
+    # Set when the student enters the PIN at a booth; the student shows as "active" until voting or the booth session ends.
+    authenticated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     failed_attempts = db.Column(db.Integer, default=0, nullable=False, server_default="0")
     created_at = db.Column(
         db.DateTime(timezone=True),

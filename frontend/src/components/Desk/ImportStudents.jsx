@@ -50,10 +50,10 @@ export default function ImportStudents({ onDone }) {
           <div className="space-y-4">
             <p className="text-sm">
               <b>{result.created}</b> {result.created === 1 ? 'student was' : 'students were'} registered
-              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a Voter Slip ID and a voting PIN.
+              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a Voter Slip ID. No PINs are issued yet.
             </p>
             <p className="text-sm text-warn bg-warn-soft rounded-lg px-3 py-2">
-              Print or download the slips now. The PINs are shown only here and cannot be read again; a lost PIN can be replaced at the desk.
+              To give out slips with PINs, use "Issue PINs" on this page when you are ready.
             </p>
             <div className="flex justify-end gap-2">
               {result.created > 0 && <button className="btn-secondary" onClick={downloadSlips}>Download (CSV)</button>}

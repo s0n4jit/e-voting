@@ -55,4 +55,4 @@ export default function SlipSheet({ students, electionTitle }) {
 }
 
 export const slipsCsv = (students) =>
-  ['name,slip_id,voting_pin,programme,semester', ...students.map((s) => `"${s.name}",${s.slip_id},${s.pin},"${s.programme}",${s.semester}`)].join('\n') + '\n';
+  ['name,slip_id,voting_pin,programme,semester', ...students.map((s) => `"${s.name}",${s.slip_id},${s.pin ?? ''},"${s.programme}",${s.semester}`)].join('\n') + '\n';

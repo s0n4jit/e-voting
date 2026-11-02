@@ -76,10 +76,9 @@ export default function SetupWizard() {
           </div>
           {slips.students.length > 0 && (
             <div className="card card-body space-y-3">
-              <p className="font-medium">{slips.students.length} students registered with a Voter Slip ID and a voting PIN</p>
+              <p className="font-medium">{slips.students.length} students registered with a Voter Slip ID</p>
               <p className="text-sm text-muted">
-                Give each student their slip before the election; they can then just come to a booth and vote. The PINs are shown only now and cannot be read again.
-                A lost PIN can be replaced at the desk.
+                Voting PINs are not issued yet. When you are ready, the officer issues them from Registrations (all at once with "Issue PINs", or one student at a time) and prints the slips with PINs.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-secondary" onClick={() => window.print()}>Print slips</button>

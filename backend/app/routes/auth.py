@@ -6,7 +6,7 @@ import io
 import base64
 import pyotp
 import qrcode
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, current_app, request, jsonify
 from flask_jwt_extended import (
     create_access_token,
@@ -657,6 +657,8 @@ def voter_pin_login():
             }),
             401,
         )
+
+    token_obj.authenticated_at = datetime.now(timezone.utc)
 
     # Issue voter JWT token scoped for ballot casting
     access_token = create_access_token(

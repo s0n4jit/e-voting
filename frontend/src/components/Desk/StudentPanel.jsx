@@ -9,7 +9,7 @@ import { useDeskState } from '../../hooks/useDeskOpen';
 
 import ProgrammePicker from './ProgrammePicker';
 
-const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', voted: 'Voted' };
+const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', active: 'Active', voted: 'Voted' };
 
 /** Details, edit, slip printing and PIN issuing for one registered voter. */
 export default function StudentPanel({ student, programmes, onChanged }) {
@@ -94,7 +94,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
               <p className="font-semibold text-lg truncate">{current.name}</p>
               <p className="font-mono text-sm text-muted">{current.slip_id}</p>
             </div>
-            <StatusBadge label={STATUS[current.status]} variant={current.status === 'voted' ? 'ok' : current.status === 'pin_active' ? 'warn' : 'brand'} />
+            <StatusBadge label={STATUS[current.status]} variant={current.status === 'voted' ? 'ok' : ['pin_active', 'active'].includes(current.status) ? 'warn' : 'brand'} />
           </div>
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <div>

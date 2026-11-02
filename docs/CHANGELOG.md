@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- PINs are no longer issued automatically (registering or importing students makes none). The officer issues them with "Issue PINs" (everyone) or "Issue PIN" (one student). Statuses: No PIN yet, PIN issued, Active (entered the PIN at a booth, not voted yet), Voted.
 - Registrations: "Issue PINs" gives every student without a PIN one and prints the slips of everyone who has not voted. Printing no longer includes the open dialog.
 
 - PINs have no time limit: a PIN stays valid until it is re-issued, the student votes, or voting closes (5 wrong entries at the booth still cancel it).
