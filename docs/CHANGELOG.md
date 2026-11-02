@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Booth app (`booth-app/`) also saves every vote copy as a PDF and writes PDFs by itself for the "Microsoft Print to PDF" printer (no file-name prompt); "Open saved receipts" in the maintenance screen.
 - Booth app for Windows and Linux (`booth-app/`): setup screen for the portal address and printer, full-screen locked voting page, silent printing with the vote copy saved on the computer, and exit only with the Election Officer's authenticator code (Ctrl+Alt+Shift+Q). Built by the "Booth app" GitHub workflow. See docs/BOOTH_APP.md.
 - Lab PC installer fixes: the `evote` user is created reliably (the generated password no longer aborts the script), the browser lock applies to the `evote` user only (own profile with a proxy rule) so the administrator's Firefox is unrestricted, and a port in the portal address works.
 - Lab PC installer: no automatic sign-in by default (choose the user on the login screen; `AUTOLOGIN=yes` or `sudo evote autologin on` turns it on), the lock-down applies to the `evote` user only so the administrator keeps a normal desktop, and vote copies are saved in the administrator's private folder `~/.evote-receipts`.

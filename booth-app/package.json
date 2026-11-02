@@ -6,9 +6,10 @@
   "main": "main.js",
   "author": "Campus E-Voting",
   "license": "MIT",
+  "homepage": "https://github.com/s0n4jit/e-voting",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/",
+    "test": "node --test",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux"
@@ -24,6 +25,6 @@
     "directories": { "output": "dist" },
     "win": { "target": ["nsis"] },
     "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true },
-    "linux": { "target": ["AppImage", "deb"], "category": "Utility", "maintainer": "Campus E-Voting <noreply@example.com>" }
+    "linux": { "target": ["AppImage", "deb"], "category": "Utility", "maintainer": "Campus E-Voting <noreply@example.com>", "executableArgs": ["--no-sandbox"] }
   }
 }

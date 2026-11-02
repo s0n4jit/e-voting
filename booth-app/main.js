@@ -1,7 +1,8 @@
 'use strict';
 // Campus E-Voting booth app: setup screen, full-screen locked voting page, silent receipt printing,
 // and an exit that needs the Election Officer's authenticator code.
-const { app, BrowserWindow, globalShortcut, ipcMain, Menu, net, session } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Menu, net, session, shell } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -25,6 +26,10 @@ let allowQuit = false;
 let apiBase = '';
 let resumeTimer = null;
 
+// Ubuntu 23.10+ blocks the browser sandbox for unprivileged users (AppImage, .deb): without this the app does not start.
+// The window only ever loads the portal, so the loss of the extra sandbox layer is accepted.
+if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
+
 if (!app.requestSingleInstanceLock()) app.quit();
 if (process.env.EVOTE_NO_GPU) app.disableHardwareAcceleration();
 
@@ -45,7 +50,7 @@ function applyAutoStart() {
   const file = path.join(dir, 'evote-booth.desktop');
   if (!cfg.autoStart) return fs.rmSync(file, { force: true });
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, `[Desktop Entry]\nType=Application\nName=Campus E-Voting Booth\nExec="${process.env.APPIMAGE || process.execPath}"\nX-GNOME-Autostart-enabled=true\n`);
+  fs.writeFileSync(file, `[Desktop Entry]\nType=Application\nName=Campus E-Voting Booth\nExec="${process.env.APPIMAGE || process.execPath}" --no-sandbox\nX-GNOME-Autostart-enabled=true\n`);
 }
 
 async function installedPrinters() {
@@ -53,23 +58,57 @@ async function installedPrinters() {
   return wc ? wc.getPrintersAsync() : [];
 }
 
-/** Print an HTML page silently on the chosen printer (the default printer when the name is empty or unknown). */
-async function printHtml(html, wanted, copies = 1) {
-  if (process.env.EVOTE_DRY_PRINT) return; // tests: go through everything except the physical printer
-  const printers = await installedPrinters();
-  const known = printers.find((p) => p.name === wanted);
+// Printers that always ask for a file name (Windows "Microsoft Print to PDF" and the XPS writer): for those the app
+// saves a PDF in the receipts folder by itself, with an automatic name, and does not send a print job.
+const FILE_PRINTER = /print to pdf|xps document writer/i;
+
+async function withPage(html, fn) {
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
   try {
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    await new Promise((resolve, reject) => {
-      win.webContents.print(
-        { silent: true, printBackground: false, deviceName: known ? known.name : '', copies, margins: { marginType: 'none' } },
-        (ok, reason) => (ok ? resolve() : reject(new Error(reason || 'the printer did not accept the job'))),
-      );
-    });
+    return await fn(win.webContents);
   } finally {
     win.destroy();
   }
+}
+
+/** The system's default printer (Electron does not report it on Windows). Empty when it cannot be found. */
+function defaultPrinterName() {
+  const [cmd, args] = process.platform === 'win32'
+    ? ['powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_Printer | Where-Object Default).Name']]
+    : ['lpstat', ['-d']];
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: 8000, windowsHide: true }, (err, out) => {
+      if (err) return resolve('');
+      const text = String(out).trim();
+      resolve(process.platform === 'win32' ? text : (text.split(':')[1] || '').trim());
+    });
+  });
+}
+
+const toPdf = (html) => withPage(html, (wc) => wc.printToPDF({ pageSize: 'A5', printBackground: false, margins: { top: 0, bottom: 0, left: 0, right: 0 } }));
+
+/** Save the PDF next to the saved HTML copy of the same vote. */
+async function savePdf(htmlFile, html) {
+  const file = htmlFile.replace(/\.html$/, '.pdf');
+  fs.writeFileSync(file, await toPdf(html), { mode: 0o600 });
+  return file;
+}
+
+/** Print an HTML page silently on the chosen printer (the default printer when the name is empty or unknown). */
+async function printHtml(html, wanted, copies = 1) {
+  if (process.env.EVOTE_DRY_PRINT) return 'dry'; // tests: go through everything except the physical printer
+  const printers = await installedPrinters();
+  const named = printers.find((p) => p.name === wanted);
+  const target = named ? named.name : (printers.find((p) => p.isDefault) || {}).name || await defaultPrinterName();
+  if (FILE_PRINTER.test(target)) return 'pdf'; // the PDF copy is saved by the caller
+  await withPage(html, (wc) => new Promise((resolve, reject) => {
+    wc.print(
+      { silent: true, printBackground: false, deviceName: target, copies, margins: { marginType: 'none' } },
+      (ok, reason) => (ok ? resolve() : reject(new Error(reason || 'the printer did not accept the job'))),
+    );
+  }));
+  return 'printed';
 }
 
 // ── windows ────────────────────────────────────────────────────────────────
@@ -175,16 +214,24 @@ async function verifyOfficerCode(code) {
 ipcMain.handle('print-receipt', async (event, raw) => {
   if (!fromPortal(event)) return { archived: false, printed: false, error: 'not allowed' };
   const r = receipt.normalize(raw);
+  const html = receipt.toHtml(r);
+  let saved;
   try {
-    receipt.archive(spoolDir(), r);
+    saved = receipt.archive(spoolDir(), r);
   } catch (e) {
     return { archived: false, printed: false, error: `could not save the copy: ${e.message}` };
   }
+  let pdf = '';
   try {
-    await printHtml(receipt.toHtml(r), r.printer || cfg.printer, r.copies);
-    return { archived: true, printed: true };
+    pdf = await savePdf(saved, html); // a PDF of every vote copy, kept with the others
   } catch (e) {
-    return { archived: true, printed: false, error: e.message };
+    console.error('PDF copy failed:', e.message); // the HTML copy is already safe; printing still goes ahead
+  }
+  try {
+    await printHtml(html, r.printer || cfg.printer, r.copies);
+    return { archived: true, printed: true, pdf };
+  } catch (e) {
+    return { archived: true, printed: false, error: e.message, pdf };
   }
 });
 
@@ -202,8 +249,15 @@ ui('cfg:save', (next) => {
 });
 ui('print-test', async (printer) => {
   const r = receipt.normalize({ institution: 'Printer test', election: 'Campus E-Voting Booth', slip: 'TEST-000000', booth: 'TEST', time: new Date().toLocaleString(), lines: [{ position: 'President', choice: 'Sample Candidate' }, { position: 'Secretary', choice: 'NOTA' }] });
+  const html = receipt.toHtml(r);
   try {
-    await printHtml(receipt.toHtml(r), printer, 1);
+    const how = await printHtml(html, printer, 1);
+    if (how === 'pdf') {
+      fs.mkdirSync(spoolDir(), { recursive: true });
+      const file = path.join(spoolDir(), `test-${Date.now()}.pdf`);
+      fs.writeFileSync(file, await toPdf(html));
+      return { ok: true, file };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
@@ -220,6 +274,7 @@ ui('exit:verify', async (code) => {
 ui('exit:cancel', () => { if (promptWin) promptWin.destroy(); });
 ui('maint:resume', enterKiosk);
 ui('maint:setup', () => showUi('setup.html', { maintenance: '1' }));
+ui('maint:receipts', () => shell.openPath(spoolDir()));
 ui('maint:quit', () => { allowQuit = true; app.quit(); });
 
 // ── start ──────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ const say = (t, bad) => { $('msg').textContent = t; $('msg').className = 'msg' +
 $('test').onclick = async () => {
   say('Sending the test page…');
   const r = await evoteUi.testPrint($('printer').value);
-  say(r.ok ? 'Test page sent to the printer.' : `Could not print: ${r.error}`, !r.ok);
+  say(r.ok ? (r.file ? `This printer asks for a file name, so the app saves PDFs by itself. Test PDF: ${r.file}` : 'Test page sent to the printer.') : `Could not print: ${r.error}`, !r.ok);
 };
 $('save').onclick = async () => {
   const r = await evoteUi.saveConfig({ url: $('url').value, printer: $('printer').value, autoStart: $('auto').checked });

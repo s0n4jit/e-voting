@@ -8,7 +8,8 @@
 |---|---|
 | First start | Setup screen: portal address (must end with `/kiosk/vote`), printer (list of installed printers, test page), start with the computer |
 | Locked | Full screen, always on top, only the portal address can load, no new windows, developer tools off, browser shortcuts blocked |
-| Vote copy | Prints silently to the chosen printer. The officer's **Settings → Booth printing** (on/off, printer name, copies) applies. A copy is saved first in the app's data folder: `receipts/<date>/…html` and `receipts/receipts.jsonl` |
+| Vote copy | Every vote copy is saved first in the app's data folder: `receipts/<date>/<time>-<slip>.html`, the same as a **PDF**, and a line in `receipts/receipts.jsonl`. Then it prints silently to the chosen printer. The officer's **Settings → Booth printing** (on/off, printer name, copies) applies |
+| "Microsoft Print to PDF" | That Windows printer always asks for a file name, so the app does not use it: when it is the chosen (or default) printer, the saved PDF *is* the output and nothing pops up. **Maintenance → Open saved receipts** opens the folder |
 | Leaving | **Ctrl+Alt+Shift+Q** asks for the Election Officer's authenticator code (the same check as the website's maintenance screen: 5 wrong codes lock the check for 15 minutes). Then: Return to voting, Address and printer, Quit. It returns to voting by itself after 15 minutes |
 | Network lost | A "Cannot reach the voting portal" screen retries every 5 seconds |
 
@@ -17,7 +18,7 @@
 Get the files from GitHub (Actions → **Booth app** → Run workflow → download the artifacts; a tag `booth-app-vX.Y.Z` also attaches them to a release).
 
 * **Windows:** run the `Setup … .exe`. It is not code-signed, so SmartScreen says "Windows protected your PC": More info → Run anyway.
-* **Linux:** `.AppImage` (make it executable and run it) or `.deb` (`sudo apt install ./file.deb`).
+* **Linux (Ubuntu 22.04 / 24.04 tested in a container):** `.deb` is the simplest: `sudo apt install ./evote-booth_1.0.0_amd64.deb`, then start *Campus E-Voting Booth* from the applications menu. Or the `.AppImage`: `chmod +x *.AppImage && ./*.AppImage` (on Ubuntu 24.04 install `libfuse2t64` first, or run it with `--appimage-extract-and-run`). Both start the app with `--no-sandbox`, which Ubuntu 23.10+ needs because it blocks the browser sandbox for normal users.
 
 Then start **Campus E-Voting Booth**, fill in the setup screen, press **Save and start voting**. Approve the booth with a booth token as usual (see `KIOSK_SETUP.md`, "Start the booth and approve it").
 
