@@ -196,6 +196,17 @@ export const KioskVoting = () => {
     setStage(to >= total ? 'review' : 'ballot');
   };
 
+  // Enter moves on once the position has an answer (on the review screen it opens the submit prompt)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Enter' || confirmOpen || maintenanceOpen || e.target.closest?.('button,[role="radio"]')) return;
+      if (stage === 'ballot' && choices[positions[step]?.position]) go(step + 1, 'next');
+      else if (stage === 'review' && answered === total) setConfirmOpen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const select = (value) => setChoices((c) => ({ ...c, [current.position]: value }));
 
   const submit = async () => {
@@ -378,7 +389,7 @@ export const KioskVoting = () => {
                     aria-label={c.name}
                     tabIndex={0}
                     onClick={() => select(c)}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select(c))}
+                    onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && on ? go(step + 1, 'next') : select(c))}
                     className={`relative flex flex-col rounded-2xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 active:scale-[0.98] ${
                       on ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
@@ -393,8 +404,9 @@ export const KioskVoting = () => {
                     </span>
                     <div className={`px-4 py-4 text-center flex-1 ${on ? 'bg-brand-soft/60' : ''}`}>
                       <p className="text-xl sm:text-2xl font-bold leading-tight break-words">{c.name}</p>
-                      <p className="text-sm text-muted mt-1 min-h-[1.25rem]">{c.department}</p>
-                      <p className="text-sm text-muted min-h-[1.25rem]">{c.semester}</p>
+                      <p className="text-sm font-bold mt-1 min-h-[2.5rem]">
+                        {c.department ? `Student of Department of ${c.department}` : ''}{c.semester ? `, ${c.semester}` : ''}
+                      </p>
                     </div>
                   </div>
                 );
@@ -405,7 +417,7 @@ export const KioskVoting = () => {
                 aria-checked={choices[current.position] === 'NOTA'}
                 tabIndex={0}
                 onClick={() => select('NOTA')}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select('NOTA'))}
+                onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? go(step + 1, 'next') : select('NOTA'))}
                 className={`relative flex flex-col rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-200 active:scale-[0.98] ${
                   choices[current.position] === 'NOTA' ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
