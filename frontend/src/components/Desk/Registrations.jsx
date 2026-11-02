@@ -107,7 +107,7 @@ export default function Registrations() {
             <MagnifyingGlassIcon className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               className="input pl-9"
-              placeholder="Search by name or voter slip ID"
+              placeholder="Search by name, roll no. or voter slip ID"
               aria-label="Search registrations"
               value={filters.q}
               onChange={(e) => setFilter('q', e.target.value)}
@@ -142,6 +142,7 @@ export default function Registrations() {
                 <tr>
                   <th>Voter slip ID</th>
                   <th>Name</th>
+                  <th>Roll or enrollment no.</th>
                   <th>Programme</th>
                   <th>Term</th>
                   <th>Status</th>
@@ -152,6 +153,7 @@ export default function Registrations() {
                   <tr key={r.slip_id} className="cursor-pointer" onClick={() => setSelected(r)} onKeyDown={(e) => e.key === 'Enter' && setSelected(r)} tabIndex={0}>
                     <td className="font-mono text-xs">{r.slip_id}</td>
                     <td className="font-medium">{r.name}</td>
+                    <td className="font-mono text-xs">{r.roll_no || <span className="text-muted">-</span>}</td>
                     <td>{[r.programme, r.department].filter(Boolean).join(' · ')}</td>
                     <td>{r.term}</td>
                     <td><StatusBadge label={STATUS[r.status]} variant={TONE[r.status]} /></td>

@@ -26,6 +26,7 @@ from app.models.voter_record import VoterRecord
 from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
 from app.utils.decorators import admin_required, desk_required
 from app.utils.timeutil import utc_iso
+from app.student_import import clean_roll_no
 from app.utils.validators import clean_name, sanitize_input, validate_person_name
 
 desk_bp = Blueprint("desk", __name__)
@@ -91,6 +92,7 @@ def _serialize(user, status, programmes, election=None):
     return {
         "slip_id": user.student_id,
         "name": user.name,
+        "roll_no": user.roll_no or "",
         "programme_id": user.programme_id,
         "programme": prog.programme if prog else (user.department or ""),
         "department": prog.department if prog else "",
@@ -173,6 +175,14 @@ def register_student():
     if current and not current.desk_open:
         return jsonify({"error": "Voting has ended, so no more students can be registered and no more PINs can be issued.", "code": "voting_ended"}), 409
 
+    roll_no, roll_err = clean_roll_no(payload.get("roll_no"))
+    if roll_err:
+        return jsonify({"error": roll_err, "field": "roll_no"}), 400
+    if roll_no:
+        taken = _of_election(User.query.filter(User.role == "voter", func.lower(User.roll_no) == roll_no.lower()), current).first()
+        if taken:
+            return jsonify({"error": f"This roll or enrollment number is already registered (voter slip ID {taken.student_id}).", "field": "roll_no"}), 409
+
     name = sanitize_input(name)
     duplicate = _of_election(User.query.filter(
         User.role == "voter",
@@ -196,6 +206,7 @@ def register_student():
         user = User(
             student_id=slip,
             name=name,
+            roll_no=roll_no,
             email=f"{slip.lower()}@voters.invalid",
             role="voter",
             department=programme.name,
@@ -289,7 +300,7 @@ def list_registrations():
     query = _of_election(User.query.filter(User.role == "voter"), election)
     if q:
         term = f"%{q}%"
-        query = query.filter(User.student_id.ilike(term) | User.name.ilike(term))
+        query = query.filter(User.student_id.ilike(term) | User.name.ilike(term) | User.roll_no.ilike(term))
     if request.args.get("programme_id", type=int):
         query = query.filter(User.programme_id == request.args.get("programme_id", type=int))
     if request.args.get("semester", type=int):
@@ -320,10 +331,10 @@ def export_registrations():
     programmes = _programme_map()
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["Voter slip ID", "Name", "Programme", "Department/Stream", "Semester/Year", "Status", "Registered at"])
+    w.writerow(["Voter slip ID", "Name", "Roll or enrollment no.", "Programme", "Department/Stream", "Semester/Year", "Status", "Registered at"])
     for u in users:
         row = _serialize(u, status[u.student_id], programmes)
-        w.writerow([row["slip_id"], _csv_safe(row["name"]), _csv_safe(row["programme"]),
+        w.writerow([row["slip_id"], _csv_safe(row["name"]), _csv_safe(row["roll_no"]), _csv_safe(row["programme"]),
                     _csv_safe(row["department"]), row["term"], row["status"], row["registered_at"]])
     _audit("REGISTRATIONS_EXPORTED", f"Downloaded the registrations list ({len(users)} students).")
     db.session.commit()
@@ -410,6 +421,16 @@ def update_registration(slip_id):
         if not ok:
             return jsonify({"error": msg, "field": "name"}), 400
         user.name = sanitize_input(name)
+
+    if "roll_no" in payload:
+        roll_no, roll_err = clean_roll_no(payload["roll_no"])
+        if roll_err:
+            return jsonify({"error": roll_err, "field": "roll_no"}), 400
+        if roll_no:
+            taken = _of_election(User.query.filter(User.role == "voter", func.lower(User.roll_no) == roll_no.lower(), User.id != user.id), election).first()
+            if taken:
+                return jsonify({"error": f"This roll or enrollment number is already registered (voter slip ID {taken.student_id}).", "field": "roll_no"}), 409
+        user.roll_no = roll_no
 
     programme = db.session.get(Programme, user.programme_id) if user.programme_id else None
     if "programme_id" in payload:

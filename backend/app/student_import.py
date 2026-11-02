@@ -9,6 +9,7 @@ Each student gets a Voter Slip ID like a desk registration would.
 import csv
 import io
 import itertools
+import re
 import secrets
 
 from app.extensions import db
@@ -19,11 +20,24 @@ from app.utils.validators import clean_name, sanitize_input, validate_person_nam
 
 MAX_STUDENTS = 5000
 TEMPLATE_CSV = (
-    "name,programme,department,semester\n"
-    "Anita Das,Bachelor of Science,Physics,3\n"
-    "Rahul Borah,Bachelor of Arts,English,1\n"
-    "Mina Gogoi,Higher Secondary,Science,2\n"
+    "name,programme,department,semester,roll_no\n"
+    "Anita Das,Bachelor of Science,Physics,3,PHY-2301\n"
+    "Rahul Borah,Bachelor of Arts,English,1,\n"
+    "Mina Gogoi,Higher Secondary,Science,2,HS-118\n"
 )
+
+
+_ROLL_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ./_-]{0,39}$")
+
+
+def clean_roll_no(value):
+    """Optional roll or enrollment number: returns (value or None, error message or None)."""
+    v = " ".join(str(value or "").split())
+    if not v:
+        return None, None
+    if not _ROLL_OK.match(v):
+        return None, "The roll or enrollment number may have letters, digits, spaces and . / _ - only (up to 40 characters)."
+    return sanitize_input(v), None
 
 
 def import_students(text, election, actor_id=None, dry_run=False):
@@ -50,6 +64,11 @@ def import_students(text, election, actor_id=None, dry_run=False):
     }
     used = {s for (s,) in db.session.query(User.student_id).filter(User.student_id.like(f"{prefix}%"))}
     make_record = bool(election and election.desk_open and election.id)
+    rolls_seen = {
+        r.lower() for (r,) in db.session.query(User.roll_no).filter(
+            User.role == "voter", User.roll_no.isnot(None), User.student_id.like(f"{prefix}%")
+        )
+    }
 
     shared = User()
     shared.set_password(secrets.token_urlsafe(24))  # voters never sign in with a password: one unusable hash for all rows
@@ -67,6 +86,13 @@ def import_students(text, election, actor_id=None, dry_run=False):
         if not programme:
             errors.append(f"Line {line}: programme and department \"{row.get('programme', '')} / {row.get('department', '')}\" are not in the Programmes list.")
             continue
+        roll_no, roll_err = clean_roll_no(row.get("roll_no") or row.get("roll") or row.get("enrollment_no") or row.get("enrollment") or "")
+        if roll_err:
+            errors.append(f"Line {line}: {roll_err}")
+            continue
+        if roll_no and roll_no.lower() in rolls_seen:
+            errors.append(f"Line {line}: the roll or enrollment number {roll_no} is used by another row or student.")
+            continue
         sem = row.get("semester") or row.get("year") or row.get("term") or ""
         if not sem.isdigit() or not 1 <= int(sem) <= programme.term_count:
             errors.append(f"Line {line}: {programme.term_label.lower()} must be a number from 1 to {programme.term_count}.")
@@ -78,6 +104,8 @@ def import_students(text, election, actor_id=None, dry_run=False):
             skipped += 1
             continue
         existing.add(key)
+        if roll_no:
+            rolls_seen.add(roll_no.lower())
 
         slip = f"{prefix}{secrets.randbelow(1_000_000):06d}"
         while slip in used:
@@ -85,7 +113,7 @@ def import_students(text, election, actor_id=None, dry_run=False):
         used.add(slip)
         user = User(
             student_id=slip, name=name, email=f"{slip.lower()}@voters.invalid", role="voter",
-            department=programme.name, year=semester, programme_id=programme.id, registered_by=actor_id,
+            department=programme.name, year=semester, roll_no=roll_no, programme_id=programme.id, registered_by=actor_id,
             is_active=True, otp_enabled=False, password_hash=shared.password_hash,
         )
         db.session.add(user)

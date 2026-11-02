@@ -38,6 +38,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
   const startEdit = () => {
     setForm({
       name: current.name,
+      roll_no: current.roll_no || '',
       programme: current.programme || '',
       programme_id: current.programme_id ? String(current.programme_id) : '',
       semester: current.semester ? String(current.semester) : '',
@@ -51,6 +52,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
     try {
       const updated = await deskApi.update(current.slip_id, {
         name: form.name,
+        roll_no: (form.roll_no || '').trim(),
         programme_id: Number(form.programme_id),
         semester: Number(form.semester),
       });
@@ -97,6 +99,12 @@ export default function StudentPanel({ student, programmes, onChanged }) {
             <StatusBadge label={STATUS[current.status]} variant={current.status === 'voted' ? 'ok' : ['pin_active', 'active'].includes(current.status) ? 'warn' : 'brand'} />
           </div>
           <dl className="grid grid-cols-2 gap-4 text-sm">
+            {current.roll_no && (
+              <div className="col-span-2">
+                <dt className="text-muted">Roll or enrollment no.</dt>
+                <dd className="font-medium">{current.roll_no}</dd>
+              </div>
+            )}
             <div>
               <dt className="text-muted">Programme</dt>
               <dd className="font-medium">{[current.programme, current.department].filter(Boolean).join(' · ')}</dd>
@@ -132,6 +140,9 @@ export default function StudentPanel({ student, programmes, onChanged }) {
         <div className="space-y-4">
           <Field label="Full name" htmlFor="edit-name">
             <input id="edit-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="Roll or enrollment no. (optional)" htmlFor="edit-roll">
+            <input id="edit-roll" className="input" value={form.roll_no || ''} maxLength={40} onChange={(e) => setForm({ ...form, roll_no: e.target.value })} />
           </Field>
           <ProgrammePicker programmes={programmes} value={form} onChange={(v) => setForm({ ...form, ...v })} idPrefix="edit" />
           {error && <p className="error-text" role="alert">{error}</p>}

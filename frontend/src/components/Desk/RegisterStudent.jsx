@@ -12,7 +12,7 @@ import ProgrammePicker from './ProgrammePicker';
 export default function RegisterStudent() {
   const { role } = useAuth();
   const [programmes, setProgrammes] = useState(null);
-  const [form, setForm] = useState({ name: '', programme: '', programme_id: '', semester: '' });
+  const [form, setForm] = useState({ name: '', roll_no: '', programme: '', programme_id: '', semester: '' });
   const [errors, setErrors] = useState({});
   const [duplicate, setDuplicate] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -35,6 +35,7 @@ export default function RegisterStudent() {
     try {
       const result = await deskApi.register({
         name: form.name,
+        roll_no: form.roll_no.trim(),
         programme_id: Number(form.programme_id),
         semester: Number(form.semester),
         ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
@@ -76,7 +77,7 @@ export default function RegisterStudent() {
             className="btn-primary"
             onClick={() => {
               setSlip(null);
-              setForm({ name: '', programme: form.programme, programme_id: form.programme_id, semester: '' });
+              setForm({ name: '', roll_no: '', programme: form.programme, programme_id: form.programme_id, semester: '' });
             }}
           >
             Register another student
@@ -113,6 +114,9 @@ export default function RegisterStudent() {
         >
           <Field label="Student's full name" htmlFor="name" error={errors.name}>
             <input id="name" className={`input ${errors.name ? 'input-error' : ''}`} value={form.name} onChange={(e) => change({ name: e.target.value })} autoFocus autoComplete="off" required />
+          </Field>
+          <Field label="Roll or enrollment no. (optional)" htmlFor="roll_no" error={errors.roll_no}>
+            <input id="roll_no" className={`input ${errors.roll_no ? 'input-error' : ''}`} value={form.roll_no} onChange={(e) => change({ roll_no: e.target.value })} maxLength={40} autoComplete="off" />
           </Field>
           <ProgrammePicker programmes={programmes} value={form} onChange={(v) => change(v)} errors={errors} />
 

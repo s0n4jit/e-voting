@@ -1197,3 +1197,29 @@ def test_printing_settings_reach_the_booth(client, installed, booth):
     assert client.put("/api/admin/settings/printing", headers=H(installed), json={"copies": 9}).status_code == 400
     st = client.get("/api/booth/status", headers={"X-Kiosk-Token": booth}).get_json()
     assert st["print"] == {"enabled": True, "printer": "HP LaserJet-1", "copies": 2}
+
+
+def test_roll_number_is_optional_unique_searchable_and_editable(client, installed, desk_token):
+    _open_election(client, installed)
+    plain = register(client, desk_token, name="Ananya Sharma").get_json()
+    assert plain["roll_no"] == ""                                               # optional: nothing needed
+    a = register(client, desk_token, name="Bikash Das", roll_no="PHY-2301").get_json()
+    assert a["roll_no"] == "PHY-2301"
+    dup = register(client, desk_token, name="Chandan Roy", roll_no="phy-2301")
+    assert dup.status_code == 409 and dup.get_json()["field"] == "roll_no"      # the same number cannot be used twice
+    assert register(client, desk_token, name="Dipti Nath", roll_no="<script>").status_code == 400
+    found = client.get("/api/desk/registrations", headers=H(desk_token), query_string={"q": "2301"}).get_json()
+    assert [r["slip_id"] for r in found["registrations"]] == [a["slip_id"]]     # search finds it
+    r = client.patch(f"/api/desk/registrations/{plain['slip_id']}", headers=H(desk_token), json={"roll_no": "ENR/118"})
+    assert r.status_code == 200 and r.get_json()["roll_no"] == "ENR/118"
+    assert client.patch(f"/api/desk/registrations/{plain['slip_id']}", headers=H(desk_token), json={"roll_no": "PHY-2301"}).status_code == 409
+    assert client.patch(f"/api/desk/registrations/{plain['slip_id']}", headers=H(desk_token), json={"roll_no": ""}).get_json()["roll_no"] == ""
+    body = client.get("/api/desk/registrations/export", headers=H(desk_token)).get_data(as_text=True)
+    assert "Roll or enrollment no." in body and "PHY-2301" in body
+
+
+def test_student_import_accepts_an_optional_roll_column(client, installed, desk_token):
+    _open_election(client, installed)
+    r = _csv_upload(client, H(desk_token), "name,programme,department,semester,roll_no\nAnita Das,Bachelor of Science,Physics,3,R-1\nRahul Borah,Bachelor of Arts,English,1,\n")
+    assert r.status_code == 201 and r.get_json()["created"] == 2
+    assert _csv_upload(client, H(desk_token), "name,programme,department,semester,roll_no\nMina Gogoi,Bachelor of Science,Physics,3,r-1\n").status_code == 400   # number already used

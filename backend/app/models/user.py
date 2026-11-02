@@ -21,6 +21,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False, default="voter")
     department = db.Column(db.String(100), nullable=True)
+    roll_no = db.Column(db.String(40), nullable=True)  # optional roll or enrollment number of a student
     year = db.Column(db.Integer, nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
@@ -96,6 +97,7 @@ class User(db.Model):
             "email": self.email,
             "role": self.role,
             "department": self.department,
+            "roll_no": self.roll_no,
             "year": self.year,
             "programme_id": self.programme_id,
             "photo": self.photo,

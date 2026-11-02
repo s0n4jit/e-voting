@@ -33,6 +33,12 @@ export default function SlipCard({ slip, showPrint = true }) {
             <dt className="text-xs text-slate-500">Name</dt>
             <dd className="font-medium text-slate-900">{slip.name}</dd>
           </div>
+          {slip.roll_no && (
+            <div className="col-span-2">
+              <dt className="text-xs text-slate-500">Roll or enrollment no.</dt>
+              <dd className="font-medium text-slate-900">{slip.roll_no}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-slate-500">Programme</dt>
             <dd className="font-medium text-slate-900">{[slip.programme, slip.department].filter(Boolean).join(' · ')}</dd>

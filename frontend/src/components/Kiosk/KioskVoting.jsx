@@ -329,6 +329,7 @@ export const KioskVoting = () => {
             <p className="eyebrow text-muted">Please check that this is you</p>
             <p className="text-2xl font-semibold">{voter.name}</p>
             <p className="text-muted">{[voter.department, voter.year ? `Semester / year ${voter.year}` : ''].filter(Boolean).join(' · ')}</p>
+            {voter.roll_no && <p className="text-muted text-sm">Roll or enrollment no.: {voter.roll_no}</p>}
             <p className="font-mono text-sm text-muted">{voter.student_id}</p>
           </div>
         )}

@@ -388,7 +388,7 @@ export default function SetupWizard() {
 
                   <Field
                     label="Student voter list (optional)"
-                    hint="A CSV with the columns name, programme, department, semester. Each student gets a voter slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
+                    hint="A CSV with the columns name, programme, department, semester and, optionally, roll_no. Each student gets a voter slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
                     error={errors.students_csv}
                   >
                     <div className="flex flex-wrap items-center gap-3">

@@ -27,6 +27,7 @@ export const PrintSlip = ({ slip, institution, electionTitle }) => {
       )}
       <dl className="px-4 pb-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div className="col-span-2"><dt className="text-slate-600">Name</dt><dd className="font-medium text-sm">{slip.name}</dd></div>
+        {slip.roll_no && <div className="col-span-2"><dt className="text-slate-600">Roll or enrollment no.</dt><dd className="font-medium">{slip.roll_no}</dd></div>}
         <div><dt className="text-slate-600">Programme</dt><dd className="font-medium">{[slip.programme, slip.department].filter(Boolean).join(' · ')}</dd></div>
         <div><dt className="text-slate-600">{slip.term_label || 'Semester'}</dt><dd className="font-medium">{String(slip.term ?? slip.semester).replace(/^(Semester|Year)\s+/i, '')}</dd></div>
         {date && <div className="col-span-2"><dt className="text-slate-600">Registered</dt><dd>{date}</dd></div>}
