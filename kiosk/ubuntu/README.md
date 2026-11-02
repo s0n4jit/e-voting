@@ -4,7 +4,7 @@ Scripts and policies that turn a Linux computer (Ubuntu, Debian, Fedora/RHEL fam
 
 | File | Purpose |
 |---|---|
-| `setup-kiosk.sh` | Installer: restricted `evote` user, GDM auto-login, Firefox policy, GNOME lock-down, service, sudoers |
+| `setup-kiosk.sh` | Installer: restricted `evote` user (no auto-login unless `AUTOLOGIN=yes`), Firefox policy, GNOME lock-down for `evote` only, service, sudoers, booth agent (silent printing, saved vote copies) and the `evote` command |
 | `rollback-kiosk.sh` | Reverts everything (`--remove-user` also deletes the `evote` user) |
 | `policies/policies.json` | Firefox enterprise policy: only `/kiosk/vote…` may be opened |
 | `scripts/kiosk-launcher.sh` | Browser launcher with crash watchdog |
@@ -13,8 +13,10 @@ Scripts and policies that turn a Linux computer (Ubuntu, Debian, Fedora/RHEL fam
 | `sudoers/evote-maintenance` | Minimal sudo rules for restarting the service and checking the network |
 
 ```bash
+# run in a terminal on the booth PC, as the administrator account (not as evote)
 sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh
-sudo reboot
+sudo evote printer list && sudo evote printer set "PRINTER_NAME" && sudo evote printer test
+sudo reboot   # then choose the user "evote" on the login screen
 ```
 
 Full guide: [`docs/KIOSK_SETUP.md`](../../docs/KIOSK_SETUP.md) · maintenance screen: [`docs/KIOSK_MAINTENANCE.md`](../../docs/KIOSK_MAINTENANCE.md).

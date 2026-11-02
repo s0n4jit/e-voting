@@ -61,22 +61,35 @@ sudo apt install -y git openssh-server`}</CopyBlock>
       </Step>
 
       <Step n="2" title="Install the lock-down on the computer">
-        <p>Copy the project to the computer and run the installer with the booth address. Replace the address with your portal.</p>
+        <p>
+          <strong className="text-fg">Where and as whom:</strong> type these commands in a terminal <strong>on the booth computer</strong> (Ctrl+Alt+T), logged in
+          as your <strong>administrator account</strong>, not as <code>evote</code> (the booth user has no terminal). Replace the address with your portal.
+        </p>
         <CopyBlock>{`cd /opt
 sudo git clone <repository-url> e-voting
 cd /opt/e-voting/kiosk/ubuntu
-sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh
-sudo reboot`}</CopyBlock>
+sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh`}</CopyBlock>
+        <p>It asks for a password for the <code>evote</code> user (Enter generates one: write it down). Options before <code>bash</code>: <code>AUTOLOGIN=yes</code> to sign the booth in by itself.</p>
         <p>The installer:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li>creates a restricted user <code>evote</code> (no password, no admin rights) that logs in automatically;</li>
+          <li>creates a restricted user <code>evote</code> (no admin rights, password chosen at install) that you pick on the login screen, or signs in automatically with <code>AUTOLOGIN=yes</code>;</li>
           <li>starts Firefox in full-screen kiosk mode with a policy that lets it open <strong>only</strong> <code>/kiosk/vote…</code>, with no address bar, tabs, downloads or developer tools;</li>
-          <li>locks desktop shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners), disables USB storage and the Ctrl+Alt+F1–F12 text consoles;</li>
+          <li>locks desktop shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners) for the <code>evote</code> user only, so your administrator account stays normal;</li>
           <li>installs a service, <code>evote-kiosk.service</code>, that restarts the browser if it ever closes.</li>
         </ul>
       </Step>
 
-      <Step n="3" title="Make it a booth">
+      <Step n="3" title="Connect the printer (administrator account)">
+        <p>Plug in and power on the printer, add it in <strong>Settings → Printers</strong> (or Firefox at <code>http://localhost:631</code>), then in a terminal as the administrator:</p>
+        <CopyBlock>{`sudo evote printer list
+sudo evote printer set "PRINTER_NAME"
+sudo evote printer test
+sudo evote status
+sudo reboot`}</CopyBlock>
+        <p>After the restart choose <strong>evote</strong> on the login screen. Printing options for all booths are under <strong>Settings → Booth printing</strong>. Vote copies are saved in <code>~/.evote-receipts</code> of the administrator who ran the installer.</p>
+      </Step>
+
+      <Step n="3b" title="Make it a booth">
         <ol className="list-decimal pl-5 space-y-1">
           <li>On the <strong>Booths</strong> tab of this page, press <strong>Generate booth token</strong>. The token works once and expires after 15 minutes.</li>
           <li>On the booth computer the screen shows <strong>Set up this voting booth</strong>. Enter the token and the current 6-digit code from your authenticator app.</li>
