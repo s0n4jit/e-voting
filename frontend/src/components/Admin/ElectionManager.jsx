@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ArrowDownTrayIcon, PlusIcon, RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -46,6 +47,8 @@ export const ElectionManager = () => {
   useEffect(() => {
     load();
   }, [load]);
+  // the list follows what happens elsewhere (status changes, votes) without a refresh
+  usePolling(() => adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {}), 4000);
 
   const move = async (election, status) => {
     setBusy(true);

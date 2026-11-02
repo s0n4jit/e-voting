@@ -42,13 +42,13 @@ export default function BoothSetup({ onActivated }) {
             <>
               <h1 className="text-3xl font-semibold tracking-tight text-center">Set up this voting booth</h1>
               <p className="text-muted text-center mt-2 mb-8">
-                Enter the booth token from the officer panel and the current code from the Election Officer's authenticator app. The Booth ID is assigned automatically.
+                Enter the booth token from the officer panel and the current code from the election officer's authenticator app. The Booth ID is assigned automatically.
               </p>
               <form onSubmit={submit} className="card card-body space-y-5">
                 <Field label="Booth token" htmlFor="booth-token" hint="Created in the officer panel under Voting booths.">
                   <input id="booth-token" className="input font-mono uppercase text-center text-xl tracking-widest py-3" value={token} onChange={(e) => setToken(e.target.value)} placeholder="XXXX-XXXX" maxLength={12} autoComplete="off" autoFocus required />
                 </Field>
-                <Field label="Election Officer's authenticator code" htmlFor="booth-code">
+                <Field label="Election officer's authenticator code" htmlFor="booth-code">
                   <input id="booth-code" className="input text-center text-2xl tracking-[0.5em] py-3 tabular-nums" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="••••••" autoComplete="off" required />
                 </Field>
                 {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 animate-pop-in" role="alert">{error}</p>}

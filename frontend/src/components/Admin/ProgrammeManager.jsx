@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '../../hooks/usePolling';
 import { toast } from 'react-hot-toast';
 import { AcademicCapIcon, ArrowUpTrayIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
@@ -50,6 +51,7 @@ export default function ProgrammeManager() {
     []
   );
   useEffect(() => { load(); }, [load]);
+  usePolling(() => adminApi.getProgrammes().then(setRows).catch(() => {}), 4000);
 
   const hs = editor?.level === 'hs';
   const distinct = (key, level) => [...new Set((rows || []).filter((r) => r.level === level && r[key]).map((r) => r[key]))].sort();
@@ -140,7 +142,7 @@ export default function ProgrammeManager() {
     <div>
       <PageHeader
         title="Programmes"
-        subtitle="Configure your college, school or university programmes and departments. Desk Officers choose from this list when registering a student, and candidates are assigned a department from it."
+        subtitle="Configure your college, school or university programmes and departments. Desk officers choose from this list when registering a student, and candidates are assigned a department from it."
         actions={
           <>
             <button className="btn-secondary" onClick={() => setImporting(true)}>

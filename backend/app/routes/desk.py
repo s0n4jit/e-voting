@@ -214,7 +214,7 @@ def register_student():
             continue
         break
     if user is None:
-        return jsonify({"error": "Could not generate a unique Voter Slip ID. Please try again."}), 503
+        return jsonify({"error": "Could not generate a unique voter slip ID. Please try again."}), 503
 
     pin = None
     if election and election.desk_open:
@@ -320,7 +320,7 @@ def export_registrations():
     programmes = _programme_map()
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["Voter Slip ID", "Name", "Programme", "Department/Stream", "Semester/Year", "Status", "Registered At"])
+    w.writerow(["Voter slip ID", "Name", "Programme", "Department/Stream", "Semester/Year", "Status", "Registered at"])
     for u in users:
         row = _serialize(u, status[u.student_id], programmes)
         w.writerow([row["slip_id"], _csv_safe(row["name"]), _csv_safe(row["programme"]),
@@ -367,7 +367,7 @@ def view_pin(slip_id):
     user = _find_voter(slip_id)
     election = Election.current()
     if not user or not election:
-        return jsonify({"error": "No registration found for this Voter Slip ID."}), 404
+        return jsonify({"error": "No registration found for this voter slip ID."}), 404
     token = (VotingToken.query
              .filter_by(student_id=user.student_id, election_id=election.id, is_used=False)
              .order_by(VotingToken.created_at.desc()).first())
@@ -383,7 +383,7 @@ def view_pin(slip_id):
 def get_registration(slip_id):
     user = _find_voter(slip_id)
     if not user:
-        return jsonify({"error": "No registration found for this Voter Slip ID."}), 404
+        return jsonify({"error": "No registration found for this voter slip ID."}), 404
     election = Election.current()
     status = _statuses([user], election)[user.student_id]
     if request.args.get("checkin") == "1":
@@ -398,7 +398,7 @@ def get_registration(slip_id):
 def update_registration(slip_id):
     user = _find_voter(slip_id)
     if not user:
-        return jsonify({"error": "No registration found for this Voter Slip ID."}), 404
+        return jsonify({"error": "No registration found for this voter slip ID."}), 404
     election = Election.current()
     if _statuses([user], election)[user.student_id] == "voted":
         return jsonify({"error": "This voter has already voted and can no longer be edited."}), 409

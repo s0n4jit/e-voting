@@ -90,7 +90,7 @@ export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
         <div className="mt-6 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-400 text-left flex items-start gap-3">
           <ShieldExclamationIcon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-slate-200">Ballot Integrity Protected</p>
+            <p className="font-semibold text-slate-200">Ballot integrity protected</p>
             <p className="mt-0.5 leading-relaxed text-[11px]">
               No voter data has been compromised. Please notify the presiding polling officer. The terminal will automatically resume once connectivity is restored.
             </p>
@@ -105,7 +105,7 @@ export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
           </span>
         </div>
 
-        {/* Staff Diagnostics Shortcut Button */}
+        {/* Staff diagnostics Shortcut Button */}
         <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
           <span>Shortcuts: Ctrl+Alt+Shift+N</span>
           {onOpenMaintenance && (
@@ -114,7 +114,7 @@ export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
             >
               <WrenchScrewdriverIcon className="w-4 h-4 text-amber-400" />
-              <span>Staff Diagnostics</span>
+              <span>Staff diagnostics</span>
             </button>
           )}
         </div>

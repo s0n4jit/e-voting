@@ -70,13 +70,13 @@ export default function SetupWizard() {
       <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-2xl space-y-6 animate-page-in">
           <div className="text-center">
-            <p className="text-xs font-medium text-brand-fg uppercase tracking-wide">Last step</p>
+            <p className="eyebrow text-brand-fg">Last step</p>
             <h1 className="text-2xl font-semibold tracking-tight">Turn on two-step verification</h1>
-            <p className="text-muted mt-2">The portal is installed, but the Election Officer account cannot be used until two-step verification is on. It is required: it approves new voting booths, protects resets and backups, and lets you recover a forgotten password. Scan the code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…) and enter the 6-digit code.</p>
+            <p className="text-muted mt-2">The portal is installed, but the election officer account cannot be used until two-step verification is on. It is required: it approves new voting booths, protects resets and backups, and lets you recover a forgotten password. Scan the code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…) and enter the 6-digit code.</p>
           </div>
           {slips.students.length > 0 && (
             <div className="card card-body space-y-3">
-              <p className="font-medium">{slips.students.length} students registered with a Voter Slip ID</p>
+              <p className="font-medium">{slips.students.length} students registered with a voter slip ID</p>
               <p className="text-sm text-muted">
                 Voting PINs are not issued yet. When you are ready, the officer issues them from Registrations (all at once with "Issue PINs", or one student at a time) and prints the slips with PINs.
               </p>
@@ -243,7 +243,7 @@ export default function SetupWizard() {
                     </p>
                   </div>
                   <ul className="space-y-2 text-sm text-muted">
-                    {['Name your institution and portal', 'Create the Election Officer account', 'Configure your first election and positions'].map((t) => (
+                    {['Name your institution and portal', 'Create the election officer account', 'Configure your first election and positions'].map((t) => (
                       <li key={t} className="flex gap-2">
                         <CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />
                         {t}
@@ -313,7 +313,7 @@ export default function SetupWizard() {
               {step === 2 && (
                 <>
                   <div>
-                    <h2 className="text-xl font-semibold tracking-tight">Election Officer account</h2>
+                    <h2 className="text-xl font-semibold tracking-tight">Election officer account</h2>
                     <p className="text-sm text-muted mt-1">This account has full control of the portal. After installing you will set up <b>two-step verification</b> with an authenticator app. It is required, so have your phone ready.</p>
                   </div>
                   <Field label="Photo (optional)" error={errors.photo} hint="Shown next to your name at the top of every page. You can change it later.">
@@ -388,7 +388,7 @@ export default function SetupWizard() {
 
                   <Field
                     label="Student voter list (optional)"
-                    hint="A CSV with the columns name, programme, department, semester. Each student gets a Voter Slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
+                    hint="A CSV with the columns name, programme, department, semester. Each student gets a voter slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
                     error={errors.students_csv}
                   >
                     <div className="flex flex-wrap items-center gap-3">
@@ -443,7 +443,7 @@ export default function SetupWizard() {
                       ['Timezone', system.timezone],
                       ['Language', LANGUAGES[system.language]],
                       ['Slip ID letters', (system.slip_code || 'SUE').toUpperCase()],
-                      ['Election Officer', `${officer.name} (${officer.username})`],
+                      ['Election officer', `${officer.name} (${officer.username})`],
                       ['Email', officer.email],
                       ['Election', election.title],
                       ['Voting', `${election.date}, ${election.start_time}–${election.end_time}`],

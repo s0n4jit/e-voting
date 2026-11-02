@@ -470,7 +470,7 @@ def disable_totp():
         return jsonify({"error": "User not found."}), 404
 
     if user.role == "admin":
-        return jsonify({"error": "Required", "message": "Two-step verification is required for Election Officers and cannot be turned off."}), 403
+        return jsonify({"error": "Required", "message": "Two-step verification is required for election officers and cannot be turned off."}), 403
 
     payload = request.get_json(silent=True) or {}
     password = payload.get("password")
@@ -574,7 +574,7 @@ def voter_pin_login():
         return (
             jsonify({
                 "error": "Unauthorized Kiosk",
-                "message": "This computer is not set up as a voting booth. Ask the Election Officer for a booth token.",
+                "message": "This computer is not set up as a voting booth. Ask the election officer for a booth token.",
             }),
             403,
         )
@@ -622,7 +622,7 @@ def voter_pin_login():
         return (
             jsonify({
                 "error": "Invalid credentials",
-                "message": "Invalid Voter Slip ID or Voting PIN.",
+                "message": "Invalid voter slip ID or Voting PIN.",
             }),
             401,
         )

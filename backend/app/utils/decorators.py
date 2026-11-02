@@ -22,7 +22,7 @@ def _two_step_missing(claims):
 def _two_step_response():
     return jsonify({
         "error": "two_step_required",
-        "message": "Turn on two-step verification to continue. It is required for Election Officers.",
+        "message": "Turn on two-step verification to continue. It is required for election officers.",
     }), 403
 
 

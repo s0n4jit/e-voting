@@ -88,7 +88,7 @@ export default function RegisterStudent() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="Register student" subtitle="A unique Voter Slip ID is generated when you submit." />
+      <PageHeader title="Register student" subtitle="A unique voter slip ID is generated when you submit." />
 
       {programmes.length === 0 ? (
         <div className="card">
@@ -99,7 +99,7 @@ export default function RegisterStudent() {
                 <Link to="/admin/programmes" className="text-brand-fg font-medium hover:underline">Add programmes</Link>
               </>
             ) : (
-              'Ask the Election Officer to add programmes before registering students.'
+              'Ask the election officer to add programmes before registering students.'
             )}
           </EmptyState>
         </div>

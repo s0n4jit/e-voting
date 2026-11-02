@@ -19,7 +19,7 @@ export default function SlipCard({ slip, showPrint = true }) {
           </div>
         </div>
         <div className="px-6 py-6 text-center">
-          <p className="text-xs uppercase tracking-widest text-slate-500">Voter Slip ID</p>
+          <p className="text-xs uppercase tracking-widest text-slate-500">Voter slip ID</p>
           <p className="font-mono text-3xl font-semibold tracking-wider mt-2 break-all text-slate-900">{slip.slip_id}</p>
         </div>
         {slip.pin && (

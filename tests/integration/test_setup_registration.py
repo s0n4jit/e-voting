@@ -210,7 +210,7 @@ def test_search_filter_edit_and_export(client, desk_token):
     assert r.status_code == 200 and r.get_json()["semester"] == 4 and r.get_json()["slip_id"] == s2
     assert client.patch(f"/api/desk/registrations/{s2}", headers=H(desk_token), json={"semester": 99}).status_code == 400
     csv_body = client.get("/api/desk/registrations/export", headers=H(desk_token)).get_data(as_text=True)
-    assert s2 in csv_body and csv_body.startswith("Voter Slip ID")
+    assert s2 in csv_body and csv_body.startswith("Voter slip ID")
 
 
 def test_export_neutralises_spreadsheet_formulas(client, desk_token):

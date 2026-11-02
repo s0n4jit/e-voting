@@ -132,7 +132,7 @@ export const AuditLog = () => {
           <button
             onClick={() => fetchLogs(false)}
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shadow-sm"
-            title="Refresh Ledger"
+            title="Refresh ledger"
           >
             <ArrowPathIcon className="w-4 h-4" />
           </button>
@@ -141,7 +141,7 @@ export const AuditLog = () => {
             className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
           >
             <ArrowDownTrayIcon className="w-4 h-4" />
-            <span>Export Certified CSV</span>
+            <span>Export certified CSV</span>
           </button>
         </div>
       </div>
@@ -149,23 +149,23 @@ export const AuditLog = () => {
       {/* Top Stat Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Records</p>
+          <p className="eyebrow text-slate-400">Total records</p>
           <p className="text-xl font-black text-slate-900 mt-1">{stats?.total_records || logs.length}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Ballots cast</p>
+          <p className="eyebrow text-emerald-600">Ballots cast</p>
           <p className="text-xl font-black text-emerald-600 mt-1">{stats?.ballots_cast || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">PIN slips issued</p>
+          <p className="eyebrow text-indigo-600">PIN slips issued</p>
           <p className="text-xl font-black text-indigo-600 mt-1">{stats?.pins_issued || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Desk Check-ins</p>
+          <p className="eyebrow text-amber-600">Desk check-ins</p>
           <p className="text-xl font-black text-amber-600 mt-1">{stats?.desk_enrollments || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm col-span-2 lg:col-span-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Booth activity</p>
+          <p className="eyebrow text-cyan-600">Booth activity</p>
           <p className="text-xl font-black text-cyan-600 mt-1">{stats?.kiosk_actions || 0}</p>
         </div>
       </div>
@@ -212,13 +212,13 @@ export const AuditLog = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 eyebrow">
                 <tr>
                   <th className="py-3 px-4">Timestamp (UTC)</th>
-                  <th className="py-3 px-4">Action Category</th>
-                  <th className="py-3 px-4">Operator / Actor</th>
-                  <th className="py-3 px-4">Operation Details</th>
-                  <th className="py-3 px-4">Network Station</th>
+                  <th className="py-3 px-4">Action category</th>
+                  <th className="py-3 px-4">Operator / actor</th>
+                  <th className="py-3 px-4">Operation details</th>
+                  <th className="py-3 px-4">Network station</th>
                   <th className="py-3 px-4 text-right">Inspect</th>
                 </tr>
               </thead>
@@ -234,7 +234,7 @@ export const AuditLog = () => {
                         {log.created_at ? format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss') : '—'}
                       </td>
 
-                      {/* Action Category Badge */}
+                      {/* Action category Badge */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${badge.bg}`}
@@ -330,7 +330,7 @@ export const AuditLog = () => {
               </div>
 
               <div>
-                <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
+                <p className="eyebrow text-slate-700 mb-1">
                   What happened
                 </p>
                 <p className="p-3 rounded-xl bg-slate-100 text-slate-800 leading-relaxed">
@@ -339,7 +339,7 @@ export const AuditLog = () => {
               </div>
 
               <div>
-                <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
+                <p className="eyebrow text-slate-700 mb-1">
                   User Agent Client
                 </p>
                 <p className="p-2.5 rounded-xl bg-slate-100 font-mono text-[11px] text-slate-600 break-all">

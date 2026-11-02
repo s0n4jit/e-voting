@@ -28,7 +28,7 @@ import { useBrand } from '../../context/BrandContext';
 import StatusBadge from '../common/StatusBadge';
 import MockBanner from './MockBanner';
 
-const ROLE_LABEL = { admin: 'Election Officer', polling_officer: 'Desk Officer' };
+const ROLE_LABEL = { admin: 'Election officer', polling_officer: 'Desk officer' };
 
 const navFor = (role) => {
   if (role === 'admin') {
@@ -37,7 +37,7 @@ const navFor = (role) => {
       { label: 'Elections', to: '/admin/elections', icon: RectangleStackIcon },
       { label: 'Candidates', to: '/admin/candidates', icon: UserGroupIcon },
       { label: 'Registrations', to: '/desk/registrations', icon: ClipboardDocumentListIcon },
-      { label: 'Desk Officers', to: '/admin/officers', icon: IdentificationIcon },
+      { label: 'Desk officers', to: '/admin/officers', icon: IdentificationIcon },
       { label: 'Programmes', to: '/admin/programmes', icon: AcademicCapIcon },
       { label: 'Voting booths', to: '/admin/kiosks', icon: ComputerDesktopIcon },
       { label: 'Results', to: '/admin/results', icon: PresentationChartBarIcon },

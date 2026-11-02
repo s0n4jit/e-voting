@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '../../hooks/usePolling';
 import { toast } from 'react-hot-toast';
 import { adminApi } from '../../api/adminApi';
 import { errorMessage } from '../ui';
@@ -20,6 +21,7 @@ export default function MockElection() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+  usePolling(() => adminApi.getElections().then((l) => setElection(l.find((e) => e.status !== 'archived') || null)).catch(() => {}), 5000);
 
   const run = async (fn, done) => {
     setBusy(true);

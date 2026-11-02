@@ -46,7 +46,7 @@ export default function Registrations() {
     return () => clearTimeout(t);
   }, [load, filters.q]);
 
-  usePolling(load, 2000); // statuses (no PIN / PIN issued / active / voted) update live without a refresh
+  usePolling(load, 2000); // statuses (no PIN / PIN issued / active / voted) follow the booths without a refresh
 
   // keep the open details panel in step with the latest list
   useEffect(() => {
@@ -84,8 +84,8 @@ export default function Registrations() {
   return (
     <div>
       <PageHeader
-        title="Registrations"
-        subtitle={`${state.total} registered ${state.total === 1 ? 'student' : 'students'}${election ? ` for ${election.title}` : ''} · updates live`}
+        title="Registrations of voter students"
+        subtitle={`${state.total} ${state.total === 1 ? 'student' : 'students'} registered${election ? ` for ${election.title}` : ''}`}
         actions={
           <>
             <ImportStudents onDone={load} />

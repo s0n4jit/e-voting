@@ -30,7 +30,7 @@ const VoteReceipt = ({ receipt }) => {
             </div>
           </div>
           <div className="px-4 py-3 text-center">
-            <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter Slip ID</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter slip ID</p>
             <p className="font-mono text-2xl font-semibold tracking-wider">{receipt.slip}</p>
           </div>
           <table className="w-full text-sm border-t border-dashed border-slate-400">
@@ -326,7 +326,7 @@ export const KioskVoting = () => {
       <div className="max-w-xl mx-auto text-center py-8 animate-page-in">
         {voter.name && (
           <div className="card card-body text-left mb-6 space-y-1" role="status">
-            <p className="text-xs uppercase tracking-widest text-muted">Please check that this is you</p>
+            <p className="eyebrow text-muted">Please check that this is you</p>
             <p className="text-2xl font-semibold">{voter.name}</p>
             <p className="text-muted">{[voter.department, voter.year ? `Semester / year ${voter.year}` : ''].filter(Boolean).join(' · ')}</p>
             <p className="font-mono text-sm text-muted">{voter.student_id}</p>

@@ -107,6 +107,8 @@
   .stat-card { @apply card card-body flex items-center gap-4; }
   .page-title { @apply text-2xl font-semibold tracking-tight text-fg; }
   .page-subtitle { @apply text-sm text-muted mt-1; }
+  /* small label above or under a value: one size, weight and tracking everywhere (the text itself is written in sentence case) */
+  .eyebrow { @apply text-xs font-medium uppercase tracking-wider; }
 
   .table-container { @apply overflow-x-auto rounded-xl border border-line bg-surface; }
   .table { @apply min-w-full divide-y divide-line; }

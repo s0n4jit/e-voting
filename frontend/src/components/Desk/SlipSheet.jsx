@@ -16,7 +16,7 @@ export const PrintSlip = ({ slip, institution, electionTitle }) => {
         </div>
       </div>
       <div className="px-4 py-4 text-center">
-        <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter Slip ID</p>
+        <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter slip ID</p>
         <p className="font-mono text-2xl font-semibold tracking-wider mt-1 break-all">{slip.slip_id}</p>
       </div>
       {slip.pin && (

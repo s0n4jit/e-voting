@@ -18,7 +18,7 @@ const Avatar = ({ candidate }) =>
 const Stat = ({ label, value }) => (
   <div className="px-5 py-4 text-center">
     <p className="text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
-    <p className="text-xs uppercase tracking-widest text-muted mt-1">{label}</p>
+    <p className="eyebrow text-muted mt-1">{label}</p>
   </div>
 );
 
@@ -50,7 +50,7 @@ export default function ResultsView({ data, portal = true }) {
           <div className="flex items-center gap-4 min-w-0 flex-1">
             {branding.logo && <img src={branding.logo} alt="" className="w-16 h-16 object-contain shrink-0" />}
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.25em] text-muted">Election result sheet</p>
+              <p className="eyebrow text-muted">Election result sheet</p>
               <h1 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug">{institution}</h1>
               <p className="text-sm text-muted truncate">
                 {election.title}

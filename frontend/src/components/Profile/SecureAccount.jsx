@@ -15,7 +15,7 @@ export default function SecureAccount() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Turn on two-step verification</h1>
           <p className="text-muted mt-2">
-            This is required for Election Officers. The authenticator app also approves new voting booths and lets you reset a forgotten password.
+            This is required for election officers. The authenticator app also approves new voting booths and lets you reset a forgotten password.
           </p>
         </div>
         <TwoStep />

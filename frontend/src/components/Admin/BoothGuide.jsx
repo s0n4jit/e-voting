@@ -63,7 +63,7 @@ const AppSection = () => {
         <li><strong>Install the printer</strong> in the computer's own settings first.</li>
         <li><strong>First start:</strong> the setup screen asks for the portal address (use the one below) and the printer. Press <strong>Print a test page</strong>, then <strong>Save and start voting</strong>.</li>
         <li><strong>Approve the booth:</strong> on the <strong>Booths</strong> tab press <strong>Generate booth token</strong>, then enter the token and your authenticator code on the booth screen.</li>
-        <li><strong>Leave the full screen</strong> with <code>Ctrl + Alt + Shift + Q</code> and the current authenticator code of an Election Officer. Maintenance offers Return to voting, Address and printer, Open saved receipts and Quit.</li>
+        <li><strong>Leave the full screen</strong> with <code>Ctrl + Alt + Shift + Q</code> and the current authenticator code of an election officer. Maintenance offers Return to voting, Address and printer, Open saved receipts and Quit.</li>
       </ol>
       <p>Portal address to enter in the setup screen:</p>
       <CopyBlock>{address}</CopyBlock>
@@ -92,7 +92,7 @@ export default function BoothGuide() {
           <li>An administrator (<code>sudo</code>) account, and <code>openssh-server</code> so you can manage the booth from another computer. The locked-down screen has no terminal.</li>
           <li>The portal's HTTPS address, for example <code>https://evote.campus.internal</code>.</li>
           <li>Internet access during installation (the script installs the Firefox snap).</li>
-          <li>Your Election Officer account with two-step verification, and your phone with the authenticator app.</li>
+          <li>Your election officer account with two-step verification, and your phone with the authenticator app.</li>
         </ul>
         <CopyBlock>{`sudo apt update
 sudo apt install -y git openssh-server`}</CopyBlock>

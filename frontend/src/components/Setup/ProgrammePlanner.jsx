@@ -67,7 +67,7 @@ export default function ProgrammePlanner({ onChange }) {
       <div className="rounded-lg bg-brand-soft text-sm p-3 space-y-1">
         <p className="font-medium">Configure your college, school or university programmes and departments</p>
         <p className="text-muted">
-          Desk Officers choose a student&rsquo;s programme, department and semester from this list when registering them, so registration is quick
+          Desk officers choose a student&rsquo;s programme, department and semester from this list when registering them, so registration is quick
           and consistent. The standard list below is ready to use: untick anything you do not have, or add your own.
         </p>
       </div>

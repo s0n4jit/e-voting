@@ -50,7 +50,7 @@ export default function ImportStudents({ onDone }) {
           <div className="space-y-4">
             <p className="text-sm">
               <b>{result.created}</b> {result.created === 1 ? 'student was' : 'students were'} registered
-              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a Voter Slip ID. No PINs are issued yet.
+              {result.skipped ? `, ${result.skipped} already registered (skipped)` : ''}. Each has a voter slip ID. No PINs are issued yet.
             </p>
             <p className="text-sm text-warn bg-warn-soft rounded-lg px-3 py-2">
               To give out slips with PINs, use "Issue PINs" on this page when you are ready.

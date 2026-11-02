@@ -18,7 +18,7 @@ import { AnimatedCheck, Field, UserAvatar, errorMessage } from '../ui';
 import { fileToAvatarDataUrl } from '../ui/image';
 import StatusBadge from '../common/StatusBadge';
 
-const ROLE_LABEL = { admin: 'Election Officer', polling_officer: 'Desk Officer' };
+const ROLE_LABEL = { admin: 'Election officer', polling_officer: 'Desk officer' };
 
 const PasswordInput = ({ id, value, onChange, autoComplete, error, autoFocus }) => {
   const [shown, setShown] = useState(false);
@@ -164,7 +164,7 @@ export const TwoStep = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const enabled = Boolean(user?.otp_enabled);
-  const required = user?.role === 'admin'; // mandatory for Election Officers
+  const required = user?.role === 'admin'; // mandatory for election officers
 
   const run = async (fn, message) => {
     setBusy(true);
@@ -242,7 +242,7 @@ export const TwoStep = () => {
         </form>
       )}
 
-      {enabled && required && <p className="text-sm text-muted">Required for Election Officers.</p>}
+      {enabled && required && <p className="text-sm text-muted">Required for election officers.</p>}
       {enabled && !required && !turningOff && (
         <button className="btn-secondary w-fit" onClick={() => setTurningOff(true)}>Turn off</button>
       )}

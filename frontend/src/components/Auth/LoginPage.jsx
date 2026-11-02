@@ -86,7 +86,7 @@ export const LoginPage = () => {
               ? 'Available when two-step verification is turned on for your account.'
               : tempToken
               ? 'Enter the 6-digit code from your authenticator app.'
-              : 'For Election Officers and Desk Officers.'}
+              : 'For election officers and desk officers.'}
           </p>
 
           {location.state?.reason === 'idle' && !forgot && !tempToken && (
@@ -116,7 +116,7 @@ export const LoginPage = () => {
                 </Field>
                 {error && <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 animate-pop-in" role="alert">{error}</p>}
                 <button className="btn-primary w-full" disabled={busy || forgot.code.length !== 6 || !forgot.next}>{busy ? 'Resetting…' : 'Reset password'}</button>
-                <p className="text-xs text-muted">No two-step verification on your account? Ask the Election Officer to reset your password (Desk Officers), or the person who runs the server (Election Officers).</p>
+                <p className="text-xs text-muted">No two-step verification on your account? Ask the election officer to reset your password (Desk officers), or the person who runs the server (Election officers).</p>
                 <button type="button" className="btn-ghost w-full" onClick={() => { setForgot(null); setError(''); }}>Back to sign in</button>
               </form>
             )

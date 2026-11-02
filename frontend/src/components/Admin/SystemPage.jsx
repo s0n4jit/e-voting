@@ -111,7 +111,7 @@ export default function SystemPage() {
             <p className="text-sm text-muted mt-1">
               After a reset, go through the setup screen with temporary details (any name and password), turn on two-step verification,
               then come back here and import your backup. Everything in the backup replaces what is in the system, including the accounts,
-              so you sign in again with the accounts from the backup. Authenticator secrets are not restored: each account sets two-step verification up again on its next sign-in (required for Election Officers).
+              so you sign in again with the accounts from the backup. Authenticator secrets are not restored: each account sets two-step verification up again on its next sign-in (required for election officers).
             </p>
           </div>
         </div>

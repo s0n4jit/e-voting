@@ -322,14 +322,14 @@ def list_voters():
 @admin_required
 def add_single_voter():
     """Superseded by Desk Officer registration (/api/desk/registrations)."""
-    return jsonify({"error": "Voters are registered at the desk, which generates their Voter Slip ID."}), 410
+    return jsonify({"error": "Voters are registered at the desk, which generates their voter slip ID."}), 410
 
 
 @admin_bp.post("/voters/import")
 @admin_required
 def import_voters():
     """Superseded by Desk Officer registration (/api/desk/registrations)."""
-    return jsonify({"error": "Voters are registered at the desk, which generates their Voter Slip ID."}), 410
+    return jsonify({"error": "Voters are registered at the desk, which generates their voter slip ID."}), 410
 
 
 # ── Audit Trail ───────────────────────────────────────────────────────────────
@@ -511,7 +511,7 @@ def issue_desk_pin():
     if not user:
         return jsonify({
             "error": "Not registered",
-            "message": "No registration found for this Voter Slip ID. Register the student first.",
+            "message": "No registration found for this voter slip ID. Register the student first.",
         }), 404
     is_new_registration = False
     admin_identity = get_jwt_identity()
@@ -806,13 +806,13 @@ def create_officer():
     db.session.add(officer)
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()), action="DESK_OFFICER_CREATED",
-        details=f"Created a Desk Officer account for {name} (username {student_id}).", ip_address=request.remote_addr or "",
+        details=f"Created a desk officer account for {name} (username {student_id}).", ip_address=request.remote_addr or "",
     ))
     db.session.commit()
 
     return (
         jsonify({
-            "message": f"Polling Desk Officer '{name}' ({student_id}) created successfully.",
+            "message": f"Polling desk officer '{name}' ({student_id}) created successfully.",
             "officer": officer.to_dict(),
         }),
         201,
@@ -829,7 +829,7 @@ def delete_officer(officer_id):
 
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()), action="DESK_OFFICER_REMOVED",
-        details=f"Removed the Desk Officer account of {officer.name} (username {officer.student_id}).", ip_address=request.remote_addr or "",
+        details=f"Removed the desk officer account of {officer.name} (username {officer.student_id}).", ip_address=request.remote_addr or "",
     ))
     db.session.delete(officer)
     db.session.commit()
@@ -860,7 +860,7 @@ def update_officer(officer_id):
         officer.set_password(payload["password"])
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()), action="DESK_OFFICER_UPDATED",
-        details=f"Updated the Desk Officer account of {officer.name} ({', '.join(changes)}).", ip_address=request.remote_addr or "",
+        details=f"Updated the desk officer account of {officer.name} ({', '.join(changes)}).", ip_address=request.remote_addr or "",
     ))
     db.session.commit()
     return jsonify(officer.to_dict()), 200

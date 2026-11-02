@@ -187,7 +187,7 @@ def _parse_backup(data: bytes) -> dict:
         except (ValueError, AttributeError):
             raise BackupError(f"The backup table {name[3:-5]} is damaged.")
     if not any(u.get("role") == "admin" for u in parsed.get("users", [])):
-        raise BackupError("The backup has no Election Officer, so nobody could sign in.")
+        raise BackupError("The backup has no election officer, so nobody could sign in.")
     return parsed
 
 

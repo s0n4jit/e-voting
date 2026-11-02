@@ -114,7 +114,7 @@ def staff_pin_auth():
     pin = sanitize_input(payload.get("code"))
 
     if not pin:
-        return jsonify({"error": "Code is required.", "message": "Enter the Election Officer's authenticator code."}), 400
+        return jsonify({"error": "Code is required.", "message": "Enter the election officer's authenticator code."}), 400
 
     max_attempts = current_app.config.get("MAINTENANCE_MAX_ATTEMPTS", 5)
     lockout_seconds = current_app.config.get("MAINTENANCE_LOCKOUT_SECONDS", 900)

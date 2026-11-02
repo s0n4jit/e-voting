@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { useSelectedElection } from '../../hooks/useSelectedElection';
 import { toast } from 'react-hot-toast';
@@ -38,6 +39,7 @@ export const CandidateManager = () => {
     load();
     adminApi.getProgrammes().then((p) => setDepartments(p.filter((x) => x.is_active))).catch(() => {});
   }, [load]);
+  usePolling(() => (electionId ? adminApi.getElection(electionId).then(setElection).catch(() => {}) : null), 4000);
 
   const locked = election && LOCKED.includes(election.status);
   const positions = election?.positions || [];

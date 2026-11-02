@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '../../hooks/usePolling';
 import { toast } from 'react-hot-toast';
 import { IdentificationIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
@@ -21,6 +22,7 @@ export const OfficerManager = () => {
     []
   );
   useEffect(() => { load(); }, [load]);
+  usePolling(() => adminApi.getOfficers().then(setRows).catch(() => {}), 4000);
 
   const create = async (e) => {
     e.preventDefault();
@@ -28,7 +30,7 @@ export const OfficerManager = () => {
     setError('');
     try {
       await adminApi.createOfficer(form);
-      toast.success('Desk Officer created');
+      toast.success('Desk officer created');
       setForm(null);
       load();
     } catch (err) {
@@ -65,7 +67,7 @@ export const OfficerManager = () => {
   const remove = async () => {
     try {
       await adminApi.deleteOfficer(removing.id);
-      toast.success('Desk Officer removed');
+      toast.success('Desk officer removed');
       load();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -77,11 +79,11 @@ export const OfficerManager = () => {
   return (
     <div>
       <PageHeader
-        title="Desk Officers"
-        subtitle="Desk Officers register students and check voters in. They cannot change election settings."
+        title="Desk officers"
+        subtitle="Desk officers register students and check voters in. They cannot change election settings."
         actions={
           <button className="btn-primary" onClick={() => { setError(''); setForm({ ...blank }); }}>
-            <PlusIcon className="w-4 h-4" /> Add Desk Officer
+            <PlusIcon className="w-4 h-4" /> Add desk officer
           </button>
         }
       />
@@ -90,7 +92,7 @@ export const OfficerManager = () => {
         {!rows ? (
           <TableSkeleton rows={3} cols={4} />
         ) : rows.length === 0 ? (
-          <EmptyState icon={IdentificationIcon} title="No Desk Officers yet" action={<button className="btn-primary" onClick={() => setForm({ ...blank })}>Add Desk Officer</button>}>
+          <EmptyState icon={IdentificationIcon} title="No desk officers yet" action={<button className="btn-primary" onClick={() => setForm({ ...blank })}>Add desk officer</button>}>
             Create an account for each person who will staff a registration desk.
           </EmptyState>
         ) : (
@@ -117,7 +119,7 @@ export const OfficerManager = () => {
         )}
       </div>
 
-      <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title="Add Desk Officer">
+      <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title="Add desk officer">
         {form && (
           <form onSubmit={create} className="space-y-4">
             <Field label="Full name" htmlFor="o-name">
@@ -158,7 +160,7 @@ export const OfficerManager = () => {
         )}
       </Modal>
 
-      <Modal isOpen={Boolean(removing)} onClose={() => setRemoving(null)} title="Remove Desk Officer">
+      <Modal isOpen={Boolean(removing)} onClose={() => setRemoving(null)} title="Remove desk officer">
         <p className="text-sm text-muted">Remove {removing?.name}? Their registrations stay on record.</p>
         <div className="flex justify-end gap-2 mt-5">
           <button className="btn-ghost" onClick={() => setRemoving(null)}>Cancel</button>

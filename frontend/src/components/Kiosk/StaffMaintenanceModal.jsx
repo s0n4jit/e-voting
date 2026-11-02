@@ -202,7 +202,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
           <button
             onClick={handleExit}
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Return to Voting Kiosk (Ctrl + Alt + Shift + L)"
+            title="Return to voting kiosk (Ctrl + Alt + Shift + L)"
           >
             <XMarkIcon className="w-6 h-6" />
           </button>
@@ -215,9 +215,9 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
             <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4">
               <LockClosedIcon className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-white tracking-tight">Staff Authentication Required</h3>
+            <h3 className="text-xl font-bold text-white tracking-tight">Staff authentication required</h3>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Enter the current code from the Election Officer's authenticator app to open diagnostics, network checks and restart options.
+              Enter the current code from the election officer's authenticator app to open diagnostics, network checks and restart options.
             </p>
 
             {authError && (
@@ -252,10 +252,10 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 {authenticating ? (
                   <>
                     <LoadingSpinner size="sm" />
-                    <span>Verifying Credentials...</span>
+                    <span>Verifying credentials…</span>
                   </>
                 ) : (
-                  <span>Unlock Maintenance Terminal</span>
+                  <span>Unlock maintenance terminal</span>
                 )}
               </button>
             </form>
@@ -279,7 +279,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 }`}
               >
                 <ComputerDesktopIcon className="w-4 h-4" />
-                <span>System & Booth</span>
+                <span>System and booth</span>
               </button>
               <button
                 onClick={() => setActiveTab('network')}
@@ -290,7 +290,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 }`}
               >
                 <SignalIcon className="w-4 h-4" />
-                <span>Network Diagnostics</span>
+                <span>Network diagnostics</span>
               </button>
               <button
                 onClick={() => setActiveTab('actions')}
@@ -301,7 +301,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 }`}
               >
                 <PowerIcon className="w-4 h-4" />
-                <span>Maintenance Actions</span>
+                <span>Maintenance actions</span>
               </button>
             </div>
 
@@ -311,7 +311,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                      <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Terminal Station</p>
+                      <p className="eyebrow text-slate-400">Terminal station</p>
                       <p className="text-base font-bold text-white mt-1">{diagnostics?.booth_id || localStorage.getItem('kiosk_name') || '—'}</p>
                       {diagnostics?.election_title && <p className="text-xs text-slate-300 mt-1 truncate">{diagnostics.election_title}</p>}
                       <span className={`inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded border text-[10px] font-semibold ${diagnostics?.voting_open ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
@@ -322,7 +322,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     </div>
 
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                      <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Operating Platform</p>
+                      <p className="eyebrow text-slate-400">Operating platform</p>
                       <p className="text-sm font-semibold text-white mt-1 truncate">
                         {diagnostics?.os_info || 'Not reported'}
                       </p>
@@ -332,7 +332,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     </div>
 
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                      <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Uptime</p>
+                      <p className="eyebrow text-slate-400">Uptime</p>
                       <p className="text-base font-bold text-white mt-1 flex items-center gap-2">
                         <ClockIcon className="w-5 h-5 text-indigo-400" />
                         <span>
@@ -344,7 +344,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     </div>
 
                     <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                      <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Local IP & Subnet</p>
+                      <p className="eyebrow text-slate-400">Local IP and subnet</p>
                       <p className="text-base font-mono font-bold text-emerald-400 mt-1">
                         {diagnostics?.interfaces?.[0]?.ip || '192.168.1.105'}
                       </p>
@@ -359,14 +359,14 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
               {activeTab === 'network' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <h4 className="text-sm font-bold text-white">Multi-Tier Connectivity Check</h4>
+                    <h4 className="text-sm font-bold text-white">Multi-tier connectivity check</h4>
                     <button
                       onClick={loadDiagnostics}
                       disabled={loadingDiag}
                       className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 flex items-center gap-1.5 transition-colors"
                     >
                       <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingDiag ? 'animate-spin' : ''}`} />
-                      <span>Re-check Connectivity</span>
+                      <span>Re-check connectivity</span>
                     </button>
                   </div>
 
@@ -375,18 +375,18 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     {/* 1. Interface Status */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">1. Physical Network Interface</p>
+                        <p className="font-semibold text-slate-200">1. Physical network interface</p>
                         <p className="text-[11px] text-slate-400">Ethernet / Wi-Fi link status</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                        <CheckCircleIcon className="w-4 h-4" /> Link Up
+                        <CheckCircleIcon className="w-4 h-4" /> Link up
                       </span>
                     </div>
 
                     {/* 2. Gateway Reachability */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">2. Local Gateway Availability</p>
+                        <p className="font-semibold text-slate-200">2. Local gateway availability</p>
                         <p className="text-[11px] text-slate-400">Ping default router (192.168.1.1)</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
@@ -397,7 +397,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     {/* 3. DNS Resolution */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">3. DNS Name Resolution</p>
+                        <p className="font-semibold text-slate-200">3. DNS name resolution</p>
                         <p className="text-[11px] text-slate-400">Recursive resolver query</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
@@ -408,7 +408,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     {/* 4. Public Internet Connectivity */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">4. Public Internet Access</p>
+                        <p className="font-semibold text-slate-200">4. Public internet access</p>
                         <p className="text-[11px] text-slate-400">WAN egress reachability</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
@@ -419,7 +419,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                     {/* 5. Public HTTPS Endpoint */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">5. HTTPS Public Endpoint</p>
+                        <p className="font-semibold text-slate-200">5. HTTPS public endpoint</p>
                         <p className="text-[11px] text-slate-400">SSL/TLS certificate verification</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
@@ -427,10 +427,10 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                       </span>
                     </div>
 
-                    {/* 6. Voting Application API */}
+                    {/* 6. Voting application API */}
                     <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-200">6. Voting Application API</p>
+                        <p className="font-semibold text-slate-200">6. Voting application API</p>
                         <p className="text-[11px] text-slate-400">Database & ballot endpoint health</p>
                       </div>
                       <span className="flex items-center gap-1 text-emerald-400 font-bold">
@@ -484,7 +484,7 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
                       onClick={() =>
                         setConfirmModal({
                           action: 'restart_system',
-                          label: 'Reboot Computer',
+                          label: 'Reboot computer',
                           description:
                             'This will safely reboot the physical terminal. The system will automatically log back into the locked evote session.',
                         })
@@ -510,14 +510,14 @@ export const StaffMaintenanceModal = ({ isOpen, onClose, initialTab = 'overview'
             {/* Footer with Exit and Shortcut Guide */}
             <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
               <div className="flex items-center gap-4 text-[11px] font-mono">
-                <span>Ctrl+Alt+Shift+M: Open Panel</span>
-                <span>Ctrl+Alt+Shift+L: Return</span>
+                <span>Ctrl+Alt+Shift+M: open panel</span>
+                <span>Ctrl+Alt+Shift+L: return</span>
               </div>
               <button
                 onClick={handleExit}
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition-all shadow-sm"
               >
-                Return to Voting Kiosk
+                Return to voting kiosk
               </button>
             </div>
           </div>
