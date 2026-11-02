@@ -41,11 +41,13 @@ def import_students(text, election, actor_id=None, dry_run=False):
         return [], 0, [f"The student list must have between 1 and {MAX_STUDENTS} rows."]
 
     by_name = {(p.programme.lower(), p.department.lower()): p for p in Programme.query.filter_by(is_active=True).all()}
+    prefix = election.ensure_slip_prefix() if election else "SUE00-E0-"
     existing = {
         (n.lower(), pid, yr)
-        for n, pid, yr in db.session.query(User.name, User.programme_id, User.year).filter(User.role == "voter")
+        for n, pid, yr in db.session.query(User.name, User.programme_id, User.year).filter(
+            User.role == "voter", User.student_id.like(f"{prefix}%")
+        )
     }
-    prefix = election.ensure_slip_prefix() if election else "SUE00-E0-"
     used = {s for (s,) in db.session.query(User.student_id).filter(User.student_id.like(f"{prefix}%"))}
     make_record = bool(election and election.desk_open and election.id)
 

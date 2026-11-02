@@ -6,6 +6,7 @@ export const deskApi = {
     form.append('file', file);
     return (await apiClient.post('/desk/registrations/import', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data;
   },
+  removeAll: async () => (await apiClient.delete('/desk/registrations', { data: { confirm: 'DELETE' } })).data,
   state: async () => (await apiClient.get('/desk/state')).data,
   getProgrammes: async () => (await apiClient.get('/desk/programmes')).data,
   register: async (data) => (await apiClient.post('/desk/registrations', data)).data,

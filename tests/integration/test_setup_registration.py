@@ -1058,3 +1058,30 @@ def test_positions_follow_the_election_notice_order_in_ballot_and_results(client
     moved = notice[1:2] + notice[:1] + notice[2:]               # the officer moves President below Vice President
     client.put(f"/api/admin/elections/{eid}/positions", headers=H(installed), json={"positions": moved})
     assert [p["position"] for p in VoteService.get_results(election_id=eid, force=True)["by_position"]] == moved
+
+
+def test_registrations_belong_to_the_election_and_can_be_removed_before_voting(client, installed, desk_token):
+    from app.models.voter_record import VoterRecord
+    text = "name,programme,department,semester\nAnita Das,Bachelor of Science,Physics,3\nRahul Borah,Bachelor of Arts,English,1\n"
+    assert _csv_upload(client, H(desk_token), text).status_code == 201
+    old = User(student_id="VSL-2020-000001", name="Old Student", email="o@x.invalid", role="voter", is_active=True)
+    old.set_password("x")
+    _db.session.add(old)                                                          # a student of some other election
+    _db.session.commit()
+    listing = client.get("/api/desk/registrations", headers=H(desk_token)).get_json()
+    assert listing["total"] == 2 and all(r["slip_id"].startswith("SUE") for r in listing["registrations"])
+    assert client.delete("/api/desk/registrations", headers=H(desk_token), json={"confirm": "DELETE"}).status_code == 403   # officers only
+    assert client.delete("/api/desk/registrations", headers=H(installed), json={"confirm": "no"}).status_code == 400
+    r = client.delete("/api/desk/registrations", headers=H(installed), json={"confirm": "DELETE"})
+    assert r.status_code == 200 and r.get_json()["removed"] == 2
+    assert client.get("/api/desk/registrations", headers=H(desk_token)).get_json()["total"] == 0
+    assert VoterRecord.query.count() == 0 and User.query.filter_by(student_id="VSL-2020-000001").count() == 1
+    # the same list can be imported again after removal
+    assert _csv_upload(client, H(desk_token), text).get_json()["created"] == 2
+    # once voting is open nobody can be removed
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    assert client.delete("/api/desk/registrations", headers=H(installed), json={"confirm": "DELETE"}).status_code == 409

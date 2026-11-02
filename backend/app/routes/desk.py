@@ -24,7 +24,7 @@ from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.models.voter_record import VoterRecord
 from app.models.voting_token import VotingToken
-from app.utils.decorators import desk_required
+from app.utils.decorators import admin_required, desk_required
 from app.utils.timeutil import utc_iso
 from app.utils.validators import clean_name, sanitize_input, validate_person_name
 
@@ -104,6 +104,13 @@ def _programme_map():
     return {p.id: p for p in Programme.query.all()}
 
 
+def _of_election(query, election):
+    """Students belong to the election whose slip prefix (e.g. SUE26-E1-) their Voter Slip ID carries."""
+    if election and election.slip_prefix:
+        return query.filter(User.student_id.like(f"{election.slip_prefix}%"))
+    return query
+
+
 def _find_voter(slip):
     slip = (slip or "").strip().upper()
     return User.query.filter(func.upper(User.student_id) == slip, User.role == "voter").first()
@@ -162,12 +169,12 @@ def register_student():
         return jsonify({"error": "Voting has ended, so no more students can be registered and no more PINs can be issued.", "code": "voting_ended"}), 409
 
     name = sanitize_input(name)
-    duplicate = User.query.filter(
+    duplicate = _of_election(User.query.filter(
         User.role == "voter",
         func.lower(User.name) == name.lower(),
         User.programme_id == programme.id,
         User.year == semester,
-    ).first()
+    ), current).first()
     if duplicate and not payload.get("confirm_duplicate"):
         return jsonify({
             "error": "A student with this name is already registered for this programme and "
@@ -240,11 +247,38 @@ def import_registrations():
     return jsonify({"created": len(created), "skipped": skipped, "students": created}), 201
 
 
+@desk_bp.delete("/registrations")
+@admin_required
+def remove_all_registrations():
+    """Election Officer: remove every student registered for the current election, before voting opens."""
+    election = Election.current()
+    if not election:
+        return jsonify({"error": "There is no election."}), 404
+    if (request.get_json(silent=True) or {}).get("confirm") != "DELETE":
+        return jsonify({"error": "Type DELETE to confirm."}), 400
+    if election.effective_status not in ("setup", "registration", "ready"):
+        return jsonify({"error": "Students can only be removed before voting opens."}), 409
+    students = _of_election(User.query.filter(User.role == "voter"), election).all()
+    slips = [u.student_id for u in students]
+    hashes = [User.hash_student_id(s) for s in slips]
+    for i in range(0, len(slips), 500):
+        VotingToken.query.filter(VotingToken.election_id == election.id,
+                                 VotingToken.student_id.in_(slips[i:i + 500])).delete(synchronize_session=False)
+        VoterRecord.query.filter(VoterRecord.election_id == election.id,
+                                 VoterRecord.voter_hash.in_(hashes[i:i + 500])).delete(synchronize_session=False)
+    for u in students:
+        db.session.delete(u)
+    _audit("STUDENTS_REMOVED", f"Removed all {len(students)} registered students from \u201c{election.title}\u201d.")
+    db.session.commit()
+    return jsonify({"removed": len(students)}), 200
+
+
 @desk_bp.get("/registrations")
 @desk_required
 def list_registrations():
     q = clean_name(request.args.get("q"))
-    query = User.query.filter(User.role == "voter")
+    election = Election.current()
+    query = _of_election(User.query.filter(User.role == "voter"), election)
     if q:
         term = f"%{q}%"
         query = query.filter(User.student_id.ilike(term) | User.name.ilike(term))
@@ -258,7 +292,6 @@ def list_registrations():
     total = query.count()
     users = query.order_by(User.created_at.desc(), User.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
 
-    election = Election.current()
     status = _statuses(users, election)
     programmes = _programme_map()
     return jsonify({
@@ -274,7 +307,7 @@ def list_registrations():
 @desk_required
 def export_registrations():
     election = Election.current()
-    users = User.query.filter_by(role="voter").order_by(User.created_at).all()
+    users = _of_election(User.query.filter_by(role="voter"), election).order_by(User.created_at).all()
     status = _statuses(users, election)
     programmes = _programme_map()
     out = io.StringIO()

@@ -6,7 +6,7 @@ app/audit_categories.py — Groups of audit actions shown as filters on the Audi
 CATEGORIES = [
     ("ballot", "Ballots cast", ["VOTE_CAST"]),
     ("pin", "PIN slips", ["PIN_ISSUED", "PIN_LOGIN_SUCCESS", "PIN_LOCKED"]),
-    ("desk", "Desk check-ins", ["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "STUDENT_UPDATED", "REGISTRATIONS_EXPORTED", "PIN_ISSUED"]),
+    ("desk", "Desk check-ins", ["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "STUDENTS_REMOVED", "STUDENT_UPDATED", "REGISTRATIONS_EXPORTED", "PIN_ISSUED"]),
     ("auth", "Sign-ins and security", ["LOGIN_SUCCESS", "LOGOUT", "TOTP_2FA_ENABLED", "TOTP_2FA_DISABLED", "PASSWORD_CHANGED", "PASSWORD_RESET"]),
     ("election", "Election", [
         "ELECTION_CREATED", "ELECTION_UPDATED", "ELECTION_DELETED", "ELECTION_STATUS_CHANGED", "VOTING_PAUSED", "VOTING_RESUMED", "POSITIONS_UPDATED",

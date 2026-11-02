@@ -8,6 +8,7 @@ import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 import StudentPanel from './StudentPanel';
 import ImportStudents from './ImportStudents';
+import { useAuth } from '../../context/AuthContext';
 import { usePolling } from '../../hooks/usePolling';
 
 const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
@@ -19,6 +20,10 @@ export default function Registrations() {
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ loading: true, rows: [], total: 0, per_page: 25, error: '' });
   const [selected, setSelected] = useState(null);
+  const { role } = useAuth();
+  const [election, setElection] = useState(null);
+  const [removing, setRemoving] = useState(false);
+  const [confirmWord, setConfirmWord] = useState('');
 
   useEffect(() => {
     deskApi.getProgrammes().then(setProgrammes).catch(() => {});
@@ -28,6 +33,7 @@ export default function Registrations() {
     try {
       const params = { page, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) };
       const res = await deskApi.list(params);
+      setElection(res.election);
       setState({ loading: false, rows: res.registrations, total: res.total, per_page: res.per_page, error: '' });
     } catch (err) {
       setState((s) => ({ ...s, loading: false, error: errorMessage(err) }));
@@ -53,6 +59,19 @@ export default function Registrations() {
     setFilters((f) => ({ ...f, [key]: value, ...(key === 'programme_id' ? { semester: '' } : {}) }));
   };
 
+  const canRemove = role === 'admin' && ['setup', 'registration', 'ready'].includes(election?.status) && state.total > 0;
+  const removeAll = async () => {
+    try {
+      const res = await deskApi.removeAll();
+      toast.success(`${res.removed} students removed`);
+      setRemoving(false);
+      setConfirmWord('');
+      load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
   const exportCsv = async () => {
     try {
       saveBlob(await deskApi.exportCsv(), 'registrations.csv');
@@ -65,10 +84,11 @@ export default function Registrations() {
     <div>
       <PageHeader
         title="Registrations"
-        subtitle={`${state.total} registered ${state.total === 1 ? 'student' : 'students'} · updates live`}
+        subtitle={`${state.total} registered ${state.total === 1 ? 'student' : 'students'}${election ? ` for ${election.title}` : ''} · updates live`}
         actions={
           <>
             <ImportStudents onDone={load} />
+            {canRemove && <button className="btn-ghost text-bad" onClick={() => setRemoving(true)}>Remove all</button>}
             <button className="btn-secondary" onClick={exportCsv}>
               <ArrowDownTrayIcon className="w-4 h-4" /> Export CSV
             </button>
@@ -153,6 +173,18 @@ export default function Registrations() {
 
       <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title="Registration details" maxWidth="max-w-xl">
         {selected && <StudentPanel student={selected} programmes={programmes} onChanged={load} />}
+      </Modal>
+      <Modal isOpen={removing} onClose={() => setRemoving(false)} title="Remove all students">
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            This removes every student registered for {election?.title} together with their slips and PINs. It cannot be undone. It is only possible before voting opens.
+          </p>
+          <input className="input font-mono" placeholder="Type DELETE to confirm" value={confirmWord} onChange={(e) => setConfirmWord(e.target.value)} />
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost" onClick={() => setRemoving(false)}>Cancel</button>
+            <button className="btn-danger" disabled={confirmWord !== 'DELETE'} onClick={removeAll}>Remove all students</button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
