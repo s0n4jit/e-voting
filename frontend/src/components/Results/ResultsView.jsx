@@ -1,103 +1,130 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { ExclamationTriangleIcon, MinusCircleIcon, PrinterIcon, TrophyIcon } from '@heroicons/react/24/outline';
-import { photoSrc, StatCard } from '../ui';
+import { CheckBadgeIcon, ExclamationTriangleIcon, MinusCircleIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { photoSrc } from '../ui';
+import { useBrand } from '../../context/BrandContext';
 import PrintPortal from '../common/PrintPortal';
 import PrintableResults from './PrintableResults';
 
 const Avatar = ({ candidate }) =>
   candidate.photo_url ? (
-    <img src={photoSrc(candidate.photo_url)} alt="" className="w-12 h-12 rounded-xl object-cover bg-recessed shrink-0" />
+    <img src={photoSrc(candidate.photo_url)} alt="" className="w-11 h-11 rounded-xl object-cover bg-recessed shrink-0" />
   ) : (
-    <span className="w-12 h-12 rounded-xl bg-brand-soft text-brand-fg font-semibold text-lg flex items-center justify-center shrink-0">
+    <span className="w-11 h-11 rounded-xl bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0">
       {candidate.name.charAt(0).toUpperCase()}
     </span>
   );
 
-const OUTCOME = {
-  winner: { icon: TrophyIcon, tone: 'bg-ok-soft text-ok', title: (o) => `Winner: ${o.label}` },
-  draw: { icon: ExclamationTriangleIcon, tone: 'bg-warn-soft text-warn', title: (o) => o.label },
-  none: { icon: MinusCircleIcon, tone: 'bg-recessed text-muted', title: (o) => o.label },
-};
-
-const Row = ({ name, sub, votes, total, highlight, avatar }) => (
-  <li
-    className={`px-5 py-3.5 flex items-center gap-4 ${
-      highlight === 'win' ? 'bg-ok-soft/60' : highlight === 'tie' ? 'bg-warn-soft/60' : ''
-    }`}
-  >
-    {avatar}
-    <div className="min-w-0 flex-1">
-      <p className="font-semibold truncate">{name}</p>
-      {sub && <p className="text-xs text-muted truncate">{sub}</p>}
-    </div>
-    <p className="text-right tabular-nums shrink-0">
-      <span className="text-2xl font-semibold">{votes}</span>
-      <span className="text-sm text-muted"> {votes === 1 ? 'vote' : 'votes'} out of {total}</span>
-    </p>
-  </li>
+const Stat = ({ label, value }) => (
+  <div className="px-5 py-4 text-center">
+    <p className="text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
+    <p className="text-xs uppercase tracking-widest text-muted mt-1">{label}</p>
+  </div>
 );
 
-/** Results for one election: totals, then every contested position with its outcome. */
-export default function ResultsView({ data }) {
+const Votes = ({ n, of }) => (
+  <p className="text-right tabular-nums shrink-0 leading-tight">
+    <span className="text-xl font-semibold">{n}</span>
+    <span className="block text-[11px] text-muted">{n === 1 ? 'vote' : 'votes'} of {of}</span>
+  </p>
+);
+
+const OUTCOME = {
+  winner: { icon: CheckBadgeIcon, tone: 'text-ok' },
+  draw: { icon: ExclamationTriangleIcon, tone: 'text-warn' },
+  none: { icon: MinusCircleIcon, tone: 'text-muted' },
+};
+
+/** Results of one election: a letterhead header with the Print button first, the declared winners, then every position. */
+export default function ResultsView({ data, portal = true }) {
+  const { branding } = useBrand();
   const { election, turnout, by_position: positions = [] } = data;
+  const institution = data.institution_name || branding.institution_name;
+  const notVoted = Math.max(turnout.total_registered - turnout.ballots_cast, 0);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <div className="flex items-start justify-between gap-4">
-          <p className="text-sm text-muted">{data.institution_name}</p>
-          <button type="button" className="btn-secondary btn-sm no-print" onClick={() => window.print()}>
-            <PrinterIcon className="w-4 h-4" /> Print results
+    <div className="space-y-6">
+      {/* header: looks like the printed sheet */}
+      <section className="card overflow-hidden">
+        <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            {branding.logo && <img src={branding.logo} alt="" className="w-16 h-16 object-contain shrink-0" />}
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.25em] text-muted">Election result sheet</p>
+              <h1 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug">{institution}</h1>
+              <p className="text-sm text-muted truncate">
+                {election.title}
+                {election.start_time ? ` · ${format(new Date(election.start_time), 'd MMM yyyy')}` : ''}
+              </p>
+            </div>
+          </div>
+          <button type="button" className="btn-primary btn-lg shrink-0 no-print" onClick={() => window.print()}>
+            <PrinterIcon className="w-5 h-5" /> Print result sheet
           </button>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight mt-1">{election.title}</h1>
-        {election.start_time && (
-          <p className="text-sm text-muted mt-2">Voting held {format(new Date(election.start_time), 'PPp')} – {format(new Date(election.end_time), 'p')}</p>
-        )}
-      </div>
+        <div className="grid grid-cols-3 divide-x divide-line border-t border-dashed border-line bg-recessed/50">
+          <Stat label="Registered" value={turnout.total_registered} />
+          <Stat label="Voted" value={turnout.ballots_cast} />
+          <Stat label="Did not vote" value={notVoted} />
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Voters who voted" value={turnout.ballots_cast} />
-        <StatCard label="Registered voters" value={turnout.total_registered} />
-        <StatCard label="Did not vote" value={Math.max(turnout.total_registered - turnout.ballots_cast, 0)} />
-      </div>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-4">Contested Positions</h2>
-        <div className="space-y-5">
-          {positions.map((p) => {
+      {/* declared results */}
+      <section className="card overflow-hidden">
+        <header className="px-5 py-3.5 border-b border-line">
+          <h2 className="font-semibold">Declared results</h2>
+        </header>
+        <ul className="divide-y divide-line">
+          {positions.map((p, i) => {
             const o = OUTCOME[p.outcome?.type] || OUTCOME.none;
             const Icon = o.icon;
+            const win = p.candidates.find((c) => c.is_winner || c.is_tied);
+            return (
+              <li key={p.position} className="px-5 py-3 flex items-center gap-4">
+                <span className="w-6 text-sm text-muted tabular-nums">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted">{p.position}</p>
+                  <p className={`font-semibold truncate flex items-center gap-1.5 ${o.tone}`}>
+                    <Icon className="w-5 h-5 shrink-0" />
+                    <span className="truncate">{p.outcome?.label}</span>
+                  </p>
+                </div>
+                {win && <Votes n={win.votes} of={p.total_votes} />}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* every position with the full count */}
+      <section>
+        <h2 className="font-semibold mb-3">Votes by position</h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {positions.map((p) => {
             const rows = [...p.candidates].sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
             return (
-              <article key={p.position} className="card overflow-hidden animate-slide-up">
-                <header className="px-5 py-4 border-b border-line flex items-center justify-between gap-3">
-                  <h3 className="font-semibold text-lg">{p.position}</h3>
-                  <span className="text-sm text-muted tabular-nums">{p.total_votes} {p.total_votes === 1 ? 'vote' : 'votes'} cast</span>
+              <article key={p.position} className="card overflow-hidden">
+                <header className="px-5 py-3 border-b border-line flex items-center justify-between gap-3">
+                  <h3 className="font-semibold truncate">{p.position}</h3>
+                  <span className="text-xs text-muted tabular-nums shrink-0">{p.total_votes} votes cast</span>
                 </header>
-                <div className={`px-5 py-3 flex items-center gap-2.5 text-sm font-medium ${o.tone}`}>
-                  <Icon className="w-5 h-5 shrink-0" />
-                  <span>{o.title(p.outcome)}</span>
-                </div>
                 <ul className="divide-y divide-line">
                   {rows.map((c) => (
-                    <Row
-                      key={c.candidate_id}
-                      name={c.name}
-                      sub={c.department}
-                      votes={c.votes}
-                      total={p.total_votes}
-                      highlight={c.is_winner ? 'win' : c.is_tied ? 'tie' : undefined}
-                      avatar={<Avatar candidate={c} />}
-                    />
+                    <li key={c.candidate_id} className={`px-5 py-3 flex items-center gap-3 ${c.is_winner ? 'bg-ok-soft/60' : c.is_tied ? 'bg-warn-soft/60' : ''}`}>
+                      <Avatar candidate={c} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{c.name}</p>
+                        {c.is_winner && <p className="text-xs text-ok font-medium">Elected</p>}
+                        {c.is_tied && <p className="text-xs text-warn font-medium">Tied</p>}
+                      </div>
+                      <Votes n={c.votes} of={p.total_votes} />
+                    </li>
                   ))}
-                  <Row
-                    name="NOTA"
-                    votes={p.nota_count}
-                    total={p.total_votes}
-                    avatar={<span className="w-12 h-12 rounded-xl bg-recessed text-muted flex items-center justify-center shrink-0"><MinusCircleIcon className="w-6 h-6" /></span>}
-                  />
+                  <li className="px-5 py-3 flex items-center gap-3 bg-recessed/40">
+                    <span className="w-11 h-11 rounded-xl bg-recessed text-muted flex items-center justify-center shrink-0"><MinusCircleIcon className="w-6 h-6" /></span>
+                    <p className="font-medium flex-1">NOTA</p>
+                    <Votes n={p.nota_count} of={p.total_votes} />
+                  </li>
                 </ul>
               </article>
             );
@@ -105,7 +132,7 @@ export default function ResultsView({ data }) {
         </div>
       </section>
 
-      <PrintPortal><PrintableResults data={data} /></PrintPortal>
+      {portal && <PrintPortal><PrintableResults data={data} /></PrintPortal>}
     </div>
   );
 }

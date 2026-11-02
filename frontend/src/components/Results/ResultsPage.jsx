@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelectedElection } from '../../hooks/useSelectedElection';
 import { toast } from 'react-hot-toast';
-import { ClipboardDocumentIcon, EyeIcon, EyeSlashIcon, LinkIcon, PresentationChartBarIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ClipboardDocumentIcon, EyeIcon, EyeSlashIcon, LinkIcon, LockClosedIcon, PresentationChartBarIcon, PrinterIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { resultsApi } from '../../api/resultsApi';
 import { ElectionPicker, EmptyState, errorMessage } from '../ui';
 import { usePolling } from '../../hooks/usePolling';
 import LoadingSpinner from '../common/LoadingSpinner';
 import Modal from '../common/Modal';
+import PrintPortal from '../common/PrintPortal';
+import PrintableResults from './PrintableResults';
 import ResultsView from './ResultsView';
 
 /** Results inside the officer workspace: live counts, and the public link once published. */
@@ -72,23 +74,75 @@ export const ResultsPage = () => {
     }
   };
 
+  const state = data.locked ? (data.voting_over ? 'Voting closed' : 'Voting in progress') : data.published ? 'Published' : data.mock ? 'Mock election' : 'Ready';
+
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <ElectionPicker elections={elections} value={electionId} onChange={select} />
-        <span />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <ElectionPicker elections={elections} value={electionId} onChange={select} />
+          <span className="badge badge-brand">{state}</span>
+        </div>
         {data.locked ? (
-          <button className="btn-primary" disabled title="Available after the results are published">
+          <button className="btn-secondary" disabled title="Available after the results are published">
             <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
           </button>
         ) : (
-          <Link to={`/admin/results/${electionId}/present`} className="btn-primary" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
+          <Link to={`/admin/results/${electionId}/present`} className="btn-secondary" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
             <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
           </Link>
         )}
       </div>
 
-      <div className="card card-body mb-8">
+      {data.locked ? (
+        <section className="card card-body">
+          <div className="flex items-center gap-3">
+            <LockClosedIcon className="w-6 h-6 text-muted" />
+            <h2 className="font-semibold">Results are locked</h2>
+          </div>
+          <p className="text-sm text-muted mt-2">
+            {data.voting_over
+              ? 'Voting has closed. Publish the results on the Elections page to print the result sheet, present it on the projector and share it.'
+              : 'Voting is still in progress. Results stay hidden, for everyone, until voting has closed and you publish them.'}
+          </p>
+          <p className="text-sm mt-3"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} registered voters have voted.</p>
+          <ol className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm list-decimal pl-5 text-muted">
+            {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
+          </ol>
+        </section>
+      ) : (
+        <>
+          <section className="card card-body flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <h2 className="font-semibold">{data.mock ? 'Live results of the mock election' : 'The result sheet is ready'}</h2>
+              <p className="text-sm text-muted mt-1">
+                Print it on the college letterhead (with the logo), or open it on this screen. Counts are shown as numbers of votes, with NOTA in every position.
+              </p>
+              <p className="text-sm mt-2"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} registered voters voted.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!showAll && (
+                <button className="btn-primary btn-lg" onClick={() => window.print()}>
+                  <PrinterIcon className="w-5 h-5" /> Print result sheet
+                </button>
+              )}
+              {!showAll ? (
+                <button className="btn-secondary btn-lg" onClick={() => setConfirmShow(true)}>
+                  <EyeIcon className="w-5 h-5" /> Show on this screen
+                </button>
+              ) : (
+                <button className="btn-secondary btn-lg" onClick={() => setShowAll(false)}>
+                  <EyeSlashIcon className="w-5 h-5" /> Hide
+                </button>
+              )}
+            </div>
+          </section>
+          {showAll && <ResultsView data={data} portal={false} />}
+          <PrintPortal><PrintableResults data={data} /></PrintPortal>
+        </>
+      )}
+
+      <section className="card card-body">
         <p className="font-medium">Public link</p>
         {link ? (
           <>
@@ -112,7 +166,7 @@ export const ResultsPage = () => {
             </button>
           </div>
         )}
-      </div>
+      </section>
 
       <Modal isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete the public link?">
         <p className="text-sm text-muted">The link stops working immediately. You can create a new one later; it will be a different address.</p>
@@ -122,32 +176,6 @@ export const ResultsPage = () => {
         </div>
       </Modal>
 
-      <div className="card card-body mb-8">
-        <p className="font-medium">{data.locked ? 'Results are locked' : 'Results are hidden here'}</p>
-        <p className="text-sm text-muted mt-1">
-          {data.locked ? (
-            data.voting_over
-              ? 'Voting has closed. Publish the results on the Elections page to unlock the projector reveal, the report and the public link.'
-              : 'Voting is still in progress. Results stay hidden, for everyone, until voting has closed and you publish them.'
-          ) : (
-            <>So the surprise is kept for the announcement, only the turnout is shown. Use <strong>Present on projector</strong> to reveal the {data.by_position.length} positions one at a time.</>
-          )}
-        </p>
-        <p className="text-sm mt-3">{data.turnout.ballots_cast} of {data.turnout.total_registered} registered voters have voted.</p>
-        <ol className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm list-decimal pl-5">
-          {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
-        </ol>
-        {data.locked ? null : !showAll ? (
-          <button className="btn-ghost btn-sm mt-4 w-fit" onClick={() => setConfirmShow(true)}>
-            <EyeIcon className="w-4 h-4" /> Show full results on this screen
-          </button>
-        ) : (
-          <button className="btn-ghost btn-sm mt-4 w-fit" onClick={() => setShowAll(false)}>
-            <EyeSlashIcon className="w-4 h-4" /> Hide results
-          </button>
-        )}
-      </div>
-
       <Modal isOpen={confirmShow} onClose={() => setConfirmShow(false)} title="Show the full results?">
         <p className="text-sm text-muted">Anyone who can see this screen will see every winner and vote count.</p>
         <div className="flex justify-end gap-2 mt-5">
@@ -155,8 +183,6 @@ export const ResultsPage = () => {
           <button className="btn-primary" onClick={() => { setShowAll(true); setConfirmShow(false); }}>Show results</button>
         </div>
       </Modal>
-
-      {showAll && !data.locked && <ResultsView data={data} />}
     </div>
   );
 };
