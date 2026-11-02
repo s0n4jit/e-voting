@@ -22,7 +22,11 @@ URL_RE = re.compile(r"^https?://[^/\s]+/kiosk/vote$")
 
 
 def sh(cmd, check=False, show=True):
-    p = subprocess.run(cmd, text=True, capture_output=True)
+    try:
+        p = subprocess.run(cmd, text=True, capture_output=True)
+    except FileNotFoundError:
+        print(f"'{cmd[0]}' is not installed on this machine.")
+        return 127, ""
     out = (p.stdout + p.stderr).strip()
     if show and out:
         print(out)
@@ -53,7 +57,7 @@ def save(**kv):
 
 
 def active(unit):
-    return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
+    return sh(["systemctl", "is-active", "--quiet", unit], show=False)[0] == 0
 
 
 def restart_browser():
@@ -68,7 +72,7 @@ def restart_browser():
 def cmd_status(_):
     c = conf()
     print(f"Portal address : {c['VOTING_URL'] or '(not set)'}")
-    print(f"Booth browser  : {'running' if active('evote-booth.service') or subprocess.run(['pgrep','-u','evote','firefox'],capture_output=True).returncode==0 else 'NOT running'}")
+    print(f"Booth browser  : {'running' if active('evote-booth.service') or sh(['pgrep','-u','evote','firefox'], show=False)[0]==0 else 'NOT running'}")
     print(f"Agent          : {'running' if active('evote-agent.service') else 'NOT running'}")
     print(f"Printer        : {c['PRINTER'] or '(system default)'}  printing {'on' if c['PRINT_ENABLED'] != '0' else 'OFF'}")
     n = receipts_all()
@@ -133,8 +137,12 @@ def cmd_printer(a):
         save(PRINTER=a[1])
         print(f"Printer set to {a[1]}.")
     elif sub == "test":
-        p = subprocess.run(["lp"] + (["-d", conf()["PRINTER"]] if conf()["PRINTER"] else []), input="TEST PAGE\nCampus E-Voting booth printer\n", text=True, capture_output=True)
-        print((p.stdout + p.stderr).strip() or "sent")
+        text = "TEST PAGE\nCampus E-Voting booth printer\n"
+        try:
+            p = subprocess.run(["lp"] + (["-d", conf()["PRINTER"]] if conf()["PRINTER"] else []), input=text, text=True, capture_output=True)
+            print((p.stdout + p.stderr).strip() or "sent")
+        except FileNotFoundError:
+            print("'lp' is not installed on this machine.")
     elif sub == "status":
         sh(["lpstat", "-t"])
     elif sub == "queue":
@@ -239,35 +247,6 @@ def cmd_password(_):
     sh(["passwd", "evoteadmin"])
 
 
-COMMANDS = {"status": cmd_status, "reboot": cmd_reboot, "shutdown": cmd_shutdown, "restart-browser": cmd_restart_browser,
-            "restart-agent": cmd_restart_agent, "network": cmd_network, "printer": cmd_printer, "receipts": cmd_receipts,
-            "url": cmd_url, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
-
-MENU = [("Status", ["status"]), ("Restart the booth browser", ["restart-browser"]), ("Network status", ["network", "status"]),
-        ("Scan Wi-Fi", ["network", "wifi"]), ("Printer status", ["printer", "status"]), ("Send a test page", ["printer", "test"]),
-        ("Saved receipts (count)", ["receipts", "count"]), ("Check receipts", ["receipts", "check"]), ("Show the logs", ["logs"]),
-        ("Open the setup page", ["setup"]), ("Reboot", ["reboot"]), ("Shut down", ["shutdown"])]
-
-
-def menu():
-    while True:
-        print("\nCampus E-Voting booth maintenance")
-        for i, (label, _) in enumerate(MENU, 1):
-            print(f"  {i:2}. {label}")
-        print("   q. Quit")
-        try:
-            choice = input("> ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            return
-        if choice in ("q", "quit", "exit"):
-            return
-        if choice.isdigit() and 1 <= int(choice) <= len(MENU):
-            cmd = MENU[int(choice) - 1][1]
-            if cmd[0] in ("reboot", "shutdown") and input("Are you sure? (yes/no) ").strip() != "yes":
-                continue
-            COMMANDS[cmd[0]](cmd[1:])
-
-
 def cmd_shell(_):
     """A small command prompt that accepts only evote commands (used as the maintenance login on Booth OS)."""
     import shlex
@@ -297,6 +276,35 @@ def cmd_shell(_):
                 print(e if isinstance(e.code, str) else "")
         else:
             print("Unknown command. Type 'help'.")
+
+
+COMMANDS = {"status": cmd_status, "reboot": cmd_reboot, "shutdown": cmd_shutdown, "restart-browser": cmd_restart_browser,
+            "restart-agent": cmd_restart_agent, "network": cmd_network, "printer": cmd_printer, "receipts": cmd_receipts,
+            "url": cmd_url, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
+
+MENU = [("Status", ["status"]), ("Restart the booth browser", ["restart-browser"]), ("Network status", ["network", "status"]),
+        ("Scan Wi-Fi", ["network", "wifi"]), ("Printer status", ["printer", "status"]), ("Send a test page", ["printer", "test"]),
+        ("Saved receipts (count)", ["receipts", "count"]), ("Check receipts", ["receipts", "check"]), ("Show the logs", ["logs"]),
+        ("Open the setup page", ["setup"]), ("Reboot", ["reboot"]), ("Shut down", ["shutdown"])]
+
+
+def menu():
+    while True:
+        print("\nCampus E-Voting booth maintenance")
+        for i, (label, _) in enumerate(MENU, 1):
+            print(f"  {i:2}. {label}")
+        print("   q. Quit")
+        try:
+            choice = input("> ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return
+        if choice in ("q", "quit", "exit"):
+            return
+        if choice.isdigit() and 1 <= int(choice) <= len(MENU):
+            cmd = MENU[int(choice) - 1][1]
+            if cmd[0] in ("reboot", "shutdown") and input("Are you sure? (yes/no) ").strip() != "yes":
+                continue
+            COMMANDS[cmd[0]](cmd[1:])
 
 
 def main(argv):
