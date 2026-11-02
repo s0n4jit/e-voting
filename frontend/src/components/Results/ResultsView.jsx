@@ -93,8 +93,7 @@ export default function ResultsView({ data }) {
                     />
                   ))}
                   <Row
-                    name="NOTA"
-                    sub="None of the Above (not a candidate, cannot win)"
+                    name="NOTA votes"
                     votes={p.nota_count}
                     total={p.total_votes}
                     avatar={<span className="w-12 h-12 rounded-xl bg-recessed text-muted flex items-center justify-center shrink-0"><MinusCircleIcon className="w-6 h-6" /></span>}
