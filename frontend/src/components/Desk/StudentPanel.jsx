@@ -9,7 +9,7 @@ import { useDeskState } from '../../hooks/useDeskOpen';
 
 import ProgrammePicker from './ProgrammePicker';
 
-const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
+const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', voted: 'Voted' };
 
 /** Details, edit, slip printing and PIN issuing for one registered voter. */
 export default function StudentPanel({ student, programmes, onChanged }) {
