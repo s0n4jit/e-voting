@@ -24,6 +24,8 @@ _COLUMNS = [
     ("elections", "voting_paused", "BOOLEAN NOT NULL DEFAULT false"),
     ("voting_tokens", "pin_enc", "TEXT"),
     ("candidates", "semester", "VARCHAR(30)"),
+    ("elections", "is_mock", "BOOLEAN NOT NULL DEFAULT false"),
+    ("elections", "mock_started_at", "TIMESTAMP WITH TIME ZONE"),
     ("voting_tokens", "authenticated_at", "TIMESTAMP WITH TIME ZONE"),
     ("kiosk_devices", "election_id", "INTEGER"),
     ("programmes", "level", "VARCHAR(10) NOT NULL DEFAULT 'degree'"),

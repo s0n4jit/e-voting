@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark, ThemeToggle, UserAvatar } from '../ui';
 import { useBrand } from '../../context/BrandContext';
 import StatusBadge from '../common/StatusBadge';
+import MockBanner from './MockBanner';
 
 const ROLE_LABEL = { admin: 'Election Officer', polling_officer: 'Desk Officer' };
 
@@ -144,6 +145,7 @@ export const AppShell = ({ children }) => {
           </div>
         </header>
 
+        <MockBanner />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {/* key re-triggers the entrance animation on every route change */}
           <div key={location.pathname} className="animate-page-in">

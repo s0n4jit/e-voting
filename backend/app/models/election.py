@@ -43,6 +43,9 @@ class Election(db.Model):
     results_published = db.Column(db.Boolean, nullable=False, default=False)
     # Voting is opened, paused and closed by the Election Officer, never by the clock. start_time and
     # end_time are the announced schedule and are shown for information only.
+    # Mock election: a dry run of the real election; everything it records is wiped when the officer ends it.
+    is_mock = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    mock_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
     voting_paused = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = db.Column(
@@ -162,6 +165,7 @@ class Election(db.Model):
             "status_label": "Voting Paused" if self.is_active and self.voting_paused
             else self.STATUS_LABELS.get(self.effective_status, self.status),
             "voting_paused": bool(self.voting_paused),
+            "is_mock": bool(self.is_mock),
             "positions": [p.name for p in self.positions],
             "is_ongoing": self.is_ongoing,
             "results_published": self.results_published,

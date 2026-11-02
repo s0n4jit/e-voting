@@ -166,6 +166,56 @@ def resume_voting(election_id):
 
 
 
+# ── mock election ─────────────────────────────────────────────────────────────
+
+@manage_bp.post("/elections/<int:election_id>/mock/start")
+@admin_required
+def start_mock(election_id):
+    """Dry run: open voting on the ready election as a mock. Ending it wipes everything it recorded."""
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Election not found."}), 404
+    if election.is_mock:
+        return jsonify({"error": "A mock election is already running."}), 409
+    if election.effective_status != "ready":
+        return jsonify({"error": "A mock election can only start while the election is in the Ready stage."}), 409
+    err = transition(election, "voting_active")
+    if err:
+        return jsonify({"error": err}), 409
+    election.is_mock = True
+    election.mock_started_at = datetime.now(timezone.utc)
+    _audit("MOCK_STARTED", f"Started a mock election for “{election.title}”.")
+    db.session.commit()
+    return jsonify(election.to_dict()), 200
+
+
+@manage_bp.post("/elections/<int:election_id>/mock/end")
+@admin_required
+def end_mock(election_id):
+    """End the mock: remove its ballots, PINs and log entries, reset every voter, and return to Ready."""
+    from app.models.ballot_entry import BallotEntry
+
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Election not found."}), 404
+    if not election.is_mock:
+        return jsonify({"error": "No mock election is running."}), 409
+    if (request.get_json(silent=True) or {}).get("confirm") != "RESET":
+        return jsonify({"error": 'Type RESET to confirm.'}), 400
+    ballots = BallotEntry.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+    voted = VoterRecord.query.filter_by(election_id=election.id).update({"has_voted": False, "voted_at": None})
+    pins = VotingToken.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+    logs = AuditLog.query.filter(AuditLog.created_at >= election.mock_started_at).delete(synchronize_session=False)
+    election.set_status("ready")
+    election.is_mock = False
+    election.mock_started_at = None
+    election.public_token = None
+    # one line is kept so the dry run itself stays accountable; nothing of what it recorded remains
+    _audit("MOCK_RESET", f"A mock election was run and reset: {ballots} ballot rows, {pins} PINs and {logs} log entries removed; {voted} voters reset.")
+    db.session.commit()
+    return jsonify(election.to_dict()), 200
+
+
 # ── positions ─────────────────────────────────────────────────────────────────
 
 @manage_bp.get("/elections/<int:election_id>/positions")

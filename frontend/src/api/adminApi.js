@@ -86,6 +86,8 @@ export const adminApi = {
   },
 
   // Officer dashboard, lifecycle, positions, programmes, settings
+  startMock: async (id) => (await apiClient.post(`/admin/elections/${id}/mock/start`)).data,
+  endMock: async (id) => (await apiClient.post(`/admin/elections/${id}/mock/end`, { confirm: 'RESET' })).data,
   getOverview: async () => (await apiClient.get('/admin/overview')).data,
   pauseVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/pause`)).data,
   resumeVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/resume`)).data,

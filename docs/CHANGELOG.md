@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Settings: "Mock election". With the election in the Ready stage the officer can start a mock (practice) run with the real set-up. Ending it ("RESET") deletes the ballots, PINs and audit entries recorded since it started, resets every voter and returns the election to Ready. A banner shows while a mock is running.
 - Voting booth: candidate cards read "Student of Department of ..., Semester ..." in bold; the Enter key moves to the next position once a choice is made (and opens the submit prompt on the review screen).
 - Voting booth: NOTA is a full-size card with an icon; candidate cards show department and semester (new optional "Semester / year" field for candidates) and line up evenly; "View profile" removed; the printed vote copy no longer shows the voter name.
 - Registrations: a student shows "Active" only while at a booth. "This is not me", the idle reset or leaving the booth sets the status back to "PIN issued"; the list refreshes every 2 seconds.

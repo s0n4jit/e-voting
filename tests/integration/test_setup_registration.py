@@ -1159,3 +1159,29 @@ def test_leaving_the_booth_clears_the_active_status(client, installed, desk_toke
     assert status() == "active"
     assert client.post("/api/auth/voter-session-end", headers=H(login["access_token"])).status_code == 200
     assert status() == "pin_active"                                              # "This is not me": back to PIN issued
+
+
+def test_mock_election_runs_and_resets_everything(client, installed, desk_token, booth):
+    from app.models.audit_log import AuditLog
+    from app.models.ballot_entry import BallotEntry
+    from app.models.voting_token import VotingToken
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    slip = register(client, desk_token).get_json()["slip_id"]
+    assert client.post(f"/api/admin/elections/{eid}/mock/start", headers=H(installed)).status_code == 409   # not Ready yet
+    for s in ("registration", "ready"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    assert client.post(f"/api/admin/elections/{eid}/mock/start", headers=H(installed)).get_json()["is_mock"] is True
+    pin = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).get_json()["pin"]
+    login = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": slip, "voting_pin": pin}).get_json()
+    cands = client.get(f"/api/voter/elections/{eid}/ballot", headers={**H(login["access_token"]), "X-Kiosk-Token": booth}).get_json()["positions"]
+    sel = [{"position": p["position"], "candidate_id": p["candidates"][0]["id"], "is_nota": False} for p in cands]
+    assert client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=H(login["access_token"]), json={"selections": sel, "kiosk_token": booth}).status_code in (200, 201)
+    assert BallotEntry.query.filter_by(election_id=eid).count() > 0
+    assert client.post(f"/api/admin/elections/{eid}/mock/end", headers=H(installed), json={}).status_code == 400   # needs RESET
+    r = client.post(f"/api/admin/elections/{eid}/mock/end", headers=H(installed), json={"confirm": "RESET"})
+    assert r.status_code == 200 and r.get_json()["status"] == "ready" and r.get_json()["is_mock"] is False
+    assert BallotEntry.query.filter_by(election_id=eid).count() == 0 and VotingToken.query.filter_by(election_id=eid).count() == 0
+    assert client.get(f"/api/desk/registrations/{slip}", headers=H(desk_token)).get_json()["status"] == "registered"
+    assert AuditLog.query.filter_by(action="VOTE_CAST").count() == 0

@@ -4,6 +4,7 @@ import { adminApi } from '../../api/adminApi';
 import { useBrand } from '../../context/BrandContext';
 import { Field, PageHeader, errorMessage } from '../ui';
 import LoadingSpinner from '../common/LoadingSpinner';
+import MockElection from './MockElection';
 
 const LANGUAGES = { en: 'English', hi: 'Hindi', bn: 'Bengali', as: 'Assamese' };
 
@@ -94,6 +95,7 @@ export default function SettingsPage() {
         {errors.form && <p className="error-text" role="alert">{errors.form}</p>}
         <div><button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></div>
       </form>
+      <MockElection />
     </div>
   );
 }
