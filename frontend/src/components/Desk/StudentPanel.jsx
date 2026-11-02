@@ -84,20 +84,12 @@ export default function StudentPanel({ student, programmes, onChanged }) {
 
   if (pin) {
     return (
-      <div className="space-y-4 text-center">
-        <div className="print-area no-flip card card-body bg-white text-slate-900 border-slate-300 max-w-sm mx-auto">
-          <p className="text-xs uppercase tracking-widest text-slate-500">Voting PIN</p>
-          <p className="font-mono text-5xl font-semibold tracking-[0.3em] my-4 pl-[0.3em] text-slate-900">{pin.pin}</p>
-          <p className="text-sm text-slate-600">{current.name}</p>
-          <p className="font-mono text-xs text-slate-500 mt-1">{current.slip_id}</p>
-          <p className="text-xs text-slate-500 mt-4">
-            Works once and stays valid until it is used or voting closes. Enter it together with the slip ID at a voting booth. A new PIN replaces this one.
-          </p>
-        </div>
-        <div className="no-print flex justify-center gap-2">
-          <button className="btn-secondary" onClick={() => window.print()}>
-            <PrinterIcon className="w-4 h-4" /> Print
-          </button>
+      <div className="space-y-4">
+        <p className="text-sm text-muted no-print">
+          A new voting PIN was created. It replaces any earlier PIN of this student and is shown only now, on this slip. Print it and hand it over.
+        </p>
+        <SlipCard slip={{ ...current, pin: pin.pin }} />
+        <div className="no-print flex justify-center">
           <button className="btn-primary" onClick={() => setPin(null)}>Done</button>
         </div>
       </div>
@@ -140,7 +132,10 @@ export default function StudentPanel({ student, programmes, onChanged }) {
 
           <details className="group">
             <summary className="cursor-pointer text-sm text-brand-fg font-medium list-none">Show voter slip</summary>
-            <div className="mt-4">
+            <div className="mt-4 space-y-3">
+              <p className="hint no-print">
+                The PIN is not stored in readable form, so this slip prints without it. To print a slip that carries a PIN, press <b>Issue new PIN</b> above: it makes a new PIN (replacing the old one) and shows the slip with it.
+              </p>
               <SlipCard slip={current} />
             </div>
           </details>

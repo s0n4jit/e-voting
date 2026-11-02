@@ -2,6 +2,8 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ExclamationTriangleIcon, MinusCircleIcon, PrinterIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { photoSrc, StatCard } from '../ui';
+import PrintPortal from '../common/PrintPortal';
+import PrintableResults from './PrintableResults';
 
 const Avatar = ({ candidate }) =>
   candidate.photo_url ? (
@@ -44,29 +46,16 @@ const Row = ({ name, votes, max, highlight, avatar }) => (
   </li>
 );
 
-const printResults = () => {
-  // Print on white paper whatever the theme, then put the theme back.
-  const root = document.documentElement;
-  const dark = root.classList.contains('dark');
-  root.classList.remove('dark');
-  const restore = () => {
-    if (dark) root.classList.add('dark');
-    window.removeEventListener('afterprint', restore);
-  };
-  window.addEventListener('afterprint', restore);
-  window.print();
-};
-
 /** Results for one election: totals, then every contested position with its outcome. */
 export default function ResultsView({ data }) {
   const { election, turnout, by_position: positions = [] } = data;
 
   return (
-    <div className="space-y-8 results-print">
+    <div className="space-y-8">
       <div>
         <div className="flex items-start justify-between gap-4">
           <p className="text-sm text-muted">{data.institution_name}</p>
-          <button type="button" className="btn-secondary btn-sm no-print" onClick={printResults}>
+          <button type="button" className="btn-secondary btn-sm no-print" onClick={() => window.print()}>
             <PrinterIcon className="w-4 h-4" /> Print results
           </button>
         </div>
@@ -122,13 +111,7 @@ export default function ResultsView({ data }) {
         </div>
       </section>
 
-      <div className="hidden print:block pt-16 text-sm">
-        <div className="flex justify-between gap-12">
-          <div className="flex-1 border-t border-black pt-2">Election Officer</div>
-          <div className="flex-1 border-t border-black pt-2">Returning Officer / Principal</div>
-        </div>
-        <p className="mt-6 text-xs">Printed on {format(new Date(), 'PPp')}</p>
-      </div>
+      <PrintPortal><PrintableResults data={data} /></PrintPortal>
     </div>
   );
 }

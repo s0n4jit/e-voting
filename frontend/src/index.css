@@ -143,23 +143,38 @@
 ::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted) / 0.6); }
 
-/* Slip printing: only the slip is printed. */
+/* Printing: everything printed lives in #print-root (slips, slip sheets, results). The app itself is hidden,
+   so the printout is exactly one clean black-on-white document. margin:0 removes the browser's own
+   header and footer (page title, address, date, page numbers); .print-page supplies the margin instead. */
+#print-root { display: none; }
+@page { size: A4; margin: 0; }
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: fixed; top: 2rem; left: 0; right: 0; margin: 0 auto; width: 24rem; box-shadow: none !important; border-color: #000 !important; }
+  #root { display: none !important; }
+  #print-root { display: block !important; }
+  html, body { background: #fff !important; color: #000 !important; }
   .no-print { display: none !important; }
 
-  /* Results: print the results block on white paper, one position per block */
-  .results-print, .results-print * { visibility: visible; }
-  .results-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0 1rem; }
-  .results-print .card { box-shadow: none !important; border: 1px solid #999 !important; break-inside: avoid; margin-bottom: 1rem; }
-  html, body { background: #fff !important; color: #000 !important; }
+  .print-page { padding: 14mm; font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #000; background: #fff; }
+  .print-slip { border: 1.2px solid #000; border-radius: 3mm; padding: 6mm; break-inside: avoid; max-width: 100mm; }
+  .print-slip .inst { font-size: 12pt; font-weight: 700; }
+  .print-slip .sub { font-size: 9pt; }
+  .print-slip .label { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; margin-top: 4mm; }
+  .print-slip .id { font-family: ui-monospace, Consolas, monospace; font-size: 17pt; font-weight: 700; }
+  .print-slip .pin { font-family: ui-monospace, Consolas, monospace; font-size: 26pt; font-weight: 700; letter-spacing: .3em; }
+  .print-slip .name { font-size: 12pt; font-weight: 600; margin-top: 3mm; }
+  .print-slip .note { font-size: 8pt; margin-top: 4mm; border-top: 1px dashed #000; padding-top: 2mm; }
+  .slips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .slips-grid .print-slip { border-style: dashed; max-width: none; }
 
-  /* Voter slips with PINs: a sheet of cut-out slips, two per row */
-  .slips-print, .slips-print * { visibility: visible; }
-  .slips-print { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6mm; position: absolute; left: 0; top: 0; width: 100%; }
-  .slips-print .slip { break-inside: avoid; border: 1px dashed #666; padding: 4mm; color: #000; background: #fff; }
+  .print-results h1 { font-size: 16pt; margin: 0; }
+  .print-results h2 { font-size: 13pt; margin: 1mm 0 0; font-weight: 600; }
+  .print-results h3 { font-size: 12pt; margin: 6mm 0 1mm; }
+  .print-results p { margin: 1mm 0; font-size: 10pt; }
+  .print-results table { width: 100%; border-collapse: collapse; margin-top: 1mm; break-inside: avoid; }
+  .print-results th, .print-results td { border: 1px solid #000; padding: 1.5mm 3mm; text-align: left; font-size: 10pt; }
+  .print-results td.n, .print-results th.n { text-align: right; width: 22mm; }
+  .print-results .sign { margin-top: 28mm; display: flex; gap: 20mm; font-size: 10pt; }
+  .print-results .sign div { flex: 1; border-top: 1px solid #000; padding-top: 2mm; }
 }
 
 @media (prefers-reduced-motion: reduce) {

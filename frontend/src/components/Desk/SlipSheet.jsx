@@ -1,25 +1,41 @@
 import React from 'react';
+import PrintPortal from '../common/PrintPortal';
 import { useBrand } from '../../context/BrandContext';
 
-/** Hidden on screen; when printing it fills the page with cut-out slips that carry the Voter Slip ID and the PIN. */
+/** One printable slip: Voter Slip ID and, when known, the voting PIN. Plain black on white for ink printers. */
+export const PrintSlip = ({ slip, institution, electionTitle }) => (
+  <div className="print-slip">
+    <p className="inst">{institution}</p>
+    <p className="sub">{electionTitle}</p>
+    <p className="name">{slip.name}</p>
+    <p className="sub">{slip.programme}{slip.department ? ` - ${slip.department}` : ''}, {slip.term_label || 'Semester'} {slip.term ?? slip.semester}</p>
+    <p className="label">Voter Slip ID</p>
+    <p className="id">{slip.slip_id}</p>
+    {slip.pin && (
+      <>
+        <p className="label">Voting PIN</p>
+        <p className="pin">{slip.pin}</p>
+      </>
+    )}
+    <p className="note">
+      {slip.pin
+        ? 'Keep the PIN secret. At the voting booth enter the slip ID and this PIN. It works once.'
+        : 'Keep this slip safe. Ask the voting desk for your voting PIN.'}
+    </p>
+  </div>
+);
+
+/** A sheet of cut-out slips (visible only when printing). */
 export default function SlipSheet({ students, electionTitle }) {
   const { branding } = useBrand();
   return (
-    <div className="slips-print hidden">
-      {students.map((s) => (
-        <div key={s.slip_id} className="slip text-sm">
-          <p className="font-semibold">{branding.institution_name}</p>
-          <p className="text-xs">{electionTitle}</p>
-          <p className="mt-2 font-medium">{s.name}</p>
-          <p className="text-xs">{s.programme}, {s.semester}</p>
-          <p className="mt-2 text-xs">Voter Slip ID</p>
-          <p className="font-mono text-lg font-semibold">{s.slip_id}</p>
-          <p className="mt-1 text-xs">Voting PIN</p>
-          <p className="font-mono text-2xl font-semibold tracking-[0.25em]">{s.pin}</p>
-          <p className="mt-2 text-[10px]">Keep the PIN secret. At the voting booth enter the slip ID and this PIN. It works once.</p>
+    <PrintPortal>
+      <div className="print-page">
+        <div className="slips-grid">
+          {students.map((s) => <PrintSlip key={s.slip_id} slip={s} institution={branding.institution_name} electionTitle={electionTitle} />)}
         </div>
-      ))}
-    </div>
+      </div>
+    </PrintPortal>
   );
 }
 

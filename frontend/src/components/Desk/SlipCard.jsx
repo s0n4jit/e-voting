@@ -1,6 +1,8 @@
 import React from 'react';
 import { PrinterIcon } from '@heroicons/react/24/outline';
 import { useBrand } from '../../context/BrandContext';
+import PrintPortal from '../common/PrintPortal';
+import { PrintSlip } from './SlipSheet';
 
 /** Printable voter slip. Only .print-area is visible when printing (see index.css). */
 export default function SlipCard({ slip, showPrint = true }) {
@@ -8,7 +10,7 @@ export default function SlipCard({ slip, showPrint = true }) {
   const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '');
   return (
     <div className="space-y-4">
-      <div className="print-area no-flip card overflow-hidden max-w-md mx-auto bg-white text-slate-900 border-slate-300">
+      <div className="no-flip card overflow-hidden max-w-md mx-auto bg-white text-slate-900 border-slate-300">
         <div className="px-6 py-4 border-b border-dashed border-slate-300 flex items-center gap-3">
           {branding.logo && <img src={branding.logo} alt="" className="w-10 h-10 object-contain" />}
           <div className="min-w-0">
@@ -50,6 +52,11 @@ export default function SlipCard({ slip, showPrint = true }) {
             : 'Keep this slip safe. Show it at the voting desk to receive your voting PIN.'}
         </p>
       </div>
+      <PrintPortal>
+        <div className="print-page">
+          <PrintSlip slip={slip} institution={slip.institution_name || branding.institution_name} electionTitle={slip.election_title} />
+        </div>
+      </PrintPortal>
       {showPrint && (
         <div className="no-print flex justify-center">
           <button className="btn-secondary" onClick={() => window.print()}>
