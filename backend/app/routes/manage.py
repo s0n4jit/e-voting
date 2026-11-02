@@ -380,7 +380,7 @@ def election_results(election_id):
         return jsonify({"error": "Election not found."}), 404
     published = election.effective_status in ("results_published", "archived")
     voting_over = election.effective_status not in ("setup", "registration", "ready", "voting_active")
-    if published:
+    if published or election.is_mock:  # a mock election shows live results so the whole run can be checked
         data = results_payload(election, force=True)
     else:
         # Counts, winners and candidates' votes stay hidden until the officer publishes the results.
@@ -394,6 +394,7 @@ def election_results(election_id):
             "by_position": [{"position": n} for n in order],
         }
     data["published"] = published
+    data["mock"] = bool(election.is_mock)
     data["voting_over"] = voting_over
     data["public_path"] = f"/results/{election.public_token}" if election.public_token else None
     return jsonify(data), 200
