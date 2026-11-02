@@ -1,3 +1,4 @@
 booth-os/** text eol=lf
 kiosk/** text eol=lf
 *.sh text eol=lf
+booth-agent/** text eol=lf

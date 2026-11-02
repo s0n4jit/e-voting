@@ -1187,3 +1187,13 @@ def test_mock_election_runs_and_resets_everything(client, installed, desk_token,
     assert BallotEntry.query.filter_by(election_id=eid).count() == 0 and VotingToken.query.filter_by(election_id=eid).count() == 0
     assert client.get(f"/api/desk/registrations/{slip}", headers=H(desk_token)).get_json()["status"] == "registered"
     assert AuditLog.query.filter_by(action="VOTE_CAST").count() == 0
+
+
+def test_printing_settings_reach_the_booth(client, installed, booth):
+    assert client.get("/api/admin/settings/printing", headers=H(installed)).get_json() == {"enabled": True, "printer": "", "copies": 1}
+    r = client.put("/api/admin/settings/printing", headers=H(installed), json={"enabled": True, "printer": "HP LaserJet-1", "copies": 2})
+    assert r.status_code == 200
+    assert client.put("/api/admin/settings/printing", headers=H(installed), json={"printer": "a;rm -rf /", "copies": 1}).status_code == 400
+    assert client.put("/api/admin/settings/printing", headers=H(installed), json={"copies": 9}).status_code == 400
+    st = client.get("/api/booth/status", headers={"X-Kiosk-Token": booth}).get_json()
+    assert st["print"] == {"enabled": True, "printer": "HP LaserJet-1", "copies": 2}

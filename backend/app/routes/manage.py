@@ -367,6 +367,33 @@ def put_settings():
     return jsonify(SystemSetting.branding()), 200
 
 
+@manage_bp.get("/settings/printing")
+@admin_required
+def get_printing():
+    return jsonify(SystemSetting.printing()), 200
+
+
+@manage_bp.put("/settings/printing")
+@admin_required
+def put_printing():
+    p = request.get_json(silent=True) or {}
+    printer = str(p.get("printer") or "").strip()
+    if len(printer) > 100 or not all(ch.isalnum() or ch in "-_. " for ch in printer):
+        return jsonify({"error": "The printer name may only contain letters, numbers, spaces, dots, dashes and underscores."}), 400
+    try:
+        copies = int(p.get("copies", 1))
+    except (TypeError, ValueError):
+        copies = 0
+    if not 1 <= copies <= 3:
+        return jsonify({"error": "Copies must be 1 to 3."}), 400
+    SystemSetting.put("print_enabled", "1" if p.get("enabled", True) else "0")
+    SystemSetting.put("print_printer", printer)
+    SystemSetting.put("print_copies", str(copies))
+    _audit("SETTINGS_UPDATED", "Updated the booth printing settings.")
+    db.session.commit()
+    return jsonify(SystemSetting.printing()), 200
+
+
 # ── reports ───────────────────────────────────────────────────────────────────
 
 @manage_bp.get("/elections/<int:election_id>/results")

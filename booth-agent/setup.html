@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Voting booth setup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{font:18px/1.5 system-ui,sans-serif;background:#0f1330;color:#eef0fb;margin:0;padding:24px}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:30px;margin:0 0 4px} h2{font-size:21px;margin:0 0 10px}
+  section{background:#1a2050;border-radius:14px;padding:20px 22px;margin:18px 0}
+  label{display:block;margin:10px 0 4px;color:#b9bfe6;font-size:15px}
+  input,select{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border-radius:8px;border:1px solid #3a4390;background:#0f1330;color:#eef0fb}
+  button{font:inherit;padding:10px 18px;border-radius:8px;border:0;background:#5b6cff;color:#fff;cursor:pointer;margin:10px 8px 0 0}
+  button.alt{background:#2b3478} .msg{margin-top:10px;min-height:1.4em;color:#9be39b} .err{color:#ff9d9d}
+  small{color:#b9bfe6}
+</style></head>
+<body><main>
+<h1>Voting booth setup</h1>
+<p><small>Fill in what applies, then press <b>Finish</b>. You can run this again later with <code>sudo evote setup</code>.</small></p>
+
+<section><h2>1. Portal address</h2>
+  <label for="url">The address officers gave you (ends with /kiosk/vote)</label>
+  <input id="url" placeholder="https://vote.example.edu/kiosk/vote">
+  <button id="saveUrl">Save address</button><div class="msg" id="urlMsg"></div></section>
+
+<section><h2>2. Network</h2>
+  <p><small>A network cable connects by itself. For Wi-Fi, pick the network below.</small></p>
+  <button class="alt" id="scan">Scan Wi-Fi</button>
+  <select id="ssid" style="margin-top:10px"></select>
+  <label for="wpw">Wi-Fi password</label><input id="wpw" type="password" autocomplete="off">
+  <button id="connect">Connect</button><div class="msg" id="netMsg"></div></section>
+
+<section><h2>3. Printer (silent printing of the vote copy)</h2>
+  <button class="alt" id="detect">Find USB / network printers</button>
+  <select id="found" style="margin-top:10px"></select>
+  <button id="addPrinter">Add this printer</button>
+  <label for="printer">Printer to use (leave empty for the system default)</label>
+  <select id="printer"></select>
+  <button id="savePrinter">Use this printer</button><button class="alt" id="test">Print a test page</button>
+  <div class="msg" id="prMsg"></div></section>
+
+<section><h2>4. Maintenance password (optional)</h2>
+  <p><small>For the maintenance login (press Ctrl+Alt+F2, user <code>evoteadmin</code>) on a Booth OS machine.</small></p>
+  <input id="pw" type="password" placeholder="At least 8 characters" autocomplete="new-password">
+  <button id="savePw">Set password</button><div class="msg" id="pwMsg"></div></section>
+
+<section><h2>5. Finish</h2>
+  <button id="finish">Finish setup</button><div class="msg" id="finMsg"></div></section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (path, body) => {
+  const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Evote-Booth': '1'}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({})); return {ok: r.ok, ...j};
+};
+const say = (id, t, bad) => { $(id).textContent = t; $(id).className = 'msg' + (bad ? ' err' : ''); };
+const options = (el, items, blank) => { el.innerHTML = (blank ? `<option value="">${blank}</option>` : '') + items.map((x) => `<option>${x.replace(/</g,'&lt;')}</option>`).join(''); };
+
+(async () => {
+  const c = await api('/api/config');
+  $('url').value = c.VOTING_URL || '';
+  options($('printer'), c.printers || [], '(system default)');
+  $('printer').value = c.PRINTER || '';
+})();
+$('saveUrl').onclick = async () => { const r = await api('/api/config', {VOTING_URL: $('url').value.trim()}); say('urlMsg', r.ok ? 'Saved. It is used the next time the booth starts.' : r.error, !r.ok); };
+$('scan').onclick = async () => { say('netMsg', 'Scanning…'); const r = await api('/api/wifi'); options($('ssid'), (r.networks || []).map((n) => n.ssid).filter(Boolean)); say('netMsg', (r.networks || []).length ? '' : 'No Wi-Fi found.'); };
+$('connect').onclick = async () => { say('netMsg', 'Connecting…'); const r = await api('/api/wifi', {ssid: $('ssid').value, password: $('wpw').value}); say('netMsg', r.ok ? 'Connected.' : (r.message || 'Could not connect'), !r.ok); };
+$('detect').onclick = async () => { say('prMsg', 'Looking…'); const r = await api('/api/printers/detect'); options($('found'), r.devices || []); say('prMsg', (r.devices || []).length ? '' : 'No printer found. Check the cable and power.', !(r.devices || []).length); };
+$('addPrinter').onclick = async () => { say('prMsg', 'Adding…'); const r = await api('/api/printer/add', {uri: $('found').value, name: 'EVote-Printer'}); say('prMsg', r.ok ? 'Printer added and set as default.' : (r.message || 'Failed'), !r.ok); const c = await api('/api/config'); options($('printer'), c.printers || [], '(system default)'); $('printer').value = c.PRINTER || ''; };
+$('savePrinter').onclick = async () => { const r = await api('/api/config', {PRINTER: $('printer').value}); say('prMsg', r.ok ? 'Saved.' : r.error, !r.ok); };
+$('test').onclick = async () => { const r = await api('/api/printer/test', {printer: $('printer').value}); say('prMsg', r.ok ? 'Test page sent.' : (r.message || 'Failed'), !r.ok); };
+$('savePw').onclick = async () => { const r = await api('/api/password', {password: $('pw').value}); say('pwMsg', r.ok ? 'Password set.' : (r.message || 'Failed'), !r.ok); };
+$('finish').onclick = async () => { await api('/api/finish', {}); say('finMsg', 'Done. Restart the booth to start voting (Ctrl+Alt+F2 → evote → Reboot).'); };
+</script></body></html>

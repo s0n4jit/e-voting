@@ -16,3 +16,6 @@
 /config/source
 /live-image-*
 /config/bootloaders/
+/config/includes.chroot/usr/local/lib/evote/
+/config/includes.chroot/usr/local/bin/evote
+/config/includes.chroot/etc/systemd/system/evote-agent.service

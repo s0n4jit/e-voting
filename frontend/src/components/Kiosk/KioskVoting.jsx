@@ -52,6 +52,8 @@ const VoteReceipt = ({ receipt }) => {
   );
 };
 
+const AGENT = 'http://127.0.0.1:9631'; // the booth agent on this machine: prints silently and keeps a copy on disk
+
 const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
 const Avatar = ({ candidate, size = 'w-16 h-16', text = '', rounded = 'rounded-xl' }) => {
@@ -109,6 +111,8 @@ export const KioskVoting = () => {
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
   const [countdown, setCountdown] = useState(RESET_AFTER_VOTE_S);
   const [receipt, setReceipt] = useState(null);
+  const [printState, setPrintState] = useState('idle'); // idle | sending | printed | failed | browser | off
+  const { branding } = useBrand();
   const [fromReview, setFromReview] = useState(false);
   const submitting = useRef(false);
 
@@ -171,11 +175,29 @@ export const KioskVoting = () => {
     };
   }, [stage, finish]);
 
-  // the paper copy prints by itself once the vote is recorded
+  // The vote copy goes to the booth agent, which saves it on this machine's disk and prints it silently.
+  // Without an agent (a browser on an ordinary PC) the browser's own print dialog is used instead.
+  const printReceipt = useCallback(async (r) => {
+    const settings = boothInfo?.print || { enabled: true, printer: '', copies: 1 };
+    if (!settings.enabled) return setPrintState('off');
+    setPrintState('sending');
+    try {
+      const res = await fetch(`${AGENT}/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Evote-Booth': '1' },
+        body: JSON.stringify({ ...r, institution: branding.institution_name, printer: settings.printer, copies: settings.copies }),
+      });
+      const out = await res.json();
+      setPrintState(out.printed ? 'printed' : 'failed');
+    } catch {
+      setPrintState('browser'); // no agent here
+      setTimeout(() => window.print(), 600);
+    }
+  }, [boothInfo, branding.institution_name]);
+
   useEffect(() => {
-    if (stage !== 'done' || !receipt) return undefined;
-    const t = setTimeout(() => window.print(), 600);
-    return () => clearTimeout(t);
+    if (stage === 'done' && receipt) printReceipt(receipt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, receipt]);
 
   useEffect(() => {
@@ -327,12 +349,14 @@ export const KioskVoting = () => {
         <AnimatedCheck size={96} />
         <h1 className="text-3xl font-semibold tracking-tight mt-8">{alreadyRecorded ? 'Your vote is already recorded' : 'Your vote has been recorded'}</h1>
         <p className="text-muted mt-3">Thank you for taking part in {election.title}.</p>
-        {receipt && <p className="text-sm mt-4">Your vote copy is printing. Check it and drop it into the box.</p>}
+        {receipt && printState === 'sending' && <p className="text-sm mt-4">Printing your vote copy…</p>}
+        {receipt && ['printed', 'browser'].includes(printState) && <p className="text-sm mt-4">Your vote copy has been printed. Check it and drop it into the box.</p>}
+        {receipt && printState === 'failed' && <p className="text-sm mt-4 text-bad">The vote copy could not be printed. Your vote is recorded. Please tell the desk.</p>}
         <div className="flex gap-3 mt-10">
-          {receipt && <button className="btn-secondary btn-lg" onClick={() => window.print()}>Print again</button>}
+          {receipt && printState !== 'off' && <button className="btn-secondary btn-lg" onClick={() => printReceipt(receipt)} disabled={printState === 'sending'}>Print again</button>}
           <button className="btn-primary btn-lg" onClick={finish}>Finish</button>
         </div>
-        {receipt && <VoteReceipt receipt={receipt} />}
+        {receipt && printState === 'browser' && <VoteReceipt receipt={receipt} />}
         <p className="text-xs text-muted mt-4">This screen clears itself in {Math.max(countdown, 0)}s for the next voter.</p>
       </div>,
       { progress: false }

@@ -107,6 +107,10 @@ rm -f /usr/lib/firefox/distribution/policies.json /usr/lib64/firefox/distributio
 # ------------------------------------------------------------------------------
 # 6. Remove Maintenance Sudoers Entry
 # ------------------------------------------------------------------------------
+systemctl disable --now evote-agent.service 2>/dev/null || true
+rm -f /etc/systemd/system/evote-agent.service /usr/local/bin/evote
+rm -rf /usr/local/lib/evote   # saved receipts in /var/lib/evote/receipts are kept on purpose
+
 log_step "Step 6: Removing sudoers entry..."
 rm -f /etc/sudoers.d/evote-maintenance
 

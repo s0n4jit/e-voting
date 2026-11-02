@@ -39,6 +39,15 @@ class SystemSetting(db.Model):
             db.session.add(cls(key=key, value=value))
 
     @classmethod
+    def printing(cls) -> dict:
+        """How booths print the vote copy: on/off, the printer name (blank = the booth's default printer) and copies."""
+        try:
+            copies = min(max(int(cls.get("print_copies", "1")), 1), 3)
+        except ValueError:
+            copies = 1
+        return {"enabled": cls.get("print_enabled", "1") != "0", "printer": cls.get("print_printer", ""), "copies": copies}
+
+    @classmethod
     def branding(cls) -> dict:
         return {k: cls.get(k, "") for k in cls.BRANDING_KEYS}
 

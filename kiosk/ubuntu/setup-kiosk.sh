@@ -326,6 +326,39 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# Step 8: Booth agent (silent printing, receipt archive on disk) and the `evote` maintenance command
+# ------------------------------------------------------------------------------
+log_step "Step 8: Installing the booth agent, printing support and the evote command..."
+AGENT_SRC="$(cd "${SCRIPT_DIR}/../../booth-agent" 2>/dev/null && pwd || true)"
+if [[ -n "${AGENT_SRC}" && -f "${AGENT_SRC}/evote-agent.py" ]]; then
+    case "${FAMILY}" in
+        ubuntu|debian) apt-get install -y -qq cups cups-client python3 network-manager >/dev/null || log_warn "Could not install printing packages." ;;
+        fedora)        dnf install -y cups python3 NetworkManager >/dev/null || log_warn "Could not install printing packages." ;;
+        arch)          pacman -S --noconfirm --needed cups python networkmanager >/dev/null || log_warn "Could not install printing packages." ;;
+    esac
+    install -d -m 755 /usr/local/lib/evote /etc/evote
+    install -d -m 700 /var/lib/evote/receipts
+    install -m 755 "${AGENT_SRC}/evote-agent.py" /usr/local/lib/evote/evote-agent.py
+    install -m 644 "${AGENT_SRC}/setup.html" /usr/local/lib/evote/setup.html
+    install -m 755 "${AGENT_SRC}/evote" /usr/local/bin/evote
+    install -m 644 "${AGENT_SRC}/evote-agent.service" /etc/systemd/system/evote-agent.service
+    if [[ ! -f /etc/evote/booth.conf ]]; then
+        printf 'VOTING_URL="%s"
+PRINTER=""
+COPIES="1"
+PRINT_ENABLED="1"
+RECEIPT_DIR="/var/lib/evote/receipts"
+'             "$(grep -h '^VOTING_URL=' /etc/default/evote-kiosk | head -1 | cut -d'"' -f2)" > /etc/evote/booth.conf
+    fi
+    systemctl enable --now cups.service 2>/dev/null || true
+    systemctl daemon-reload
+    systemctl enable --now evote-agent.service
+    log_info "Booth agent running on 127.0.0.1:9631. Receipts are kept in /var/lib/evote/receipts. Set up the printer with: sudo evote setup"
+else
+    log_warn "The booth-agent folder was not found next to kiosk/: silent printing and the evote command were not installed."
+fi
+
+# ------------------------------------------------------------------------------
 # Installation Summary & Verification
 # ------------------------------------------------------------------------------
 echo ""

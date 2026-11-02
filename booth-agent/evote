@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""evote: maintenance commands for a Campus E-Voting booth machine (reboot, browser, network, printer, receipts).
+
+    evote                  menu          evote status          overview of this booth
+    evote reboot|shutdown  evote restart-browser|restart-agent
+    evote network status|wifi|connect SSID [PASSWORD]|dhcp|static IP/BITS GATEWAY DNS|restart|ping [HOST]
+    evote printer list|set NAME|test|status|queue|cancel
+    evote receipts count|list [DATE]|show SLIP|check|export FOLDER
+    evote url [show|set ADDRESS]       evote setup       evote logs [LINES]       evote password
+
+Needs root: run it as `sudo evote ...` (it asks for sudo itself when started as a normal user). Python 3 only.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+CONF = os.environ.get("EVOTE_CONF", "/etc/evote/booth.conf")
+URL_RE = re.compile(r"^https?://[^/\s]+/kiosk/vote$")
+
+
+def sh(cmd, check=False, show=True):
+    p = subprocess.run(cmd, text=True, capture_output=True)
+    out = (p.stdout + p.stderr).strip()
+    if show and out:
+        print(out)
+    if check and p.returncode:
+        sys.exit(p.returncode)
+    return p.returncode, out
+
+
+def conf():
+    c = {"VOTING_URL": "", "PRINTER": "", "COPIES": "1", "PRINT_ENABLED": "1", "RECEIPT_DIR": os.environ.get("EVOTE_RECEIPTS", "/var/lib/evote/receipts")}
+    try:
+        for line in open(CONF, encoding="utf-8"):
+            m = re.match(r"^\s*([A-Z_]+)=(.*?)\s*$", line)
+            if m:
+                c[m.group(1)] = m.group(2).strip("\"'")
+    except OSError:
+        pass
+    return c
+
+
+def save(**kv):
+    c = conf()
+    c.update(kv)
+    os.makedirs(os.path.dirname(CONF), exist_ok=True)
+    with open(CONF, "w", encoding="utf-8") as f:
+        for k in ("VOTING_URL", "PRINTER", "COPIES", "PRINT_ENABLED", "RECEIPT_DIR"):
+            f.write(f'{k}="{c[k]}"\n')
+
+
+def active(unit):
+    return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
+
+
+def restart_browser():
+    if active("evote-booth.service"):  # Booth OS: restart the whole kiosk session
+        sh(["systemctl", "restart", "evote-booth.service"])
+    else:  # lab PC: the kiosk launcher restarts Firefox by itself
+        sh(["pkill", "-u", "evote", "-f", "firefox"])
+    print("The booth browser is restarting.")
+
+
+# ---------------------------------------------------------------- commands
+def cmd_status(_):
+    c = conf()
+    print(f"Portal address : {c['VOTING_URL'] or '(not set)'}")
+    print(f"Booth browser  : {'running' if active('evote-booth.service') or subprocess.run(['pgrep','-u','evote','firefox'],capture_output=True).returncode==0 else 'NOT running'}")
+    print(f"Agent          : {'running' if active('evote-agent.service') else 'NOT running'}")
+    print(f"Printer        : {c['PRINTER'] or '(system default)'}  printing {'on' if c['PRINT_ENABLED'] != '0' else 'OFF'}")
+    n = receipts_all()
+    print(f"Saved receipts : {len(n)} in {c['RECEIPT_DIR']}")
+    cmd_network(["status"])
+    print(f"Disk free      : {shutil.disk_usage('/').free // 2**20} MB")
+
+
+def cmd_reboot(_):
+    sh(["systemctl", "reboot"])
+
+
+def cmd_shutdown(_):
+    sh(["systemctl", "poweroff"])
+
+
+def cmd_restart_browser(_):
+    restart_browser()
+
+
+def cmd_restart_agent(_):
+    sh(["systemctl", "restart", "evote-agent.service"])
+    print("The booth agent was restarted.")
+
+
+def cmd_network(a):
+    sub = a[0] if a else "status"
+    if sub == "status":
+        sh(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"])
+        sh(["ip", "-brief", "address"])
+        rc, _ = sh(["ping", "-c", "1", "-W", "3", "1.1.1.1"], show=False)
+        print("Internet       : " + ("reachable" if rc == 0 else "NOT reachable"))
+    elif sub == "wifi":
+        sh(["nmcli", "dev", "wifi", "list", "--rescan", "yes"])
+    elif sub == "connect" and len(a) >= 2:
+        sh(["nmcli", "dev", "wifi", "connect", a[1]] + (["password", a[2]] if len(a) > 2 else []))
+    elif sub == "dhcp":
+        _, name = sh(["nmcli", "-g", "NAME", "connection", "show", "--active"], show=False)
+        for n in filter(None, name.splitlines()[:1]):
+            sh(["nmcli", "connection", "modify", n, "ipv4.method", "auto", "ipv4.addresses", "", "ipv4.gateway", "", "ipv4.dns", ""])
+            sh(["nmcli", "connection", "up", n])
+    elif sub == "static" and len(a) >= 4:
+        _, name = sh(["nmcli", "-g", "NAME", "connection", "show", "--active"], show=False)
+        for n in filter(None, name.splitlines()[:1]):
+            sh(["nmcli", "connection", "modify", n, "ipv4.method", "manual", "ipv4.addresses", a[1], "ipv4.gateway", a[2], "ipv4.dns", a[3]])
+            sh(["nmcli", "connection", "up", n])
+    elif sub == "restart":
+        sh(["systemctl", "restart", "NetworkManager"])
+    elif sub == "ping":
+        sh(["ping", "-c", "4", a[1] if len(a) > 1 else "1.1.1.1"])
+    else:
+        print(__doc__)
+
+
+def cmd_printer(a):
+    sub = a[0] if a else "list"
+    if sub == "list":
+        sh(["lpstat", "-p", "-d"])
+        sh(["lpinfo", "-v"], show=True)
+    elif sub == "set" and len(a) > 1:
+        sh(["lpadmin", "-d", a[1]])
+        save(PRINTER=a[1])
+        print(f"Printer set to {a[1]}.")
+    elif sub == "test":
+        p = subprocess.run(["lp"] + (["-d", conf()["PRINTER"]] if conf()["PRINTER"] else []), input="TEST PAGE\nCampus E-Voting booth printer\n", text=True, capture_output=True)
+        print((p.stdout + p.stderr).strip() or "sent")
+    elif sub == "status":
+        sh(["lpstat", "-t"])
+    elif sub == "queue":
+        sh(["lpstat", "-o"])
+    elif sub == "cancel":
+        sh(["cancel", "-a"])
+    else:
+        print(__doc__)
+
+
+def receipts_all():
+    d = conf()["RECEIPT_DIR"]
+    return sorted(os.path.join(r, f) for r, _, fs in os.walk(d) for f in fs if f.endswith(".txt"))
+
+
+def cmd_receipts(a):
+    sub = a[0] if a else "count"
+    files = receipts_all()
+    if sub == "count":
+        print(len(files))
+    elif sub == "list":
+        for f in files:
+            if len(a) < 2 or a[1] in f:
+                print(f)
+    elif sub == "show" and len(a) > 1:
+        for f in files:
+            if a[1].upper() in os.path.basename(f).upper():
+                print(f"== {f}")
+                print(open(f, encoding="utf-8").read())
+    elif sub == "check":
+        d = conf()["RECEIPT_DIR"]
+        recs = [json.loads(x) for x in open(os.path.join(d, "receipts.jsonl"), encoding="utf-8")] if os.path.exists(os.path.join(d, "receipts.jsonl")) else []
+        missing = [r["file"] for r in recs if not os.path.exists(r["file"])]
+        print(f"{len(recs)} receipts logged, {len(files)} files, {len(missing)} missing")
+        for m in missing:
+            print("MISSING", m)
+        sys.exit(1 if missing else 0)
+    elif sub == "export" and len(a) > 1:
+        dest = os.path.join(a[1], "evote-receipts")
+        shutil.copytree(conf()["RECEIPT_DIR"], dest, dirs_exist_ok=True)
+        print(f"Copied {len(files)} receipts to {dest}")
+    else:
+        print(__doc__)
+
+
+def patch_policies(url):
+    allowed = url + "*"
+    dirs = ["/etc/firefox/policies", "/var/snap/firefox/current/policies", "/usr/lib/firefox/distribution", "/usr/lib64/firefox/distribution", "/usr/lib/firefox-esr/distribution"]
+    for d in dirs:
+        f = os.path.join(d, "policies.json")
+        if not os.path.isfile(f):
+            continue
+        try:
+            pol = json.load(open(f, encoding="utf-8"))
+            p = pol["policies"]
+            agent = "http://127.0.0.1:9631/*"
+            p["WebsiteFilter"]["Exceptions"] = [allowed, agent]
+            p["URLAllowlist"] = [allowed, agent]
+            json.dump(pol, open(f, "w", encoding="utf-8"), indent=2)
+        except (OSError, KeyError, ValueError):
+            pass
+
+
+def cmd_url(a):
+    if not a or a[0] == "show":
+        print(conf()["VOTING_URL"] or "(not set)")
+        return
+    if a[0] != "set" or len(a) < 2 or not URL_RE.match(a[1]):
+        sys.exit("Usage: evote url set https://your-site.example/kiosk/vote")
+    save(VOTING_URL=a[1])
+    if os.path.exists("/etc/default/evote-kiosk"):  # lab PC installer
+        open("/etc/default/evote-kiosk", "w", encoding="utf-8").write(f'VOTING_URL="{a[1]}"\n')
+    patch_policies(a[1])
+    restart_browser()
+    print(f"Portal address set to {a[1]}")
+
+
+def cmd_setup(_):
+    os.makedirs("/etc/evote", exist_ok=True)
+    open(conf_flag(), "w").write("1")
+    print("Setup mode is on. On this machine open  http://127.0.0.1:9631/setup  in a browser.")
+    print("It switches off when you press Finish on that page (or run: evote setup-off).")
+
+
+def conf_flag():
+    return os.environ.get("EVOTE_SETUP_FLAG", "/etc/evote/setup-pending")
+
+
+def cmd_setup_off(_):
+    try:
+        os.remove(conf_flag())
+    except OSError:
+        pass
+    print("Setup mode is off.")
+
+
+def cmd_logs(a):
+    sh(["journalctl", "-u", "evote-agent.service", "-u", "evote-booth.service", "-n", a[0] if a else "80", "--no-pager"])
+
+
+def cmd_password(_):
+    sh(["passwd", "evoteadmin"])
+
+
+COMMANDS = {"status": cmd_status, "reboot": cmd_reboot, "shutdown": cmd_shutdown, "restart-browser": cmd_restart_browser,
+            "restart-agent": cmd_restart_agent, "network": cmd_network, "printer": cmd_printer, "receipts": cmd_receipts,
+            "url": cmd_url, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
+
+MENU = [("Status", ["status"]), ("Restart the booth browser", ["restart-browser"]), ("Network status", ["network", "status"]),
+        ("Scan Wi-Fi", ["network", "wifi"]), ("Printer status", ["printer", "status"]), ("Send a test page", ["printer", "test"]),
+        ("Saved receipts (count)", ["receipts", "count"]), ("Check receipts", ["receipts", "check"]), ("Show the logs", ["logs"]),
+        ("Open the setup page", ["setup"]), ("Reboot", ["reboot"]), ("Shut down", ["shutdown"])]
+
+
+def menu():
+    while True:
+        print("\nCampus E-Voting booth maintenance")
+        for i, (label, _) in enumerate(MENU, 1):
+            print(f"  {i:2}. {label}")
+        print("   q. Quit")
+        try:
+            choice = input("> ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return
+        if choice in ("q", "quit", "exit"):
+            return
+        if choice.isdigit() and 1 <= int(choice) <= len(MENU):
+            cmd = MENU[int(choice) - 1][1]
+            if cmd[0] in ("reboot", "shutdown") and input("Are you sure? (yes/no) ").strip() != "yes":
+                continue
+            COMMANDS[cmd[0]](cmd[1:])
+
+
+def cmd_shell(_):
+    """A small command prompt that accepts only evote commands (used as the maintenance login on Booth OS)."""
+    import shlex
+    print("Campus E-Voting booth maintenance. Type 'help' for the commands, 'exit' to log out.")
+    while True:
+        try:
+            line = input("evote> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if line in ("exit", "quit", "logout"):
+            return
+        if not line:
+            continue
+        if line in ("menu", "m"):
+            menu()
+            continue
+        parts = shlex.split(line)
+        if parts[0] == "help":
+            print(__doc__)
+        elif parts[0] in COMMANDS and parts[0] != "shell":
+            if parts[0] in ("reboot", "shutdown") and input("Are you sure? (yes/no) ").strip() != "yes":
+                continue
+            try:
+                COMMANDS[parts[0]](parts[1:])
+            except SystemExit as e:
+                print(e if isinstance(e.code, str) else "")
+        else:
+            print("Unknown command. Type 'help'.")
+
+
+def main(argv):
+    if not os.environ.get("EVOTE_NO_SUDO") and os.geteuid() != 0:
+        os.execvp("sudo", ["sudo", "-E", sys.executable, os.path.abspath(__file__)] + argv)
+    if not argv:
+        return menu()
+    if argv[0] in ("-h", "--help", "help"):
+        return print(__doc__)
+    fn = COMMANDS.get(argv[0])
+    if not fn:
+        sys.exit(f"Unknown command '{argv[0]}'. Run: evote help")
+    fn(argv[1:])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

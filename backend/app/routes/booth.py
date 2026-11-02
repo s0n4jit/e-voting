@@ -18,6 +18,7 @@ from app.models.audit_log import AuditLog
 from app.models.booth_create_token import BoothCreateToken
 from app.models.election import Election
 from app.models.kiosk_device import KioskDevice
+from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.utils.timeutil import utc_iso
 
@@ -112,6 +113,7 @@ def status():
         "slip_prefix": election.ensure_slip_prefix() if election else None,
         "voting_open": bool(election and election.is_ongoing),
         "voting_ended": bool(election and not election.desk_open),
+        "print": SystemSetting.printing(),
         "election": {"id": election.id, "title": election.title, "status": election.effective_status, "paused": bool(election.voting_paused),
                      "start_time": data["start_time"], "end_time": data["end_time"]} if election else None,
     }), 200

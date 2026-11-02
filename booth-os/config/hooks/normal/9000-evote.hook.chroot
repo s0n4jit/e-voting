@@ -7,7 +7,20 @@ id evote >/dev/null 2>&1 || useradd -m -s /usr/sbin/nologin -G video,render,inpu
 passwd -l evote
 systemctl enable evote-booth.service NetworkManager systemd-timesyncd
 systemctl set-default graphical.target
-for n in 2 3 4 5 6; do systemctl mask "getty@tty${n}.service" "autovt@tty${n}.service"; done
+# maintenance login on tty2 (Ctrl+Alt+F2): user "evoteadmin", locked until a password is set in the setup page,
+# and its only shell is the evote command prompt (reboot, restart browser, network, printer, receipts).
+echo /usr/local/bin/evote-shell >> /etc/shells
+id evoteadmin >/dev/null 2>&1 || useradd -m -s /usr/local/bin/evote-shell evoteadmin
+passwd -l evoteadmin
+echo 'evoteadmin ALL=(root) NOPASSWD: /usr/local/bin/evote' > /etc/sudoers.d/evoteadmin
+chmod 440 /etc/sudoers.d/evoteadmin
+mkdir -p /var/lib/evote/receipts /etc/evote
+chmod 700 /var/lib/evote/receipts
+systemctl enable evote-agent.service cups.service
+systemctl enable getty@tty2.service
+for n in 3 4 5 6; do systemctl mask "getty@tty${n}.service" "autovt@tty${n}.service"; done
+chmod 755 /usr/local/bin/evote /usr/local/bin/evote-shell /usr/local/lib/evote/evote-agent.py
+chmod 644 /etc/systemd/system/evote-agent.service /usr/local/lib/evote/setup.html
 systemctl mask ctrl-alt-del.target getty@tty1.service autovt@tty1.service
 systemctl mask ssh.service sshd.service 2>/dev/null || true
 echo "evote-booth" > /etc/hostname
