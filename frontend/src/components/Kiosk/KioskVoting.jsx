@@ -13,7 +13,7 @@ import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 const IDLE_RESET_MS = 5 * 60 * 1000;
-const RESET_AFTER_VOTE_S = 30; // long enough to print and collect the vote copy
+const RESET_AFTER_VOTE_S = 10;
 
 /** The paper copy of the vote: the voter checks it and drops it into the box at the booth. */
 const VoteReceipt = ({ receipt }) => {
@@ -69,7 +69,7 @@ const Avatar = ({ candidate, size = 'w-16 h-16', text = '', rounded = 'rounded-x
 
 /** Ballot dropping into a box while the vote is being recorded. */
 const SubmittingAnimation = () => (
-  <div className="fixed inset-0 z-50 bg-bg/95 flex flex-col items-center justify-center animate-fade-in" role="status" aria-live="polite">
+  <div className="fixed inset-0 z-50 bg-bg/80 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in" role="status" aria-live="polite">
     <svg viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
       <g className="animate-ballot-drop" style={{ transformOrigin: 'center' }}>
         <rect x="40" y="10" width="40" height="52" rx="5" fill="rgb(var(--surface))" stroke="rgb(var(--brand))" strokeWidth="3" />
@@ -363,7 +363,6 @@ export const KioskVoting = () => {
         {receipt && ['printed', 'browser'].includes(printState) && <p className="text-sm mt-4">Your vote copy has been printed. Check it and drop it into the box.</p>}
         {receipt && printState === 'failed' && <p className="text-sm mt-4 text-bad">The vote copy could not be printed. Your vote is recorded. Please tell the desk.</p>}
         <div className="flex gap-3 mt-10">
-          {receipt && printState !== 'off' && <button className="btn-secondary btn-lg" onClick={() => printReceipt(receipt)} disabled={printState === 'sending'}>Print again</button>}
           <button className="btn-primary btn-lg" onClick={finish}>Finish</button>
         </div>
         {receipt && printState === 'browser' && <VoteReceipt receipt={receipt} />}
@@ -392,7 +391,7 @@ export const KioskVoting = () => {
                     {c && c !== 'NOTA' ? <Avatar candidate={c} size="w-12 h-12" /> : <div className="w-12 h-12 rounded-xl bg-recessed shrink-0" />}
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted">{p.position}</p>
-                      <p className="font-medium truncate">{c === 'NOTA' ? 'NOTA — none of the above' : c ? c.name : 'Not selected'}</p>
+                      <p className="font-medium truncate">{c === 'NOTA' ? 'NOTA' : c ? c.name : 'Not selected'}</p>
                     </div>
                     <button className="btn-ghost btn-sm" onClick={() => { setFromReview(true); go(i, 'prev'); }}>Change</button>
                   </li>
@@ -473,8 +472,7 @@ export const KioskVoting = () => {
                 </span>
                 <div className={`px-4 py-4 text-center flex-1 ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
                   <p className="text-xl sm:text-2xl font-bold leading-tight">NOTA</p>
-                  <p className="text-sm text-muted mt-1">None of the above</p>
-                  <p className="text-sm text-muted min-h-[1.25rem]">I do not choose anyone</p>
+                  <p className="text-sm text-muted mt-1">I do not choose anyone</p>
                 </div>
               </div>
             </div>
