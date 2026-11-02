@@ -73,7 +73,7 @@ sudo VOTING_URL="https://evote.campus.internal/kiosk/vote" bash setup-kiosk.sh`}
         <p>The installer:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>creates a restricted user <code>evote</code> (no admin rights, password chosen at install) that you pick on the login screen, or signs in automatically with <code>AUTOLOGIN=yes</code>;</li>
-          <li>starts Firefox in full-screen kiosk mode with a policy that lets it open <strong>only</strong> <code>/kiosk/vote…</code>, with no address bar, tabs, downloads or developer tools;</li>
+          <li>starts Firefox in full-screen kiosk mode for the <code>evote</code> user with its own profile that can reach <strong>only</strong> the booth address, with no address bar, tabs or developer tools (the administrator's browser is not restricted);</li>
           <li>locks desktop shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners) for the <code>evote</code> user only, so your administrator account stays normal;</li>
           <li>installs a service, <code>evote-kiosk.service</code>, that restarts the browser if it ever closes.</li>
         </ul>

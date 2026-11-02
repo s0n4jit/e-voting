@@ -126,6 +126,49 @@ log_info "Using Firefox binary: ${FIREFOX_BIN}"
 log_info "Kiosk target URL: ${VOTING_URL}"
 
 # ------------------------------------------------------------------------------
+# Locked-down profile (this user only): the browser can reach just the booth address and this machine.
+# A proxy auto-config file sends every other address to a dead proxy, so other websites cannot load.
+# (A machine-wide Firefox policy would lock the administrator's browser too, so none is used.)
+# ------------------------------------------------------------------------------
+prepare_profile() {
+    local dir host pac
+    if [[ "${FIREFOX_BIN}" == *snap* ]]; then
+        dir="${HOME}/snap/firefox/common/evote-profile"   # a snap can only read non-hidden folders of the home
+    else
+        dir="${HOME}/.evote-profile"
+    fi
+    mkdir -p "${dir}"
+    host="${VOTING_URL#*://}"; host="${host%%/*}"; host="${host%%:*}"
+    pac="${dir}/proxy.pac"
+    cat > "${pac}" <<PACEOF
+function FindProxyForURL(url, host) {
+  if (host == "${host}" || host == "localhost" || host == "127.0.0.1") return "DIRECT";
+  return "PROXY 127.0.0.1:9";
+}
+PACEOF
+    cat > "${dir}/user.js" <<JSEOF
+user_pref("network.proxy.type", 2);
+user_pref("network.proxy.autoconfig_url", "file://${pac}");
+user_pref("devtools.policy.disabled", true);
+user_pref("devtools.debugger.remote-enabled", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.tabs.warnOnClose", false);
+user_pref("browser.startup.page", 0);
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("toolkit.telemetry.enabled", false);
+user_pref("app.update.auto", false);
+user_pref("signon.rememberSignons", false);
+user_pref("browser.download.useDownloadDir", false);
+user_pref("dom.disable_open_during_load", true);
+JSEOF
+    PROFILE_DIR="${dir}"
+}
+PROFILE_DIR=""
+prepare_profile
+log_info "Browser profile with the booth-only proxy rule: ${PROFILE_DIR}"
+
+# ------------------------------------------------------------------------------
 # Main Kiosk Watchdog Loop
 # ------------------------------------------------------------------------------
 while [[ ${SHUTDOWN_REQUESTED} -eq 0 ]]; do
@@ -140,6 +183,8 @@ while [[ ${SHUTDOWN_REQUESTED} -eq 0 ]]; do
     # --url: Direct destination
     ${FIREFOX_BIN} \
         --kiosk \
+        --no-remote \
+        --profile "${PROFILE_DIR}" \
         --private-window \
         --url "${VOTING_URL}" &
     

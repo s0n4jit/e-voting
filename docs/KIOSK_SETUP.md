@@ -35,7 +35,7 @@ Options (put them before `bash`): `AUTOLOGIN=yes` signs `evote` in by itself at 
 The installer:
 
 1. creates a restricted user `evote` (no admin rights) with the password you chose; it is **not** signed in automatically unless you use `AUTOLOGIN=yes`;
-2. installs Firefox with an enterprise policy that blocks every address except `…/kiosk/vote…`, with no address bar, tabs, downloads, developer tools or `about:config`;
+2. installs Firefox and gives the `evote` user its own browser profile that can reach **only the booth address** (a proxy rule), in full-screen kiosk mode with no address bar, tabs or developer tools. There is **no machine-wide browser policy**: your administrator account browses normally;
 3. locks GNOME shortcuts (Alt+Tab, Ctrl+Alt+T, screenshots, hot corners, idle sleep, log out) **for the `evote` user only**: your administrator account keeps a normal desktop;
 4. installs `evote-kiosk.service`, a user service with a crash watchdog that restarts the browser;
 5. installs the **booth agent** (silent printing and a saved copy of every vote copy), CUPS, and the `evote` maintenance command;

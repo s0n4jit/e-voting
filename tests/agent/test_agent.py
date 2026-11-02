@@ -129,10 +129,3 @@ def test_unknown_receipt_owner_does_not_break_saving(agent):
     assert 'RECEIPT_OWNER="no-such-admin"' in Path(mod.CONF).read_text()
     status, body = post(base, "/print", RECEIPT)
     assert status == 200 and body["archived"] and body["printed"]
-
-
-def test_policy_pattern_drops_the_port():
-    from importlib.machinery import SourceFileLoader
-    cli = SourceFileLoader("evote_cli", str(ROOT / "booth-agent" / "evote")).load_module()
-    assert cli.policy_pattern("https://192.168.1.13:8080/kiosk/vote") == "https://192.168.1.13/kiosk/vote*"
-    assert cli.policy_pattern("https://vote.example.edu/kiosk/vote") == "https://vote.example.edu/kiosk/vote*"

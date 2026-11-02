@@ -189,29 +189,6 @@ def cmd_receipts(a):
         print(__doc__)
 
 
-def policy_pattern(url):
-    """Firefox match patterns have no port: https://10.0.0.5:8080/kiosk/vote becomes https://10.0.0.5/kiosk/vote*."""
-    return re.sub(r"^(https?://[^/:]+):\d+", r"\1", url) + "*"
-
-
-def patch_policies(url):
-    allowed = policy_pattern(url)
-    dirs = ["/etc/firefox/policies", "/var/snap/firefox/current/policies", "/usr/lib/firefox/distribution", "/usr/lib64/firefox/distribution", "/usr/lib/firefox-esr/distribution"]
-    for d in dirs:
-        f = os.path.join(d, "policies.json")
-        if not os.path.isfile(f):
-            continue
-        try:
-            pol = json.load(open(f, encoding="utf-8"))
-            p = pol["policies"]
-            agent = "http://127.0.0.1:9631/*"
-            p["WebsiteFilter"]["Exceptions"] = [allowed, agent]
-            p["URLAllowlist"] = [allowed, agent]
-            json.dump(pol, open(f, "w", encoding="utf-8"), indent=2)
-        except (OSError, KeyError, ValueError):
-            pass
-
-
 def cmd_url(a):
     if not a or a[0] == "show":
         print(conf()["VOTING_URL"] or "(not set)")
@@ -221,7 +198,6 @@ def cmd_url(a):
     save(VOTING_URL=a[1])
     if os.path.exists("/etc/default/evote-kiosk"):  # lab PC installer
         open("/etc/default/evote-kiosk", "w", encoding="utf-8").write(f'VOTING_URL="{a[1]}"\n')
-    patch_policies(a[1])
     restart_browser()
     print(f"Portal address set to {a[1]}")
 

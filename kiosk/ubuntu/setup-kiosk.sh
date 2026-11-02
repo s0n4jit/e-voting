@@ -124,7 +124,7 @@ else
         echo
     fi
     if [[ ${#EVOTE_PASSWORD} -lt 8 ]]; then
-        EVOTE_PASSWORD="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+        EVOTE_PASSWORD="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"  # no early-closing pipe: safe under pipefail
         GENERATED_PASSWORD="${EVOTE_PASSWORD}"
     fi
     echo "${EVOTE_USER}:${EVOTE_PASSWORD}" | chpasswd
@@ -184,61 +184,26 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 3: Install & Deploy Firefox Snap with Enterprise Policies
+# Step 3: Install Firefox (the booth lock is applied to the evote user only)
 # ------------------------------------------------------------------------------
-log_step "Step 3: Installing Firefox and its enterprise policy..."
+log_step "Step 3: Installing Firefox..."
 
 install_firefox
 
-# System-wide enterprise policy paths
-mkdir -p /etc/firefox/policies
-mkdir -p /var/snap/firefox/current/policies 2>/dev/null || true
-
-POLICIES_SRC="${SCRIPT_DIR}/policies/policies.json"
-if [[ -f "${POLICIES_SRC}" ]]; then
-    POLICY_TARGETS=(/etc/firefox/policies/policies.json)
-    if [[ -d "/var/snap/firefox/current" ]]; then
-        POLICY_TARGETS+=(/var/snap/firefox/current/policies/policies.json)
+# The booth lock is NOT a machine-wide Firefox policy any more: a policy in /etc/firefox would also lock the
+# administrator's Firefox. The launcher gives the evote user its own profile that can reach only the booth
+# address (see scripts/kiosk-launcher.sh). Remove the machine-wide policy older versions of this script wrote.
+for old in /etc/firefox/policies/policies.json /var/snap/firefox/current/policies/policies.json \
+           /usr/lib/firefox/distribution/policies.json /usr/lib64/firefox/distribution/policies.json \
+           /usr/lib/firefox-esr/distribution/policies.json; do
+    if [[ -f "${old}" ]] && grep -q 'kiosk/vote' "${old}" 2>/dev/null; then
+        rm -f "${old}"
+        log_info "Removed the old machine-wide Firefox policy ${old} (it also locked the administrator's browser)."
     fi
-    for dist_dir in /usr/lib/firefox/distribution /usr/lib64/firefox/distribution /usr/lib/firefox-esr/distribution /usr/lib/firefox-esr/distribution; do
-        [[ -d "$(dirname "${dist_dir}")" ]] && POLICY_TARGETS+=("${dist_dir}/policies.json")
-    done
-    for target in "${POLICY_TARGETS[@]}"; do
-        # shellcheck disable=SC2174
-        mkdir -p "$(dirname "${target}")"
-        # a distribution directory that is a link to /etc/firefox/policies already is the same file
-        [[ "${target}" -ef /etc/firefox/policies/policies.json && "${target}" != /etc/firefox/policies/policies.json ]] && continue
-        cp -f "${POLICIES_SRC}" "${target}"
-        chmod 644 "${target}"
-    done
-    log_info "Firefox Enterprise Policies deployed to /etc/firefox/policies/policies.json."
+done
 
-    # Allow the booth address given in VOTING_URL (the shipped policy only knows the example addresses).
-    if [[ -n "${VOTING_URL:-}" ]]; then
-        if [[ ! "${VOTING_URL}" =~ ^https?://[^/]+/kiosk/vote$ ]]; then
-            log_error "VOTING_URL must look like https://your-site.example/kiosk/vote (got: ${VOTING_URL})."
-            exit 1
-        fi
-        for POLICY_FILE in "${POLICY_TARGETS[@]}"; do
-            [[ -f "${POLICY_FILE}" ]] || continue
-            python3 - "${POLICY_FILE}" "${VOTING_URL}*" <<'PYEOF'
-import json, re, sys
-path, allowed = sys.argv[1], sys.argv[2]
-allowed = re.sub(r"^(https?://[^/:]+):\d+", r"\1", allowed)  # Firefox match patterns have no port
-policy = json.load(open(path))
-p = policy["policies"]
-for lst in (p["WebsiteFilter"]["Exceptions"], p["URLAllowlist"]):
-    if allowed not in lst:
-        lst.append(allowed)
-    if "http://127.0.0.1:9631/*" not in lst:
-        lst.append("http://127.0.0.1:9631/*")  # the booth agent on this machine (printing)
-json.dump(policy, open(path, "w"), indent=2)
-PYEOF
-        done
-        log_info "Browser policy now also allows ${VOTING_URL}."
-    fi
-else
-    log_error "Policies file ${POLICIES_SRC} not found!"
+if [[ -n "${VOTING_URL:-}" && ! "${VOTING_URL}" =~ ^https?://[^/]+/kiosk/vote$ ]]; then
+    log_error "VOTING_URL must look like https://your-site.example/kiosk/vote (got: ${VOTING_URL})."
     exit 1
 fi
 
@@ -397,7 +362,7 @@ echo ""
 echo -e "${GREEN}==============================================================================${NC}"
 echo -e "${GREEN}${BOLD}Campus E-Voting System (CEVS) Kiosk Setup Complete!${NC}"
 echo -e "${GREEN}==============================================================================${NC}"
-echo -e "User Account:       ${BOLD}${EVOTE_USER}${NC} (Locked password, non-root)"
+echo -e "User Account:       ${BOLD}${EVOTE_USER}${NC} (non-root; password chosen at install)"
 echo -e "Display Manager:    GDM3 (Auto-login: ${AUTOLOGIN:-no}, Wayland: Enabled)"
 [[ -n "${GENERATED_PASSWORD}" ]] && echo -e "Kiosk user password: ${BOLD}${GENERATED_PASSWORD}${NC}  (write it down; change it with: sudo passwd ${EVOTE_USER})"
 echo -e "Target URL:         $(grep VOTING_URL /etc/default/evote-kiosk | cut -d'=' -f2)"
