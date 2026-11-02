@@ -18,7 +18,7 @@ export default function PrintableResults({ data }) {
           <div key={p.position} style={{ breakInside: 'avoid' }}>
             <h3>{p.position}</h3>
             <table>
-              <thead><tr><th>Candidate</th><th className="n">Votes</th></tr></thead>
+              <thead><tr><th>Candidate</th><th className="n">Votes (of {p.total_votes})</th></tr></thead>
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.candidate_id}>

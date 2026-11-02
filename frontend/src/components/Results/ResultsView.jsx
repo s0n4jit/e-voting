@@ -20,7 +20,7 @@ const OUTCOME = {
   none: { icon: MinusCircleIcon, tone: 'bg-recessed text-muted', title: (o) => o.label },
 };
 
-const Row = ({ name, votes, max, highlight, avatar }) => (
+const Row = ({ name, sub, votes, total, highlight, avatar }) => (
   <li
     className={`px-5 py-3.5 flex items-center gap-4 ${
       highlight === 'win' ? 'bg-ok-soft/60' : highlight === 'tie' ? 'bg-warn-soft/60' : ''
@@ -28,21 +28,13 @@ const Row = ({ name, votes, max, highlight, avatar }) => (
   >
     {avatar}
     <div className="min-w-0 flex-1">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="font-semibold truncate">{name}</p>
-        <p className="text-sm tabular-nums shrink-0">
-          <span className="font-semibold text-base">{votes}</span> <span className="text-muted">{votes === 1 ? 'vote' : 'votes'}</span>
-        </p>
-      </div>
-      <div className="h-2 rounded-full bg-recessed mt-2 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-[width] duration-700 ease-out ${
-            highlight === 'win' ? 'bg-ok' : highlight === 'tie' ? 'bg-warn' : 'bg-brand/60'
-          }`}
-          style={{ width: `${max > 0 ? Math.round((votes / max) * 100) : 0}%` }}
-        />
-      </div>
+      <p className="font-semibold truncate">{name}</p>
+      {sub && <p className="text-xs text-muted truncate">{sub}</p>}
     </div>
+    <p className="text-right tabular-nums shrink-0">
+      <span className="text-2xl font-semibold">{votes}</span>
+      <span className="text-sm text-muted"> {votes === 1 ? 'vote' : 'votes'} out of {total}</span>
+    </p>
   </li>
 );
 
@@ -78,12 +70,11 @@ export default function ResultsView({ data }) {
             const o = OUTCOME[p.outcome?.type] || OUTCOME.none;
             const Icon = o.icon;
             const rows = [...p.candidates].sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
-            const max = Math.max(...rows.map((c) => c.votes), 0);
             return (
               <article key={p.position} className="card overflow-hidden animate-slide-up">
                 <header className="px-5 py-4 border-b border-line flex items-center justify-between gap-3">
                   <h3 className="font-semibold text-lg">{p.position}</h3>
-                  <span className="text-sm text-muted tabular-nums">{p.total_votes} {p.total_votes === 1 ? 'vote' : 'votes'}</span>
+                  <span className="text-sm text-muted tabular-nums">{p.total_votes} {p.total_votes === 1 ? 'vote' : 'votes'} cast</span>
                 </header>
                 <div className={`px-5 py-3 flex items-center gap-2.5 text-sm font-medium ${o.tone}`}>
                   <Icon className="w-5 h-5 shrink-0" />
@@ -94,17 +85,21 @@ export default function ResultsView({ data }) {
                     <Row
                       key={c.candidate_id}
                       name={c.name}
+                      sub={c.department}
                       votes={c.votes}
-                      max={max}
+                      total={p.total_votes}
                       highlight={c.is_winner ? 'win' : c.is_tied ? 'tie' : undefined}
                       avatar={<Avatar candidate={c} />}
                     />
                   ))}
+                  <Row
+                    name="NOTA"
+                    sub="None of the Above (not a candidate, cannot win)"
+                    votes={p.nota_count}
+                    total={p.total_votes}
+                    avatar={<span className="w-12 h-12 rounded-xl bg-recessed text-muted flex items-center justify-center shrink-0"><MinusCircleIcon className="w-6 h-6" /></span>}
+                  />
                 </ul>
-                <p className="px-5 py-3 border-t border-line text-sm text-muted flex items-center justify-between">
-                  <span>None of the Above (NOTA). Not a candidate; it cannot win.</span>
-                  <span className="tabular-nums"><span className="font-semibold text-fg">{p.nota_count}</span> {p.nota_count === 1 ? 'vote' : 'votes'}</span>
-                </p>
               </article>
             );
           })}

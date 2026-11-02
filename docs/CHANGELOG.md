@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Results: each position lists every candidate with the actual vote count ("6 votes out of 12") and a NOTA row; no bars or percentages.
 - Mock election: the officer sees live results (counts per candidate) while the mock runs, and can close, publish and check the results before ending it.
 - Settings: "Mock election". With the election in the Ready stage the officer can start a mock (practice) run with the real set-up. Ending it ("RESET") deletes the ballots, PINs and audit entries recorded since it started, resets every voter and returns the election to Ready. A banner shows while a mock is running.
 - Voting booth: candidate cards read "Student of Department of ..., Semester ..." in bold; the Enter key moves to the next position once a choice is made (and opens the submit prompt on the review screen).
