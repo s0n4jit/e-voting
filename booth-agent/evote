@@ -6,6 +6,7 @@
     evote network status|wifi|connect SSID [PASSWORD]|dhcp|static IP/BITS GATEWAY DNS|restart|ping [HOST]
     evote printer list|set NAME|test|status|queue|cancel
     evote receipts count|list [DATE]|show SLIP|check|export FOLDER
+    evote autologin on|off  (lab PC: sign in the kiosk user automatically, or choose the user on the login screen)
     evote url [show|set ADDRESS]       evote setup       evote logs [LINES]       evote password
 
 Needs root: run it as `sudo evote ...` (it asks for sudo itself when started as a normal user). Python 3 only.
@@ -36,7 +37,7 @@ def sh(cmd, check=False, show=True):
 
 
 def conf():
-    c = {"VOTING_URL": "", "PRINTER": "", "COPIES": "1", "PRINT_ENABLED": "1", "RECEIPT_DIR": os.environ.get("EVOTE_RECEIPTS", "/var/lib/evote/receipts")}
+    c = {"VOTING_URL": "", "PRINTER": "", "COPIES": "1", "PRINT_ENABLED": "1", "RECEIPT_DIR": os.environ.get("EVOTE_RECEIPTS", "/var/lib/evote/receipts"), "RECEIPT_OWNER": ""}
     try:
         for line in open(CONF, encoding="utf-8"):
             m = re.match(r"^\s*([A-Z_]+)=(.*?)\s*$", line)
@@ -52,7 +53,7 @@ def save(**kv):
     c.update(kv)
     os.makedirs(os.path.dirname(CONF), exist_ok=True)
     with open(CONF, "w", encoding="utf-8") as f:
-        for k in ("VOTING_URL", "PRINTER", "COPIES", "PRINT_ENABLED", "RECEIPT_DIR"):
+        for k in ("VOTING_URL", "PRINTER", "COPIES", "PRINT_ENABLED", "RECEIPT_DIR", "RECEIPT_OWNER"):
             f.write(f'{k}="{c[k]}"\n')
 
 
@@ -247,6 +248,23 @@ def cmd_password(_):
     sh(["passwd", "evoteadmin"])
 
 
+def cmd_autologin(a):
+    """Lab PC: turn the automatic sign-in of the kiosk user on or off (when off, pick the user on the login screen)."""
+    gdm = os.environ.get("EVOTE_GDM", "/etc/gdm3/custom.conf")
+    if not os.path.exists(gdm) and os.path.exists("/etc/gdm/custom.conf"):
+        gdm = "/etc/gdm/custom.conf"
+    if not a or a[0] not in ("on", "off") or not os.path.exists(gdm):
+        sys.exit("Usage: evote autologin on|off   (needs GDM: /etc/gdm3/custom.conf)")
+    lines = [ln for ln in open(gdm, encoding="utf-8").read().splitlines() if not re.match(r"^\s*AutomaticLogin(Enable)?\s*=", ln)]
+    if not any(ln.strip() == "[daemon]" for ln in lines):
+        lines.insert(0, "[daemon]")
+    if a[0] == "on":
+        i = next(k for k, ln in enumerate(lines) if ln.strip() == "[daemon]")
+        lines[i + 1:i + 1] = ["AutomaticLoginEnable=True", "AutomaticLogin=evote"]
+    open(gdm, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    print(f"Automatic sign-in is {a[0].upper()}. It takes effect at the next restart.")
+
+
 def cmd_shell(_):
     """A small command prompt that accepts only evote commands (used as the maintenance login on Booth OS)."""
     import shlex
@@ -280,7 +298,7 @@ def cmd_shell(_):
 
 COMMANDS = {"status": cmd_status, "reboot": cmd_reboot, "shutdown": cmd_shutdown, "restart-browser": cmd_restart_browser,
             "restart-agent": cmd_restart_agent, "network": cmd_network, "printer": cmd_printer, "receipts": cmd_receipts,
-            "url": cmd_url, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
+            "url": cmd_url, "autologin": cmd_autologin, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
 
 MENU = [("Status", ["status"]), ("Restart the booth browser", ["restart-browser"]), ("Network status", ["network", "status"]),
         ("Scan Wi-Fi", ["network", "wifi"]), ("Printer status", ["printer", "status"]), ("Send a test page", ["printer", "test"]),

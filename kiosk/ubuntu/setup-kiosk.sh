@@ -111,8 +111,25 @@ else
     useradd -m -s /bin/bash -c "Campus E-Voting Kiosk User" "${EVOTE_USER}"
 fi
 
-# Lock the password so password-based login and SSH interactive password auth fail
-passwd -l "${EVOTE_USER}" >/dev/null 2>&1 || true
+# AUTOLOGIN=yes: the booth signs in by itself and the account has no usable password.
+# Default: nobody is signed in automatically. The login screen lists the users, the administrator picks
+# "evote" (with the password set here) or their own account.
+GENERATED_PASSWORD=""
+EVOTE_PASSWORD="${EVOTE_PASSWORD:-}"
+if [[ "${AUTOLOGIN:-no}" == "yes" ]]; then
+    passwd -l "${EVOTE_USER}" >/dev/null 2>&1 || true
+else
+    if [[ -z "${EVOTE_PASSWORD:-}" && -t 0 ]]; then
+        read -rsp "Password for the kiosk user '${EVOTE_USER}' (8+ characters, Enter = generate one): " EVOTE_PASSWORD || true
+        echo
+    fi
+    if [[ ${#EVOTE_PASSWORD} -lt 8 ]]; then
+        EVOTE_PASSWORD="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+        GENERATED_PASSWORD="${EVOTE_PASSWORD}"
+    fi
+    echo "${EVOTE_USER}:${EVOTE_PASSWORD}" | chpasswd
+    passwd -u "${EVOTE_USER}" >/dev/null 2>&1 || true
+fi
 
 # Strip any dangerous administrative group memberships
 for bad_group in sudo admin wheel adm dip dialout; do
@@ -155,9 +172,13 @@ if [[ -f "${GDM_CONF}" ]]; then
         echo -e "\n[daemon]" >> "${GDM_CONF}"
     fi
 
-    # Append our settings right below [daemon]
-    sed -i "/^\[daemon\]/a WaylandEnable=true\nAutomaticLoginEnable=True\nAutomaticLogin=${EVOTE_USER}" "${GDM_CONF}"
-    log_info "GDM3 auto-login configured for '${EVOTE_USER}' under Wayland."
+    if [[ "${AUTOLOGIN:-no}" == "yes" ]]; then
+        sed -i "/^\[daemon\]/a WaylandEnable=true\nAutomaticLoginEnable=True\nAutomaticLogin=${EVOTE_USER}" "${GDM_CONF}"
+        log_info "GDM3 auto-login configured for '${EVOTE_USER}' under Wayland."
+    else
+        sed -i "/^\[daemon\]/a WaylandEnable=true" "${GDM_CONF}"
+        log_info "Auto-login is OFF: choose the user on the login screen (turn it on later with: sudo evote autologin on)."
+    fi
 else
     log_warn "GDM configuration not found at /etc/gdm3/custom.conf. Verify display manager."
 fi
@@ -337,23 +358,31 @@ if [[ -n "${AGENT_SRC}" && -f "${AGENT_SRC}/evote-agent.py" ]]; then
         arch)          pacman -S --noconfirm --needed cups python networkmanager >/dev/null || log_warn "Could not install printing packages." ;;
     esac
     install -d -m 755 /usr/local/lib/evote /etc/evote
-    install -d -m 700 /var/lib/evote/receipts
+    # Vote copies are kept in the administrator's private folder (700, only that account can read it).
+    RECEIPT_OWNER="${RECEIPT_OWNER:-${SUDO_USER:-}}"
+    if [[ -n "${RECEIPT_OWNER}" && "${RECEIPT_OWNER}" != "root" && "${RECEIPT_OWNER}" != "${EVOTE_USER}" ]] && getent passwd "${RECEIPT_OWNER}" >/dev/null; then
+        RECEIPT_DIR="$(getent passwd "${RECEIPT_OWNER}" | cut -d: -f6)/.evote-receipts"
+        install -d -m 700 -o "${RECEIPT_OWNER}" -g "${RECEIPT_OWNER}" "${RECEIPT_DIR}"
+    else
+        RECEIPT_OWNER=""
+        RECEIPT_DIR="/var/lib/evote/receipts"
+        install -d -m 700 "${RECEIPT_DIR}"
+        log_warn "No administrator account found (run the installer with sudo from your own account): receipts go to ${RECEIPT_DIR}."
+    fi
     install -m 755 "${AGENT_SRC}/evote-agent.py" /usr/local/lib/evote/evote-agent.py
     install -m 644 "${AGENT_SRC}/setup.html" /usr/local/lib/evote/setup.html
     install -m 755 "${AGENT_SRC}/evote" /usr/local/bin/evote
     install -m 644 "${AGENT_SRC}/evote-agent.service" /etc/systemd/system/evote-agent.service
     if [[ ! -f /etc/evote/booth.conf ]]; then
-        printf 'VOTING_URL="%s"
-PRINTER=""
-COPIES="1"
-PRINT_ENABLED="1"
-RECEIPT_DIR="/var/lib/evote/receipts"
-'             "$(grep -h '^VOTING_URL=' /etc/default/evote-kiosk | head -1 | cut -d'"' -f2)" > /etc/evote/booth.conf
+        printf 'VOTING_URL="%s"\nPRINTER=""\nCOPIES="1"\nPRINT_ENABLED="1"\nRECEIPT_DIR=""\nRECEIPT_OWNER=""\n' \
+            "$(grep -h '^VOTING_URL=' /etc/default/evote-kiosk | head -1 | cut -d'"' -f2)" > /etc/evote/booth.conf
     fi
+    sed -i -e "s|^RECEIPT_DIR=.*|RECEIPT_DIR=\"${RECEIPT_DIR}\"|" -e "s|^RECEIPT_OWNER=.*|RECEIPT_OWNER=\"${RECEIPT_OWNER}\"|" /etc/evote/booth.conf
+    grep -q '^RECEIPT_OWNER=' /etc/evote/booth.conf || printf 'RECEIPT_OWNER="%s"\n' "${RECEIPT_OWNER}" >> /etc/evote/booth.conf
     systemctl enable --now cups.service 2>/dev/null || true
     systemctl daemon-reload
     systemctl enable --now evote-agent.service
-    log_info "Booth agent running on 127.0.0.1:9631. Receipts are kept in /var/lib/evote/receipts. Set up the printer with: sudo evote setup"
+    log_info "Booth agent running on 127.0.0.1:9631. Receipts are kept in ${RECEIPT_DIR} (private to ${RECEIPT_OWNER:-root}). Set up the printer with: sudo evote setup"
 else
     log_warn "The booth-agent folder was not found next to kiosk/: silent printing and the evote command were not installed."
 fi
@@ -366,7 +395,8 @@ echo -e "${GREEN}===============================================================
 echo -e "${GREEN}${BOLD}Campus E-Voting System (CEVS) Kiosk Setup Complete!${NC}"
 echo -e "${GREEN}==============================================================================${NC}"
 echo -e "User Account:       ${BOLD}${EVOTE_USER}${NC} (Locked password, non-root)"
-echo -e "Display Manager:    GDM3 (Auto-login: ${EVOTE_USER}, Wayland: Enabled)"
+echo -e "Display Manager:    GDM3 (Auto-login: ${AUTOLOGIN:-no}, Wayland: Enabled)"
+[[ -n "${GENERATED_PASSWORD}" ]] && echo -e "Kiosk user password: ${BOLD}${GENERATED_PASSWORD}${NC}  (write it down; change it with: sudo passwd ${EVOTE_USER})"
 echo -e "Target URL:         $(grep VOTING_URL /etc/default/evote-kiosk | cut -d'=' -f2)"
 echo -e "Browser Engine:     Firefox on ${DISTRO_ID} (Enterprise Lockdown Active)"
 echo -e "DConf Hardening:    App Switcher, Hot Corners, TTY, Power, USB Storage Disabled"

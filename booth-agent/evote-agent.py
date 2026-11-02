@@ -25,12 +25,12 @@ LP = os.environ.get("EVOTE_LP", "lp")
 WIDTH = 42  # characters per line: fits 58 mm thermal paper and looks normal on A4
 LOCK = threading.Lock()
 SETUP_UNTIL = 0.0  # setup mode switch (monotonic seconds); the flag file in the config starts it at boot
-KEYS = ("VOTING_URL", "PRINTER", "COPIES", "PRINT_ENABLED", "RECEIPT_DIR")
+KEYS = ("VOTING_URL", "PRINTER", "COPIES", "PRINT_ENABLED", "RECEIPT_DIR", "RECEIPT_OWNER")
 
 
 def read_conf(path=None):
     conf = {"VOTING_URL": "", "PRINTER": "", "COPIES": "1", "PRINT_ENABLED": "1",
-            "RECEIPT_DIR": os.environ.get("EVOTE_RECEIPTS", "/var/lib/evote/receipts"),
+            "RECEIPT_DIR": os.environ.get("EVOTE_RECEIPTS", "/var/lib/evote/receipts"), "RECEIPT_OWNER": "",
             "SETUP_FLAG": os.environ.get("EVOTE_SETUP_FLAG", "/etc/evote/setup-pending")}
     try:
         with open(path or CONF, encoding="utf-8") as f:
@@ -81,6 +81,20 @@ def render(r):
     return "\n".join(out) + "\n"
 
 
+def give_to_owner(paths, conf):
+    """Receipts belong to the administrator named in RECEIPT_OWNER (their private folder), not to the kiosk user."""
+    owner = conf.get("RECEIPT_OWNER")
+    if not owner or not hasattr(os, "chown"):
+        return
+    try:
+        import pwd
+        info = pwd.getpwnam(owner)
+        for p in paths:
+            os.chown(p, info.pw_uid, info.pw_gid)
+    except (KeyError, OSError):
+        pass  # unknown user or not root: the files stay private to whoever runs the agent
+
+
 def archive(r, text, conf):
     """Write the receipt to disk before printing: one text file per vote and a JSON line for later retrieval."""
     now = datetime.now()
@@ -104,6 +118,7 @@ def archive(r, text, conf):
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
         f.flush()
         os.fsync(f.fileno())
+    give_to_owner([conf["RECEIPT_DIR"], folder, path, os.path.join(conf["RECEIPT_DIR"], "receipts.jsonl")], conf)
     return path
 
 

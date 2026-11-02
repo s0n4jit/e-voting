@@ -109,3 +109,23 @@ def test_cli_lists_checks_and_exports_receipts(agent, tmp_path, monkeypatch):
     next((tmp / "receipts").rglob("*.txt")).unlink()
     assert run("receipts", "check").returncode == 1                                   # a lost file is reported
     assert run("url", "set", "http://bad").returncode != 0
+
+
+def test_cli_autologin_toggle(tmp_path):
+    import os
+    import subprocess
+    gdm = tmp_path / "custom.conf"
+    gdm.write_text("[daemon]\nWaylandEnable=true\nAutomaticLoginEnable=True\nAutomaticLogin=evote\n")
+    env = {**os.environ, "EVOTE_NO_SUDO": "1", "EVOTE_GDM": str(gdm)}
+    run = lambda *a: subprocess.run([sys.executable, str(ROOT / "booth-agent" / "evote"), *a], env=env, capture_output=True, text=True)
+    assert run("autologin", "off").returncode == 0 and "AutomaticLogin" not in gdm.read_text() and "WaylandEnable=true" in gdm.read_text()
+    assert run("autologin", "on").returncode == 0 and "AutomaticLogin=evote" in gdm.read_text()
+    assert run("autologin", "maybe").returncode != 0
+
+
+def test_unknown_receipt_owner_does_not_break_saving(agent):
+    mod, base, tmp, _ = agent
+    mod.write_conf({"RECEIPT_OWNER": "no-such-admin"})
+    assert 'RECEIPT_OWNER="no-such-admin"' in Path(mod.CONF).read_text()
+    status, body = post(base, "/print", RECEIPT)
+    assert status == 200 and body["archived"] and body["printed"]

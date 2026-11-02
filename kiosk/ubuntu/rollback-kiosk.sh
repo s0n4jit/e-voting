@@ -81,8 +81,8 @@ fi
 # 3. Remove GNOME DConf Lockdown Profile and Locks
 # ------------------------------------------------------------------------------
 log_step "Step 3: Removing GNOME dconf security locks..."
-rm -f /etc/dconf/db/local.d/00-kiosk-lockdown
-rm -f /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+rm -f /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+rm -rf /etc/dconf/db/evote.d /etc/dconf/profile/evote /home/evote/.config/environment.d/10-evote-dconf.conf
 
 if command -v dconf >/dev/null 2>&1; then
     log_info "Recompiling dconf database..."

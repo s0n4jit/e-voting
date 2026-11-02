@@ -36,25 +36,25 @@ log_info "Initiating GNOME desktop security lockdown for kiosk environment..."
 # ------------------------------------------------------------------------------
 # 1. Configure DConf Profile
 # ------------------------------------------------------------------------------
-log_info "Configuring /etc/dconf/profile/user..."
+log_info "Configuring /etc/dconf/profile/evote..."
 mkdir -p /etc/dconf/profile
-cat <<'EOF' > /etc/dconf/profile/user
+cat <<'EOF' > /etc/dconf/profile/evote
 user-db:user
-system-db:local
+system-db:evote
 EOF
 
 # ------------------------------------------------------------------------------
 # 2. Deploy DConf Keyfiles and Locks
 # ------------------------------------------------------------------------------
-log_info "Creating /etc/dconf/db/local.d and locks directories..."
-mkdir -p /etc/dconf/db/local.d/locks
+log_info "Creating /etc/dconf/db/evote.d and locks directories..."
+mkdir -p /etc/dconf/db/evote.d/locks
 
 if [[ -f "${SCRIPT_DIR}/dconf/00-kiosk-lockdown" ]]; then
     log_info "Copying dconf keyfile from repository..."
-    cp -f "${SCRIPT_DIR}/dconf/00-kiosk-lockdown" /etc/dconf/db/local.d/00-kiosk-lockdown
+    cp -f "${SCRIPT_DIR}/dconf/00-kiosk-lockdown" /etc/dconf/db/evote.d/00-kiosk-lockdown
 else
     log_info "Writing dconf keyfile directly..."
-    cat <<'EOF' > /etc/dconf/db/local.d/00-kiosk-lockdown
+    cat <<'EOF' > /etc/dconf/db/evote.d/00-kiosk-lockdown
 [org/gnome/desktop/interface]
 enable-hot-corners=false
 show-battery-percentage=false
@@ -136,10 +136,10 @@ fi
 
 if [[ -f "${SCRIPT_DIR}/dconf/locks/00-kiosk-lockdown" ]]; then
     log_info "Copying dconf locks file from repository..."
-    cp -f "${SCRIPT_DIR}/dconf/locks/00-kiosk-lockdown" /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+    cp -f "${SCRIPT_DIR}/dconf/locks/00-kiosk-lockdown" /etc/dconf/db/evote.d/locks/00-kiosk-lockdown
 else
     log_info "Writing dconf locks file directly..."
-    cat <<'EOF' > /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+    cat <<'EOF' > /etc/dconf/db/evote.d/locks/00-kiosk-lockdown
 /org/gnome/desktop/interface/enable-hot-corners
 /org/gnome/desktop/session/idle-delay
 /org/gnome/settings-daemon/plugins/power/idle-dim
@@ -199,8 +199,17 @@ else
 EOF
 fi
 
-chmod 644 /etc/dconf/db/local.d/00-kiosk-lockdown
-chmod 644 /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+chmod 644 /etc/dconf/db/evote.d/00-kiosk-lockdown
+chmod 644 /etc/dconf/db/evote.d/locks/00-kiosk-lockdown
+
+# The locks apply to the kiosk user only (profile "evote"), so the administrator keeps a normal desktop.
+# An older install locked everyone through the "local" database: remove that.
+rm -f /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+if id evote >/dev/null 2>&1; then
+    install -d -o evote -g evote /home/evote/.config/environment.d
+    echo "DCONF_PROFILE=evote" > /home/evote/.config/environment.d/10-evote-dconf.conf
+    chown evote:evote /home/evote/.config/environment.d/10-evote-dconf.conf
+fi
 
 # ------------------------------------------------------------------------------
 # 3. Compile DConf Database
@@ -211,13 +220,19 @@ dconf update
 # ------------------------------------------------------------------------------
 # 4. Hardware & Storage Lockdown (USB Storage Blocking)
 # ------------------------------------------------------------------------------
-log_info "Configuring kernel module restrictions for USB mass storage..."
-cat <<'EOF' > /etc/modprobe.d/kiosk-block-storage.conf
+# Off by default: it blocks USB sticks for everyone, including the administrator exporting saved receipts
+# (evote receipts export). Turn it on with BLOCK_USB_STORAGE=yes. The kiosk user cannot mount sticks either way.
+if [[ "${BLOCK_USB_STORAGE:-no}" == "yes" ]]; then
+    log_info "Configuring kernel module restrictions for USB mass storage..."
+    cat <<'EOF' > /etc/modprobe.d/kiosk-block-storage.conf
 # Disable USB storage driver to prevent insertion of thumb drives
 blacklist usb-storage
 blacklist uas
 EOF
-chmod 644 /etc/modprobe.d/kiosk-block-storage.conf
+    chmod 644 /etc/modprobe.d/kiosk-block-storage.conf
+else
+    rm -f /etc/modprobe.d/kiosk-block-storage.conf
+fi
 
 # ------------------------------------------------------------------------------
 # 5. Disable Virtual Terminal (TTY) Switching (Ctrl+Alt+F1-F12)

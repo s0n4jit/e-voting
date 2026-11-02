@@ -1,5 +1,5 @@
 # Campus E-Voting System (CEVS) - GNOME DConf Lockdown Profile
-# Applied to /etc/dconf/db/local.d/00-kiosk-lockdown
+# Applied to /etc/dconf/db/evote.d/00-kiosk-lockdown
 
 [org/gnome/desktop/interface]
 enable-hot-corners=false

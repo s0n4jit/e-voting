@@ -1,6 +1,6 @@
 # Campus E-Voting System (CEVS) - DConf Locks Profile
 # Prevents any user override of kiosk security policies
-# Applied to /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+# Applied to /etc/dconf/db/evote.d/locks/00-kiosk-lockdown
 
 /org/gnome/desktop/interface/enable-hot-corners
 /org/gnome/desktop/session/idle-delay

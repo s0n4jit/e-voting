@@ -11,6 +11,10 @@ Every booth machine runs a small **booth agent** (`evote-agent`, port 9631, this
 
 If the printer fails, the copy is still saved and the booth tells the voter to ask the desk. On a PC without the agent the browser's normal print dialog is used instead.
 
+## Lab PC sign-in
+
+The installer no longer signs the kiosk user in automatically. At start the login screen lists the users: the administrator picks their own account, or `evote` (password set during install) to start the booth. Install with `AUTOLOGIN=yes` (or run `sudo evote autologin on`) for a booth that starts by itself. The browser lock-down (no log out, no terminal, no user switching) applies to the `evote` user only; USB sticks are no longer blocked unless you install with `BLOCK_USB_STORAGE=yes`.
+
 ## Officer settings
 
 Settings, **Booth printing**: switch printing on or off, set a printer name (empty = each booth's default printer) and the number of copies. Booths pick the change up within seconds.
@@ -42,7 +46,7 @@ Then open `http://127.0.0.1:9631/setup` on that machine: set the portal address,
 
 ## Keeping the receipts
 
-* **Lab PC:** receipts are on the PC's disk (`/var/lib/evote/receipts`).
+* **Lab PC:** the installer keeps receipts in the administrator's private folder `~/.evote-receipts` (mode 700, owned by the account that ran the installer with `sudo`). The kiosk user cannot read it. Without a normal administrator account they go to `/var/lib/evote/receipts`.
 * **Booth OS (live USB):** the system itself is not saved between restarts. To keep receipts and settings, make a partition or stick with the label **EVOTE-DATA** (for example `sudo mkfs.ext4 -L EVOTE-DATA /dev/sdX1`). The booth mounts it automatically and stores everything there. Without it, run `evote receipts export FOLDER` to a USB stick **before** shutting the booth down.
 
 A receipt links a Voter Slip ID to the choices made. Keep the disk and the export under the same control as the ballot box.
