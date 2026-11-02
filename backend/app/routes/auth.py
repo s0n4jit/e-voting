@@ -531,6 +531,19 @@ def get_active_election():
     }), 200
 
 
+@auth_bp.post("/voter-session-end")
+@jwt_required()
+def voter_session_end():
+    """The voter left the booth without voting ("This is not me", idle reset): the student is no longer shown as active."""
+    claims = get_jwt()
+    if claims.get("role") == "voter" and claims.get("election_id"):
+        VotingToken.query.filter_by(
+            student_id=claims.get("student_id"), election_id=claims["election_id"], is_used=False
+        ).update({"authenticated_at": None}, synchronize_session=False)
+        db.session.commit()
+    return jsonify({"ok": True}), 200
+
+
 @auth_bp.post("/voter-pin-login")
 @limiter.limit("30 per minute")
 def voter_pin_login():

@@ -1144,3 +1144,18 @@ def test_issue_pins_for_all_keeps_existing_pins(client, installed, desk_token):
     pin = r.get_json()["students"][0]["pin"]
     again = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token)).get_json()
     assert again["issued"] == 0 and again["students"][0]["pin"] == pin          # existing PINs are kept
+
+
+def test_leaving_the_booth_clears_the_active_status(client, installed, desk_token, booth):
+    eid = _open_election(client, installed)
+    for pos in ("President", "Secretary"):
+        cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": f"C {pos}", "position": pos, "department": DEPT})
+    slip = register(client, desk_token).get_json()["slip_id"]
+    pin = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": slip}).get_json()["pin"]
+    for s in ("registration", "ready", "voting_active"):
+        client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": s})
+    status = lambda: client.get(f"/api/desk/registrations/{slip}", headers=H(desk_token)).get_json()["status"]
+    login = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": slip, "voting_pin": pin}).get_json()
+    assert status() == "active"
+    assert client.post("/api/auth/voter-session-end", headers=H(login["access_token"])).status_code == 200
+    assert status() == "pin_active"                                              # "This is not me": back to PIN issued

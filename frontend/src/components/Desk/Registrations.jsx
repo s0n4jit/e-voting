@@ -46,7 +46,7 @@ export default function Registrations() {
     return () => clearTimeout(t);
   }, [load, filters.q]);
 
-  usePolling(load, 4000); // statuses (registered / PIN active / voted) update without a refresh
+  usePolling(load, 2000); // statuses (no PIN / PIN issued / active / voted) update live without a refresh
 
   // keep the open details panel in step with the latest list
   useEffect(() => {

@@ -125,6 +125,7 @@ export const KioskVoting = () => {
   });
 
   const finish = useCallback(() => {
+    voterApi.endSession(localStorage.getItem('access_token')).catch(() => {}); // the desk list stops showing this student as active
     ['access_token', 'refresh_token', 'user'].forEach((k) => localStorage.removeItem(k));
     navigate('/kiosk/vote', { replace: true });
   }, [navigate]);

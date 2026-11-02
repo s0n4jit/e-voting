@@ -1,6 +1,8 @@
 import apiClient from './axiosConfig';
 
 export const voterApi = {
+  endSession: async (token) => (await apiClient.post('/auth/voter-session-end', null, { headers: { Authorization: `Bearer ${token}` } })).data,
+
   getActiveElections: async () => {
     try {
       const response = await apiClient.get('/voter/elections/active');
