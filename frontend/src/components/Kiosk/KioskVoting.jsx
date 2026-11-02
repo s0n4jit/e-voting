@@ -109,6 +109,7 @@ export const KioskVoting = () => {
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
   const [countdown, setCountdown] = useState(RESET_AFTER_VOTE_S);
   const [receipt, setReceipt] = useState(null);
+  const [fromReview, setFromReview] = useState(false);
   const submitting = useRef(false);
 
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
@@ -200,12 +201,20 @@ export const KioskVoting = () => {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Enter' || confirmOpen || maintenanceOpen || e.target.closest?.('button,[role="radio"]')) return;
-      if (stage === 'ballot' && choices[positions[step]?.position]) go(step + 1, 'next');
+      if (stage === 'ballot' && choices[positions[step]?.position]) next();
       else if (stage === 'review' && answered === total) setConfirmOpen(true);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // after "Change" on the review screen, Next returns to the review instead of the following position
+  const next = () => {
+    if (fromReview) {
+      setFromReview(false);
+      go(total, 'next');
+    } else go(step + 1, 'next');
+  };
 
   const select = (value) => setChoices((c) => ({ ...c, [current.position]: value }));
 
@@ -351,7 +360,7 @@ export const KioskVoting = () => {
                       <p className="text-xs text-muted">{p.position}</p>
                       <p className="font-medium truncate">{c === 'NOTA' ? 'NOTA — none of the above' : c ? c.name : 'Not selected'}</p>
                     </div>
-                    <button className="btn-ghost btn-sm" onClick={() => go(i, 'prev')}>Change</button>
+                    <button className="btn-ghost btn-sm" onClick={() => { setFromReview(true); go(i, 'prev'); }}>Change</button>
                   </li>
                 );
               })}
@@ -389,7 +398,7 @@ export const KioskVoting = () => {
                     aria-label={c.name}
                     tabIndex={0}
                     onClick={() => select(c)}
-                    onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && on ? go(step + 1, 'next') : select(c))}
+                    onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && on ? next() : select(c))}
                     className={`relative flex flex-col rounded-2xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 active:scale-[0.98] ${
                       on ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
@@ -417,7 +426,7 @@ export const KioskVoting = () => {
                 aria-checked={choices[current.position] === 'NOTA'}
                 tabIndex={0}
                 onClick={() => select('NOTA')}
-                onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? go(step + 1, 'next') : select('NOTA'))}
+                onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? next() : select('NOTA'))}
                 className={`relative flex flex-col rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-200 active:scale-[0.98] ${
                   choices[current.position] === 'NOTA' ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
@@ -438,8 +447,8 @@ export const KioskVoting = () => {
 
             <div className="flex items-center justify-between mt-8">
               <button className="btn-secondary" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button className="btn-primary btn-lg" onClick={() => go(step + 1, 'next')} disabled={!choices[current.position]}>
-                {step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
+              <button className="btn-primary btn-lg" onClick={() => next()} disabled={!choices[current.position]}>
+                {fromReview || step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
