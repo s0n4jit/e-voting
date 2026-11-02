@@ -39,7 +39,7 @@ export default function SlipCard({ slip, showPrint = true }) {
           </div>
           <div>
             <dt className="text-xs text-slate-500">{slip.term_label}</dt>
-            <dd className="font-medium text-slate-900">{slip.term}</dd>
+            <dd className="font-medium text-slate-900">{String(slip.term ?? slip.semester).replace(/^(Semester|Year)\s+/i, '')}</dd>
           </div>
           <div className="col-span-2">
             <dt className="text-xs text-slate-500">Registered</dt>

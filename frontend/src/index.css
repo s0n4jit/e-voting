@@ -155,14 +155,7 @@
   .no-print { display: none !important; }
 
   .print-page { padding: 14mm; font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #000; background: #fff; }
-  .print-slip { border: 1.2px solid #000; border-radius: 3mm; padding: 6mm; break-inside: avoid; max-width: 100mm; }
-  .print-slip .inst { font-size: 12pt; font-weight: 700; }
-  .print-slip .sub { font-size: 9pt; }
-  .print-slip .label { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; margin-top: 4mm; }
-  .print-slip .id { font-family: ui-monospace, Consolas, monospace; font-size: 17pt; font-weight: 700; }
-  .print-slip .pin { font-family: ui-monospace, Consolas, monospace; font-size: 26pt; font-weight: 700; letter-spacing: .3em; }
-  .print-slip .name { font-size: 12pt; font-weight: 600; margin-top: 3mm; }
-  .print-slip .note { font-size: 8pt; margin-top: 4mm; border-top: 1px dashed #000; padding-top: 2mm; }
+  .print-slip { max-width: 100mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .slips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .slips-grid .print-slip { border-style: dashed; max-width: none; }
 
