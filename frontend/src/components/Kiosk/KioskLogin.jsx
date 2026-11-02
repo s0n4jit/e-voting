@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ArrowRightIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
@@ -9,6 +9,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage, formatSchedule } from '../ui';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
+import NumPad from './NumPad';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 export const KioskLogin = () => {
@@ -21,6 +22,25 @@ export const KioskLogin = () => {
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [active, setActive] = useState('slip'); // the field the number pad types into
+  const slipRef = useRef(null);
+  const pinRef = useRef(null);
+
+  const digit = (d) => {
+    if (active === 'slip') {
+      const next = (slip + d).slice(0, 6);
+      setSlip(next);
+      if (next.length === 6) { setActive('pin'); pinRef.current?.focus(); } // the PIN comes next
+    } else {
+      setPin((pin + d).slice(0, 6));
+    }
+  };
+  const backspace = () => {
+    if (active === 'pin' && pin === '') { setActive('slip'); slipRef.current?.focus(); setSlip(slip.slice(0, -1)); return; }
+    if (active === 'slip') setSlip(slip.slice(0, -1));
+    else setPin(pin.slice(0, -1));
+  };
+  const clear = () => (active === 'slip' ? setSlip('') : setPin(''));
 
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [maintenanceTab, setMaintenanceTab] = useState('overview');
@@ -70,7 +90,7 @@ export const KioskLogin = () => {
       </header>
 
       <main className="flex-1 flex items-center justify-center px-4 pb-16">
-        <div className="w-full max-w-md animate-page-in">
+        <div className="w-full max-w-4xl animate-page-in">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-semibold tracking-tight">Cast your vote</h1>
             {election === undefined ? (
@@ -89,12 +109,13 @@ export const KioskLogin = () => {
           </div>
 
           {ended ? (
-            <div className="card card-body text-center py-12 animate-pop-in" role="status">
+            <div className="card card-body text-center py-12 animate-pop-in max-w-md mx-auto" role="status">
               <CheckCircleIcon className="w-14 h-14 text-ok mx-auto" />
               <h2 className="text-2xl font-semibold mt-4">Voting has ended</h2>
               <p className="text-muted mt-2">Thank you for taking part. This booth is now closed.</p>
             </div>
           ) : (
+          <div className="grid gap-6 md:grid-cols-2 items-start">
           <form onSubmit={submit} className="card card-body space-y-5">
             {election && !open && (
               <p className="text-sm text-warn bg-warn-soft rounded-lg px-3 py-2" role="status">
@@ -107,11 +128,13 @@ export const KioskLogin = () => {
                 <input
                   id="slip"
                   className="flex-1 min-w-0 bg-transparent px-3 py-3 font-mono text-base sm:text-lg tracking-widest outline-none tabular-nums"
-                  inputMode="numeric"
+                  ref={slipRef}
+                  inputMode="none"
                   maxLength={6}
                   placeholder="000000"
                   value={slip}
                   onChange={(e) => setSlip(e.target.value.replace(/\D/g, ''))}
+                  onFocus={() => setActive('slip')}
                   autoComplete="off"
                   autoFocus
                   required
@@ -122,11 +145,13 @@ export const KioskLogin = () => {
               <input
                 id="pin"
                 className="input text-center text-2xl tracking-[0.5em] py-3 tabular-nums"
-                inputMode="numeric"
+                ref={pinRef}
+                inputMode="none"
                 maxLength={6}
                 placeholder="••••••"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                onFocus={() => setActive('pin')}
                 autoComplete="off"
                 required
               />
@@ -140,6 +165,8 @@ export const KioskLogin = () => {
               {busy ? 'Checking…' : (<>Continue <ArrowRightIcon className="w-5 h-5" /></>)}
             </button>
           </form>
+          <NumPad onDigit={digit} onBackspace={backspace} onClear={clear} disabled={busy} />
+          </div>
           )}
 
           <p className="text-xs text-muted text-center mt-6">

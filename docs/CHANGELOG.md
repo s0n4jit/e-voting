@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Voting booth: on-screen number pad next to the Voter slip ID and Voting PIN fields for booths with only a mouse or touch screen. It types into the field being filled, moves on to the PIN after the 6 slip digits, and has Clear and Delete keys. The physical keyboard still works.
 - Results (officer panel): new layout with the Print result sheet button first, a letterhead header with the logo, a declared-results board and a card per position with vote counts and NOTA. The printed sheet is now a letter on the college letterhead (logo, name, ruled lines, turnout box, declared results, votes by position, signature lines for the Election Officer, Returning Officer and Principal, and a footer on every page).
 - Officer panel (Voting booths → Setup guide): "Booth app" section with download buttons (Windows .exe, Ubuntu .deb, Linux AppImage) and the setup steps; the Booth app workflow publishes them as the release `booth-app-latest`.
 - Booth app (`booth-app/`) also saves every vote copy as a PDF and writes PDFs by itself for the "Microsoft Print to PDF" printer (no file-name prompt); "Open saved receipts" in the maintenance screen.
