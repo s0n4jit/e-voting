@@ -331,6 +331,24 @@ def export_registrations():
     )
 
 
+@desk_bp.get("/registrations/<slip_id>/pin")
+@desk_required
+def view_pin(slip_id):
+    """The student's current voting PIN, so the slip can be printed again. Not available once it has been used."""
+    user = _find_voter(slip_id)
+    election = Election.current()
+    if not user or not election:
+        return jsonify({"error": "No registration found for this Voter Slip ID."}), 404
+    token = (VotingToken.query
+             .filter_by(student_id=user.student_id, election_id=election.id, is_used=False)
+             .order_by(VotingToken.created_at.desc()).first())
+    pin = token.reveal_pin() if token and (token.failed_attempts or 0) < 5 else None
+    if pin:
+        _audit("PIN_VIEWED", f"Viewed the voting PIN of {user.name} ({user.student_id}) to print the slip.")
+        db.session.commit()
+    return jsonify({"pin": pin}), 200
+
+
 @desk_bp.get("/registrations/<slip_id>")
 @desk_required
 def get_registration(slip_id):

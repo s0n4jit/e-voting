@@ -106,6 +106,7 @@ def import_students(text, election, actor_id=None, dry_run=False):
             pin_hash = bcrypt.hashpw(pin.encode(), bcrypt.gensalt(rounds=8, prefix=b"2b")).decode()
             db.session.add(VotingToken(
                 election_id=election.id, user_id=user.id, student_id=user.student_id, pin_hash=pin_hash,
+                pin_enc=VotingToken.seal_pin(pin),
                 expires_at=now + timedelta(minutes=STATIC_PIN_MINUTES), is_used=False, created_at=now, created_by=actor_id,
             ))
             row["pin"] = pin

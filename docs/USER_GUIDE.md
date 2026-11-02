@@ -47,11 +47,12 @@ Click your name (top right): change your password (with the current password, or
 - **Remove all** (Election Officer, Registrations page, before voting opens): removes every student registered for the election, with their slips and PINs. The Registrations page only ever shows the current election's students.
 - **Registrations**: search by name or slip ID, filter, edit details (until the student has voted), export a CSV. Statuses (Registered, PIN active, Voted) update live.
 - **Voter slip and PIN**: every registered student already has a **voting PIN**, created with the slip and printed on it (registering at the desk, importing a list, or the installation wizard). Slips and PINs can be handed out before the election; on the day the student only goes to a booth and enters the slip ID and the PIN. The PIN works once and stays valid until it is used or voting closes.
+- **Print a slip again**: Registrations → the student → **Show voter slip (with PIN)** → Print. It shows the PIN that was issued; it is not available after the PIN has been used or locked, in which case press Issue voting PIN for a new one.
 - **Voter check-in** (lost PIN or slip): enter the slip ID, check the status, and **Issue voting PIN**. It replaces the old PIN. A PIN is cancelled after 5 wrong entries; issue a new one.
 
 ## Voter
 
 1. Go to a free booth. The screen shows the election and the slip prefix, for example `SUE26-E1-`.
 2. Type the **6 digits** of your slip ID and your **6-digit PIN**.
-3. Read the instructions, choose one candidate (or *Abstain*) for each position, **Review**, then **Submit my vote**.
+3. Check that the name and programme shown are yours, then read the instructions, choose one candidate (or *Abstain*) for each position, **Review**, then **Submit my vote**.
 4. A confirmation appears and the booth clears itself for the next voter. Your vote cannot be changed and is never linked to your name.

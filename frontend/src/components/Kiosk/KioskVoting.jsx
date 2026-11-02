@@ -218,6 +218,14 @@ export const KioskVoting = () => {
   if (stage === 'intro') {
     return chrome(
       <div className="max-w-xl mx-auto text-center py-8 animate-page-in">
+        {voter.name && (
+          <div className="card card-body text-left mb-6 space-y-1" role="status">
+            <p className="text-xs uppercase tracking-widest text-muted">Please check that this is you</p>
+            <p className="text-2xl font-semibold">{voter.name}</p>
+            <p className="text-muted">{[voter.department, voter.year ? `Semester / year ${voter.year}` : ''].filter(Boolean).join(' · ')}</p>
+            <p className="font-mono text-sm text-muted">{voter.student_id}</p>
+          </div>
+        )}
         <p className="text-sm text-muted">Welcome{voter.name ? `, ${voter.name.split(' ')[0]}` : ''}</p>
         <h1 className="text-3xl font-semibold tracking-tight mt-2">{election.title}</h1>
         {election.description && <p className="text-muted mt-3">{election.description}</p>}
@@ -231,8 +239,9 @@ export const KioskVoting = () => {
           </ul>
         </div>
         <button className="btn-primary btn-lg mt-8" onClick={() => go(0, 'next')} autoFocus>
-          Start voting <ArrowRightIcon className="w-5 h-5" />
+          This is me, start voting <ArrowRightIcon className="w-5 h-5" />
         </button>
+        <button className="btn-ghost mt-3 block mx-auto" onClick={finish}>This is not me</button>
       </div>,
       { progress: false }
     );

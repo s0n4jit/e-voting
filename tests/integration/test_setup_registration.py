@@ -1118,3 +1118,14 @@ def test_imported_students_get_working_pins(client, installed, desk_token, booth
     assert bad.status_code == 401
     ok = client.post("/api/auth/voter-pin-login", headers={"X-Kiosk-Token": booth}, json={"student_id": students[1]["slip_id"], "voting_pin": students[1]["pin"]})
     assert ok.status_code == 200
+
+
+def test_the_slip_can_be_printed_again_with_the_current_pin(client, installed, desk_token, booth):
+    eid = _open_election(client, installed)
+    reg = register(client, desk_token).get_json()
+    shown = client.get(f"/api/desk/registrations/{reg['slip_id']}/pin", headers=H(desk_token)).get_json()["pin"]
+    assert shown == reg["pin"]                                                     # the same PIN as printed the first time
+    assert client.get(f"/api/desk/registrations/{reg['slip_id']}/pin").status_code == 401
+    new = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": reg["slip_id"]}).get_json()["pin"]
+    assert client.get(f"/api/desk/registrations/{reg['slip_id']}/pin", headers=H(desk_token)).get_json()["pin"] == new   # a new PIN replaces it
+    assert client.get("/api/desk/registrations/SUE26-E1-000000/pin", headers=H(desk_token)).status_code == 404

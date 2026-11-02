@@ -6,6 +6,24 @@ import { Field, errorMessage } from '../ui';
 import StatusBadge from '../common/StatusBadge';
 import SlipCard from './SlipCard';
 import { useDeskState } from '../../hooks/useDeskOpen';
+
+/** The slip with the student's current PIN (fetched when the slip is opened), ready to print. */
+const SlipWithPin = ({ slip }) => {
+  const [pin, setPin] = useState(undefined); // undefined = loading, null = not available
+  useEffect(() => {
+    deskApi.getPin(slip.slip_id).then(setPin).catch(() => setPin(null));
+  }, [slip.slip_id]);
+  return (
+    <div className="space-y-3">
+      {pin === null && (
+        <p className="hint no-print">
+          No PIN can be shown for this student (it was already used, was locked, or was made before PINs could be shown). Press <b>Issue new PIN</b> above to create one and print it.
+        </p>
+      )}
+      <SlipCard slip={pin ? { ...slip, pin } : slip} />
+    </div>
+  );
+};
 import ProgrammePicker from './ProgrammePicker';
 
 const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
@@ -17,6 +35,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
   const [pin, setPin] = useState(null);
+  const [slipOpen, setSlipOpen] = useState(false);
   const [error, setError] = useState('');
 
   // a status change made elsewhere (e.g. the voter just voted) shows up straight away
@@ -130,14 +149,9 @@ export default function StudentPanel({ student, programmes, onChanged }) {
           {deskOpen && paused && <p className="hint">Voting is paused. PINs can be issued again when the officer resumes voting.</p>}
           {voted && <p className="hint">This voter has already voted. A PIN cannot be issued and details are locked.</p>}
 
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-brand-fg font-medium list-none">Show voter slip</summary>
-            <div className="mt-4 space-y-3">
-              <p className="hint no-print">
-                The PIN is not stored in readable form, so this slip prints without it. To print a slip that carries a PIN, press <b>Issue new PIN</b> above: it makes a new PIN (replacing the old one) and shows the slip with it.
-              </p>
-              <SlipCard slip={current} />
-            </div>
+          <details className="group" onToggle={(e) => setSlipOpen(e.currentTarget.open)}>
+            <summary className="cursor-pointer text-sm text-brand-fg font-medium list-none">Show voter slip (with PIN)</summary>
+            <div className="mt-4">{slipOpen && <SlipWithPin slip={current} />}</div>
           </details>
         </>
       ) : (

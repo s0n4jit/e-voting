@@ -51,6 +51,8 @@ class VotingToken(db.Model):
     pin_hash = db.Column(db.String(255), nullable=False)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     is_used = db.Column(db.Boolean, default=False, nullable=False)
+    # The PIN, encrypted with a key derived from SECRET_KEY, so the desk can print the slip again before the PIN is used.
+    pin_enc = db.Column(db.Text, nullable=True)
     failed_attempts = db.Column(db.Integer, default=0, nullable=False, server_default="0")
     created_at = db.Column(
         db.DateTime(timezone=True),
@@ -73,6 +75,29 @@ class VotingToken(db.Model):
         foreign_keys=[user_id],
         backref=db.backref("voting_tokens", lazy="select"),
     )
+
+    @staticmethod
+    def _fernet():
+        import base64
+        import hashlib
+        from cryptography.fernet import Fernet
+        from flask import current_app
+
+        key = hashlib.sha256(b"evote-pin|" + str(current_app.config["SECRET_KEY"]).encode()).digest()
+        return Fernet(base64.urlsafe_b64encode(key))
+
+    @classmethod
+    def seal_pin(cls, raw_pin: str) -> str:
+        return cls._fernet().encrypt(raw_pin.encode()).decode()
+
+    def reveal_pin(self):
+        """The plain PIN, or None if it was not kept (older tokens) or the secret key changed."""
+        if not self.pin_enc:
+            return None
+        try:
+            return self._fernet().decrypt(self.pin_enc.encode()).decode()
+        except Exception:
+            return None
 
     @classmethod
     def generate_pin(
@@ -114,6 +139,7 @@ class VotingToken(db.Model):
             user_id=user_id,
             student_id=student_id_clean,
             pin_hash=pin_hash,
+            pin_enc=cls.seal_pin(raw_pin),
             expires_at=expires_at,
             is_used=False,
             created_at=now,
