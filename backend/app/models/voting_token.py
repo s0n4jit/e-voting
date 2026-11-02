@@ -27,8 +27,8 @@ class PinResult(str):
         yield self.token
 
 
-# Pre-issued voting PINs stay valid until they are used or voting closes (not for a few minutes).
-STATIC_PIN_MINUTES = 60 * 24 * 60
+# Pre-issued voting PINs have no time limit; they end when re-issued, used, or when voting closes.
+STATIC_PIN_MINUTES = 60 * 24 * 365 * 100  # no time limit: a PIN ends only by re-issue, use or voting close
 
 
 class VotingToken(db.Model):

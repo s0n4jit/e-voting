@@ -171,7 +171,7 @@ export default function Registrations() {
         )}
       </div>
 
-      <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title="Registration details" maxWidth="max-w-xl">
+      <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title="Registration details" maxWidth="max-w-4xl">
         {selected && <StudentPanel student={selected} programmes={programmes} onChanged={load} />}
       </Modal>
       <Modal isOpen={removing} onClose={() => setRemoving(false)} title="Remove all students">

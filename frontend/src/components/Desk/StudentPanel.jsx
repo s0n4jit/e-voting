@@ -7,23 +7,6 @@ import StatusBadge from '../common/StatusBadge';
 import SlipCard from './SlipCard';
 import { useDeskState } from '../../hooks/useDeskOpen';
 
-/** The slip with the student's current PIN (fetched when the slip is opened), ready to print. */
-const SlipWithPin = ({ slip }) => {
-  const [pin, setPin] = useState(undefined); // undefined = loading, null = not available
-  useEffect(() => {
-    deskApi.getPin(slip.slip_id).then(setPin).catch(() => setPin(null));
-  }, [slip.slip_id]);
-  return (
-    <div className="space-y-3">
-      {pin === null && (
-        <p className="hint no-print">
-          No PIN can be shown for this student (it was already used, was locked, or was made before PINs could be shown). Press <b>Issue new PIN</b> above to create one and print it.
-        </p>
-      )}
-      <SlipCard slip={pin ? { ...slip, pin } : slip} />
-    </div>
-  );
-};
 import ProgrammePicker from './ProgrammePicker';
 
 const STATUS = { registered: 'Registered', pin_active: 'PIN active', voted: 'Voted' };
@@ -34,8 +17,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
-  const [pin, setPin] = useState(null);
-  const [slipOpen, setSlipOpen] = useState(false);
+  const [pin, setPin] = useState(null); // the student's current PIN; undefined while loading
   const [error, setError] = useState('');
 
   // a status change made elsewhere (e.g. the voter just voted) shows up straight away
@@ -45,7 +27,8 @@ export default function StudentPanel({ student, programmes, onChanged }) {
 
   useEffect(() => {
     setCurrent(student);
-    setPin(null);
+    setPin(undefined);
+    deskApi.getPin(student.slip_id).then(setPin).catch(() => setPin(null));
     setEditing(false);
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,7 +70,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
     setError('');
     try {
       const res = await deskApi.issuePin(current.slip_id);
-      setPin(res);
+      setPin(res.pin);
       setCurrent((c) => ({ ...c, status: 'pin_active' }));
       onChanged?.();
     } catch (err) {
@@ -101,22 +84,9 @@ export default function StudentPanel({ student, programmes, onChanged }) {
   const { open: deskOpen, paused } = useDeskState();
   const voted = current.status === 'voted';
 
-  if (pin) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted no-print">
-          A new voting PIN was created. It replaces any earlier PIN of this student and is shown only now, on this slip. Print it and hand it over.
-        </p>
-        <SlipCard slip={{ ...current, pin: pin.pin }} />
-        <div className="no-print flex justify-center">
-          <button className="btn-primary" onClick={() => setPin(null)}>Done</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-5">
+    <div className="grid gap-6 md:grid-cols-2 items-start">
+      <div className="space-y-5">
       {!editing ? (
         <>
           <div className="flex items-start justify-between gap-3">
@@ -139,20 +109,24 @@ export default function StudentPanel({ student, programmes, onChanged }) {
 
           {error && <p className="error-text" role="alert">{error}</p>}
 
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" onClick={issue} disabled={busy || voted || !deskOpen || paused}>
-              <TicketIcon className="w-4 h-4" /> {current.status === 'pin_active' ? 'Issue new PIN' : 'Issue voting PIN'}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <p className="text-sm font-medium">Voting PIN</p>
+            {pin ? (
+              <>
+                <p className="font-mono text-3xl font-semibold tracking-[0.3em]">{pin}</p>
+                <p className="hint">This PIN stays valid until a new one is issued, the student votes, or voting closes.</p>
+              </>
+            ) : (
+              <p className="hint">{pin === undefined ? 'Loading…' : voted ? 'Already voted.' : 'No PIN issued yet.'}</p>
+            )}
+            <button className={pin ? 'btn-secondary' : 'btn-primary'} onClick={() => (!pin || window.confirm('The current PIN will stop working. Issue a new one?')) && issue()} disabled={busy || voted || !deskOpen || paused}>
+              <TicketIcon className="w-4 h-4" /> {pin ? 'Reissue new PIN' : 'Issue PIN'}
             </button>
-            <button className="btn-secondary" onClick={startEdit} disabled={voted}>Edit details</button>
           </div>
+          <button className="btn-secondary" onClick={startEdit} disabled={voted}>Edit details</button>
           {!deskOpen && <p className="hint">Voting has ended. PINs can no longer be issued.</p>}
           {deskOpen && paused && <p className="hint">Voting is paused. PINs can be issued again when the officer resumes voting.</p>}
           {voted && <p className="hint">This voter has already voted. A PIN cannot be issued and details are locked.</p>}
-
-          <details className="group" onToggle={(e) => setSlipOpen(e.currentTarget.open)}>
-            <summary className="cursor-pointer text-sm text-brand-fg font-medium list-none">Show voter slip (with PIN)</summary>
-            <div className="mt-4">{slipOpen && <SlipWithPin slip={current} />}</div>
-          </details>
         </>
       ) : (
         <div className="space-y-4">
@@ -167,6 +141,8 @@ export default function StudentPanel({ student, programmes, onChanged }) {
           </div>
         </div>
       )}
+      </div>
+      <SlipCard slip={pin ? { ...current, pin } : current} />
     </div>
   );
 }

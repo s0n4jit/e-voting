@@ -5,6 +5,9 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 ## Unreleased
 
+- PINs have no time limit: a PIN stays valid until it is re-issued, the student votes, or voting closes (5 wrong entries at the booth still cancel it).
+- Registrations: clicking a student shows the details and PIN controls on the left and the printable voter slip on the right. "Issue PIN" creates the PIN and shows it; "Reissue new PIN" replaces it. Print only prints the slip.
+
 - Slips can be printed again with the student's current PIN (Registrations → student → Show voter slip). The PIN is kept encrypted and viewing it is audited; a used or locked PIN is not shown. At the booth, after the slip ID and PIN are accepted, the student's name, programme and semester are shown to confirm ("This is me" / "This is not me") before the ballot.
 - Printing: slips, slip sheets and results now print through one clean print layout (black on white, one page for one slip, no browser header or footer lines). A slip printed after **Issue new PIN** carries the PIN; slips for existing students cannot show a PIN that was issued earlier (PINs are stored hashed), so issue a new one to print it.
 - **Pre-issued voting PINs** (per Rajdeep Sir): every student gets a voting PIN when registered (desk, student-list import, or the installation wizard), printed on the slip together with the Voter Slip ID, valid until used or until voting closes (no 20-minute limit and no check-in step). Slips and PINs can be handed out before the election. Imports and the wizard offer **Print slips** and a CSV with the PINs; a lost PIN is replaced at the desk.
