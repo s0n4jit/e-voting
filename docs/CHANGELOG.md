@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Registrations: "Issue PINs" gives every student without a PIN one and prints the slips of everyone who has not voted. Printing no longer includes the open dialog.
 
 - PINs have no time limit: a PIN stays valid until it is re-issued, the student votes, or voting closes (5 wrong entries at the booth still cancel it).
 - Registrations: clicking a student shows the details and PIN controls on the left and the printable voter slip on the right. "Issue PIN" creates the PIN and shows it; "Reissue new PIN" replaces it. Print only prints the slip.

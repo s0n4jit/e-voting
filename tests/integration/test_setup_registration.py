@@ -1129,3 +1129,12 @@ def test_the_slip_can_be_printed_again_with_the_current_pin(client, installed, d
     new = client.post("/api/admin/desk/issue-pin", headers=H(desk_token), json={"student_id": reg["slip_id"]}).get_json()["pin"]
     assert client.get(f"/api/desk/registrations/{reg['slip_id']}/pin", headers=H(desk_token)).get_json()["pin"] == new   # a new PIN replaces it
     assert client.get("/api/desk/registrations/SUE26-E1-000000/pin", headers=H(desk_token)).status_code == 404
+
+
+def test_issue_pins_for_all_keeps_existing_pins(client, installed, desk_token):
+    _open_election(client, installed)
+    reg = register(client, desk_token).get_json()
+    r = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token))
+    assert r.status_code == 200
+    slips = r.get_json()["students"]
+    assert r.get_json()["issued"] == 0 and slips[0]["pin"] == reg["pin"]

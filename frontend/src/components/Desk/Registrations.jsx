@@ -8,6 +8,7 @@ import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 import StudentPanel from './StudentPanel';
 import ImportStudents from './ImportStudents';
+import IssuePins from './IssuePins';
 import { useAuth } from '../../context/AuthContext';
 import { usePolling } from '../../hooks/usePolling';
 
@@ -88,6 +89,7 @@ export default function Registrations() {
         actions={
           <>
             <ImportStudents onDone={load} />
+            <IssuePins onDone={load} disabled={!state.total} />
             {canRemove && <button className="btn-ghost text-bad" onClick={() => setRemoving(true)}>Remove all</button>}
             <button className="btn-secondary" onClick={exportCsv}>
               <ArrowDownTrayIcon className="w-4 h-4" /> Export CSV

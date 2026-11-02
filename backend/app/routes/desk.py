@@ -331,6 +331,32 @@ def export_registrations():
     )
 
 
+@desk_bp.post("/registrations/issue-pins")
+@desk_required
+def issue_all_pins():
+    """Give every student who has no active PIN one, and return all slips (with PINs) of students who have not voted."""
+    election = Election.current()
+    if not election or not election.desk_open or election.voting_paused:
+        return jsonify({"error": "PINs can only be issued while registration or voting is open and not paused."}), 409
+    users = _of_election(User.query.filter_by(role="voter"), election).order_by(User.student_id).all()
+    status = _statuses(users, election)
+    programmes = _programme_map()
+    slips, issued = [], 0
+    for u in users:
+        if status[u.student_id] == "voted":
+            continue
+        tok = (VotingToken.query.filter_by(student_id=u.student_id, election_id=election.id, is_used=False)
+               .order_by(VotingToken.created_at.desc()).first())
+        pin = tok.reveal_pin() if tok and (tok.failed_attempts or 0) < 5 else None
+        if not pin:
+            pin, _t = VotingToken.generate_pin(u.student_id, election.id, _actor_id(), STATIC_PIN_MINUTES, rounds=8)
+            issued += 1
+        slips.append({**_serialize(u, status[u.student_id], programmes, election), "pin": pin})
+    _audit("PINS_ISSUED_BULK", f"Issued {issued} new voting PINs and printed {len(slips)} slips.")
+    db.session.commit()
+    return jsonify({"issued": issued, "students": slips, "election_title": election.title}), 200
+
+
 @desk_bp.get("/registrations/<slip_id>/pin")
 @desk_required
 def view_pin(slip_id):

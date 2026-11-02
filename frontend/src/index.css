@@ -149,7 +149,7 @@
 #print-root { display: none; }
 @page { size: A4; margin: 0; }
 @media print {
-  #root { display: none !important; }
+  body > *:not(#print-root) { display: none !important; } /* the app and any open dialog */
   #print-root { display: block !important; }
   html, body { background: #fff !important; color: #000 !important; }
   .no-print { display: none !important; }
