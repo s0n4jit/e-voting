@@ -38,7 +38,7 @@ export default function MockElection() {
 
   if (!election) return null;
   return (
-    <div className="card card-body space-y-3 mt-6">
+    <div className="card card-body space-y-3">
       <h2 className="font-semibold">Mock election</h2>
       <p className="text-sm text-muted">
         Practise the whole election with the real set-up (positions, candidates, students, booths). When you end the mock, every ballot,
