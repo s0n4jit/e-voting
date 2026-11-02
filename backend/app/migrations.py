@@ -23,6 +23,7 @@ _COLUMNS = [
     ("elections", "slip_prefix", "VARCHAR(20)"),
     ("elections", "voting_paused", "BOOLEAN NOT NULL DEFAULT false"),
     ("voting_tokens", "pin_enc", "TEXT"),
+    ("candidates", "semester", "VARCHAR(30)"),
     ("voting_tokens", "authenticated_at", "TIMESTAMP WITH TIME ZONE"),
     ("kiosk_devices", "election_id", "INTEGER"),
     ("programmes", "level", "VARCHAR(10) NOT NULL DEFAULT 'degree'"),

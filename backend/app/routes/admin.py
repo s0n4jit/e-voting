@@ -257,6 +257,7 @@ def add_candidate(election_id):
     name = sanitize_input(payload.get("name"))
     position = sanitize_input(payload.get("position", "General Secretary"))
     department = str(payload.get("department") or "").strip()
+    semester = sanitize_input(payload.get("semester", ""))[:30]
     bio = sanitize_input(payload.get("bio", ""))
     upload = request.files.get("photo")
 
@@ -278,6 +279,7 @@ def add_candidate(election_id):
         name=name,
         position=position,
         department=department,
+        semester=semester or None,
         bio=bio,
     )
     candidate.photo = CandidatePhoto(content_type=photo[0], data=photo[1])

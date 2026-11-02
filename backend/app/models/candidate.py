@@ -20,6 +20,7 @@ class Candidate(db.Model):
     party = db.Column(db.String(100), nullable=True)
     position = db.Column(db.String(100), nullable=False, default="General Secretary")
     department = db.Column(db.String(100), nullable=True)
+    semester = db.Column(db.String(30), nullable=True)  # e.g. "Semester 3", shown on the voting card
     bio = db.Column(db.Text, nullable=True)
     photo_url = db.Column(db.String(255), nullable=True)
     created_at = db.Column(
@@ -45,6 +46,7 @@ class Candidate(db.Model):
             "name": self.name,
             "position": self.position,
             "department": self.department,
+            "semester": self.semester,
             "bio": self.bio,
             "photo_url": self.photo_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, NoSymbolIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { voterApi } from '../../api/voterApi';
 import { useBooth } from '../../hooks/useBooth';
 import { AnimatedCheck, BoothClock, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
@@ -32,7 +32,6 @@ const VoteReceipt = ({ receipt }) => {
           <div className="px-4 py-3 text-center">
             <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter Slip ID</p>
             <p className="font-mono text-2xl font-semibold tracking-wider">{receipt.slip}</p>
-            {receipt.name && <p className="text-sm font-medium mt-1">{receipt.name}</p>}
           </div>
           <table className="w-full text-sm border-t border-dashed border-slate-400">
             <tbody>
@@ -105,7 +104,6 @@ export const KioskVoting = () => {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState('next');
   const [choices, setChoices] = useState({}); // position -> candidate | 'NOTA'  (memory only, never persisted)
-  const [profile, setProfile] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
@@ -215,11 +213,10 @@ export const KioskVoting = () => {
       await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
       setReceipt({
         slip: voter.student_id,
-        name: voter.name,
         election: election.title,
         booth: localStorage.getItem('kiosk_name') || '',
         time: new Date().toLocaleString(),
-        lines: positions.map((p) => ({ position: p.position, choice: choices[p.position] === 'NOTA' ? 'NOTA (abstained)' : choices[p.position].name })),
+        lines: positions.map((p) => ({ position: p.position, choice: choices[p.position] === 'NOTA' ? 'NOTA' : choices[p.position].name })),
       });
       setChoices({});
       setStage('done');
@@ -341,7 +338,7 @@ export const KioskVoting = () => {
                     {c && c !== 'NOTA' ? <Avatar candidate={c} size="w-12 h-12" /> : <div className="w-12 h-12 rounded-xl bg-recessed shrink-0" />}
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted">{p.position}</p>
-                      <p className="font-medium truncate">{c === 'NOTA' ? 'Abstain — none of the above' : c ? c.name : 'Not selected'}</p>
+                      <p className="font-medium truncate">{c === 'NOTA' ? 'NOTA — none of the above' : c ? c.name : 'Not selected'}</p>
                     </div>
                     <button className="btn-ghost btn-sm" onClick={() => go(i, 'prev')}>Change</button>
                   </li>
@@ -396,16 +393,8 @@ export const KioskVoting = () => {
                     </span>
                     <div className={`px-4 py-4 text-center flex-1 ${on ? 'bg-brand-soft/60' : ''}`}>
                       <p className="text-xl sm:text-2xl font-bold leading-tight break-words">{c.name}</p>
-                      {c.department && <p className="text-sm text-muted mt-1">{c.department}</p>}
-                      {c.bio && (
-                        <button
-                          type="button"
-                          className="text-sm text-brand-fg font-medium mt-2 inline-flex items-center gap-1 hover:underline"
-                          onClick={(e) => { e.stopPropagation(); setProfile(c); }}
-                        >
-                          <InformationCircleIcon className="w-4 h-4" /> View profile
-                        </button>
-                      )}
+                      <p className="text-sm text-muted mt-1 min-h-[1.25rem]">{c.department}</p>
+                      <p className="text-sm text-muted min-h-[1.25rem]">{c.semester}</p>
                     </div>
                   </div>
                 );
@@ -417,15 +406,21 @@ export const KioskVoting = () => {
                 tabIndex={0}
                 onClick={() => select('NOTA')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select('NOTA'))}
-                className={`relative flex flex-col items-center justify-center text-center rounded-2xl border-2 border-dashed cursor-pointer p-6 min-h-[8rem] transition-all duration-200 ${
-                  choices[current.position] === 'NOTA' ? 'border-brand bg-brand-soft/60 ring-4 ring-brand/25' : 'border-line hover:border-brand/40'
+                className={`relative flex flex-col rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-200 active:scale-[0.98] ${
+                  choices[current.position] === 'NOTA' ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
               >
-                <span className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'border-line'}`}>
+                <div className="w-full aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-700">
+                  <NoSymbolIcon className="w-1/2 h-1/2 text-slate-600 dark:text-slate-200" strokeWidth={1.5} />
+                </div>
+                <span className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
                   {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <p className="text-xl font-bold">Abstain</p>
-                <p className="text-sm text-muted mt-1">None of the above</p>
+                <div className={`px-4 py-4 text-center flex-1 ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-xl sm:text-2xl font-bold leading-tight">NOTA</p>
+                  <p className="text-sm text-muted mt-1">None of the above</p>
+                  <p className="text-sm text-muted min-h-[1.25rem]">I do not choose anyone</p>
+                </div>
               </div>
             </div>
 
@@ -438,21 +433,6 @@ export const KioskVoting = () => {
           </div>
         )
       )}
-
-      <Modal isOpen={Boolean(profile)} onClose={() => setProfile(null)} title={profile?.name}>
-        {profile && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Avatar candidate={profile} size="w-20 h-20" />
-              <div>
-                <p className="text-sm text-muted">{profile.position}</p>
-                <p className="text-sm">{profile.department}</p>
-              </div>
-            </div>
-            <p className="text-sm leading-relaxed whitespace-pre-line">{profile.bio}</p>
-          </div>
-        )}
-      </Modal>
 
       <Modal isOpen={confirmOpen} onClose={() => setConfirmOpen(false)} title="Submit your vote?">
         <p className="text-sm text-muted">You are voting for {total} {total === 1 ? 'position' : 'positions'}. After you submit, your vote can't be changed.</p>

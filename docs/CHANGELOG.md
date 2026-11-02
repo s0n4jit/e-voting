@@ -4,6 +4,7 @@ Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. 
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
 ## Unreleased
+- Voting booth: NOTA is a full-size card with an icon; candidate cards show department and semester (new optional "Semester / year" field for candidates) and line up evenly; "View profile" removed; the printed vote copy no longer shows the voter name.
 - Registrations: a student shows "Active" only while at a booth. "This is not me", the idle reset or leaving the booth sets the status back to "PIN issued"; the list refreshes every 2 seconds.
 - Voting booth: after the vote is recorded the booth prints a vote copy (Voter Slip ID, name and the choice for each position) for the voter to check and drop into the physical box. Booth OS prints it silently to its default printer (CUPS added).
 - PINs are no longer issued automatically (registering or importing students makes none). The officer issues them with "Issue PINs" (everyone) or "Issue PIN" (one student). Statuses: No PIN yet, PIN issued, Active (entered the PIN at a booth, not voted yet), Voted.

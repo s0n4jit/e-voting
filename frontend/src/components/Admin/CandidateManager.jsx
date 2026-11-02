@@ -9,7 +9,7 @@ import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 
 const LOCKED = ['voting_active', 'voting_closed', 'results_published', 'archived'];
-const blank = (position = '') => ({ name: '', position, department: '', bio: '', photo: null });
+const blank = (position = '') => ({ name: '', position, department: '', semester: '', bio: '', photo: null });
 const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_PHOTO = 2 * 1024 * 1024;
 
@@ -181,6 +181,9 @@ export const CandidateManager = () => {
                   <option value="">Select…</option>
                   {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
                 </select>
+              </Field>
+              <Field label="Semester / year" htmlFor="c-sem" hint="Shown on the voting card, e.g. Semester 3.">
+                <input id="c-sem" className="input" value={form.semester} onChange={(e) => set('semester', e.target.value)} maxLength={30} />
               </Field>
             </div>
             <Field label="Photo" htmlFor="c-photo" error={photoError} hint="PNG, JPEG or WebP, up to 2 MB.">
