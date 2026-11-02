@@ -105,6 +105,14 @@
         "Value": false,
         "Status": "locked"
       },
+      "print.always_print_silent": {
+        "Value": true,
+        "Status": "locked"
+      },
+      "print.show_print_progress": {
+        "Value": false,
+        "Status": "locked"
+      },
       "dom.serviceWorkers.enabled": {
         "Value": true,
         "Status": "locked"

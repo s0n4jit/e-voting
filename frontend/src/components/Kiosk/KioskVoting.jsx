@@ -5,13 +5,53 @@ import { voterApi } from '../../api/voterApi';
 import { useBooth } from '../../hooks/useBooth';
 import { AnimatedCheck, BoothClock, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
 import Modal from '../common/Modal';
+import PrintPortal from '../common/PrintPortal';
+import { useBrand } from '../../context/BrandContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 const IDLE_RESET_MS = 5 * 60 * 1000;
-const RESET_AFTER_VOTE_S = 12;
+const RESET_AFTER_VOTE_S = 30; // long enough to print and collect the vote copy
+
+/** The paper copy of the vote: the voter checks it and drops it into the box at the booth. */
+const VoteReceipt = ({ receipt }) => {
+  const { branding } = useBrand();
+  return (
+    <PrintPortal>
+      <div className="print-page">
+        <div className="print-slip border border-slate-400 rounded-xl overflow-hidden bg-white text-slate-900">
+          <div className="px-4 py-3 border-b border-dashed border-slate-400 flex items-center gap-3">
+            {branding.logo && <img src={branding.logo} alt="" className="w-10 h-10 object-contain" />}
+            <div className="min-w-0">
+              <p className="font-semibold text-sm leading-tight">{branding.institution_name}</p>
+              <p className="text-xs text-slate-600">{receipt.election} · Vote copy</p>
+            </div>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter Slip ID</p>
+            <p className="font-mono text-2xl font-semibold tracking-wider">{receipt.slip}</p>
+            {receipt.name && <p className="text-sm font-medium mt-1">{receipt.name}</p>}
+          </div>
+          <table className="w-full text-sm border-t border-dashed border-slate-400">
+            <tbody>
+              {receipt.lines.map((l) => (
+                <tr key={l.position} className="border-b border-slate-200 last:border-0">
+                  <td className="px-4 py-1.5 text-slate-600">{l.position}</td>
+                  <td className="px-4 py-1.5 font-semibold text-right">{l.choice}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="px-4 py-2 text-[10px] text-slate-600 text-center border-t border-dashed border-slate-400">
+            Booth {receipt.booth} · {receipt.time}. Check your choices, then drop this slip into the box at the booth.
+          </p>
+        </div>
+      </div>
+    </PrintPortal>
+  );
+};
 
 const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
@@ -70,6 +110,7 @@ export const KioskVoting = () => {
   const [submitError, setSubmitError] = useState('');
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
   const [countdown, setCountdown] = useState(RESET_AFTER_VOTE_S);
+  const [receipt, setReceipt] = useState(null);
   const submitting = useRef(false);
 
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
@@ -130,6 +171,13 @@ export const KioskVoting = () => {
     };
   }, [stage, finish]);
 
+  // the paper copy prints by itself once the vote is recorded
+  useEffect(() => {
+    if (stage !== 'done' || !receipt) return undefined;
+    const t = setTimeout(() => window.print(), 600);
+    return () => clearTimeout(t);
+  }, [stage, receipt]);
+
   useEffect(() => {
     if (stage !== 'done') return undefined;
     const t = setInterval(() => setCountdown((c) => c - 1), 1000);
@@ -164,6 +212,14 @@ export const KioskVoting = () => {
     const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
     try {
       await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
+      setReceipt({
+        slip: voter.student_id,
+        name: voter.name,
+        election: election.title,
+        booth: localStorage.getItem('kiosk_name') || '',
+        time: new Date().toLocaleString(),
+        lines: positions.map((p) => ({ position: p.position, choice: choices[p.position] === 'NOTA' ? 'NOTA (abstained)' : choices[p.position].name })),
+      });
       setChoices({});
       setStage('done');
     } catch (err) {
@@ -253,7 +309,12 @@ export const KioskVoting = () => {
         <AnimatedCheck size={96} />
         <h1 className="text-3xl font-semibold tracking-tight mt-8">{alreadyRecorded ? 'Your vote is already recorded' : 'Your vote has been recorded'}</h1>
         <p className="text-muted mt-3">Thank you for taking part in {election.title}.</p>
-        <button className="btn-primary btn-lg mt-10" onClick={finish}>Finish</button>
+        {receipt && <p className="text-sm mt-4">Your vote copy is printing. Check it and drop it into the box.</p>}
+        <div className="flex gap-3 mt-10">
+          {receipt && <button className="btn-secondary btn-lg" onClick={() => window.print()}>Print again</button>}
+          <button className="btn-primary btn-lg" onClick={finish}>Finish</button>
+        </div>
+        {receipt && <VoteReceipt receipt={receipt} />}
         <p className="text-xs text-muted mt-4">This screen clears itself in {Math.max(countdown, 0)}s for the next voter.</p>
       </div>,
       { progress: false }

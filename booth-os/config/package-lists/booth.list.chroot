@@ -15,3 +15,6 @@ firmware-amd-graphics
 firmware-atheros
 firmware-bnx2
 firmware-bnx2x
+cups
+cups-client
+printer-driver-all
