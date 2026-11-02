@@ -181,11 +181,21 @@ export const KioskVoting = () => {
     const settings = boothInfo?.print || { enabled: true, printer: '', copies: 1 };
     if (!settings.enabled) return setPrintState('off');
     setPrintState('sending');
+    const payload = { ...r, institution: branding.institution_name, printer: settings.printer, copies: settings.copies };
+    if (window.evoteApp) { // the Campus E-Voting Booth desktop app prints and keeps the copy itself
+      try {
+        const out = await window.evoteApp.printReceipt(payload);
+        setPrintState(out.printed ? 'printed' : 'failed');
+      } catch {
+        setPrintState('failed');
+      }
+      return;
+    }
     try {
       const res = await fetch(`${AGENT}/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Evote-Booth': '1' },
-        body: JSON.stringify({ ...r, institution: branding.institution_name, printer: settings.printer, copies: settings.copies }),
+        body: JSON.stringify(payload),
       });
       const out = await res.json();
       setPrintState(out.printed ? 'printed' : 'failed');

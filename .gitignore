@@ -92,3 +92,5 @@ docs/PHASES.md
 
 # Course reference material (not part of the product)
 docs/*.pdf
+booth-app/node_modules/
+booth-app/dist/

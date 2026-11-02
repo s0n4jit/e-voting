@@ -1,0 +1,29 @@
+{
+  "name": "evote-booth",
+  "productName": "Campus E-Voting Booth",
+  "version": "1.0.0",
+  "description": "Full-screen voting booth app: setup screen, locked to the portal, silent printing, officer-code exit",
+  "main": "main.js",
+  "author": "Campus E-Voting",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "edu.campus.evote.booth",
+    "productName": "Campus E-Voting Booth",
+    "files": ["main.js", "preload-page.js", "preload-ui.js", "lib/**", "ui/**", "package.json"],
+    "directories": { "output": "dist" },
+    "win": { "target": ["nsis"] },
+    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true },
+    "linux": { "target": ["AppImage", "deb"], "category": "Utility", "maintainer": "Campus E-Voting <noreply@example.com>" }
+  }
+}
