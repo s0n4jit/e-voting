@@ -59,9 +59,9 @@ export default function SettingsPage() {
   return (
     <div className="max-w-6xl">
       <PageHeader title="Settings" subtitle="Branding and regional settings for this portal." />
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
-      <form onSubmit={save} className="contents">
-      <div className="card card-body space-y-5 lg:row-span-2">
+      <div className="grid lg:grid-cols-2 gap-5 items-start">
+      <form onSubmit={save} className="space-y-5">
+      <div className="card card-body space-y-4">
         <h2 className="font-semibold">Branding</h2>
         <Field label="Institution name" htmlFor="s-inst" error={errors.institution_name}>
           <input id="s-inst" className="input" value={form.institution_name} onChange={(e) => set('institution_name', e.target.value)} required />
@@ -84,10 +84,8 @@ export default function SettingsPage() {
             {form.logo && <button type="button" className="btn-ghost btn-sm" onClick={() => set('logo', '')}>Remove</button>}
           </div>
         </Field>
-        {errors.form && <p className="error-text" role="alert">{errors.form}</p>}
-        <div><button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></div>
       </div>
-      <div className="card card-body space-y-5">
+      <div className="card card-body space-y-4">
         <h2 className="font-semibold">Regional</h2>
         <div className="grid gap-4">
           <Field label="Timezone" htmlFor="s-tz" error={errors.timezone}>
@@ -102,9 +100,13 @@ export default function SettingsPage() {
           </Field>
         </div>
       </div>
+      {errors.form && <p className="error-text" role="alert">{errors.form}</p>}
+      <div><button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></div>
       </form>
-      <PrintingSettings />
-      <MockElection />
+      <div className="space-y-5">
+        <PrintingSettings />
+        <MockElection />
+      </div>
       </div>
     </div>
   );
