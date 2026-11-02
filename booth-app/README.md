@@ -10,7 +10,7 @@ A full-screen voting booth for Windows and Linux. It shows the portal's `/kiosk/
 
 ## Install
 
-Download the files from GitHub: Actions → *Booth app* → latest run → Artifacts (or the release for a `booth-app-v*` tag).
+Download from the officer panel (Voting booths → Setup guide → "Booth app") or from the GitHub release "booth-app-latest" (created by Actions → Booth app → Run workflow).
 
 * Windows: run `Campus E-Voting Booth Setup x.y.z.exe` (it is not code-signed, so Windows SmartScreen shows "More info → Run anyway").
 * Linux: `chmod +x Campus-E-Voting-Booth-*.AppImage && ./Campus-E-Voting-Booth-*.AppImage`, or install the `.deb`.

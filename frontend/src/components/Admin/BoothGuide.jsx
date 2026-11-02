@@ -36,6 +36,42 @@ const Row = ({ what, how }) => (
   </tr>
 );
 
+const RELEASE = 'https://github.com/s0n4jit/e-voting/releases/download/booth-app-latest';
+const DOWNLOADS = [
+  { label: 'Windows installer (.exe)', file: 'Campus-E-Voting-Booth-Setup.exe' },
+  { label: 'Ubuntu / Debian package (.deb)', file: 'evote-booth_amd64.deb' },
+  { label: 'Linux AppImage', file: 'Campus-E-Voting-Booth.AppImage' },
+];
+
+/** Download and set up the desktop booth app (Windows and Linux). */
+const AppSection = () => {
+  const address = `${window.location.origin}/kiosk/vote`;
+  return (
+    <Step n="A" title="Booth app for Windows and Linux (recommended)">
+      <p>
+        A ready-made program that turns a computer into a full-screen voting booth: no special user or lock-down scripts are needed, it prints the
+        vote copy silently, and it keeps a copy of every vote copy (HTML and PDF) on the computer. Download it on the booth computer:
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {DOWNLOADS.map((d) => (
+          <a key={d.file} className="btn-primary" href={`${RELEASE}/${d.file}`} target="_blank" rel="noopener noreferrer">{d.label}</a>
+        ))}
+      </div>
+      <p>If a download says the file is not found, the booth app has not been published yet: open the repository's <strong>Actions</strong> tab, run <strong>Booth app</strong>, then try again.</p>
+      <ol className="list-decimal pl-5 space-y-1">
+        <li><strong>Install.</strong> Windows: run the <code>.exe</code> (SmartScreen shows "More info → Run anyway", the app is not code-signed). Ubuntu: <code>sudo apt install ./evote-booth_amd64.deb</code>, then start <strong>Campus E-Voting Booth</strong> from the applications menu.</li>
+        <li><strong>Install the printer</strong> in the computer's own settings first.</li>
+        <li><strong>First start:</strong> the setup screen asks for the portal address (use the one below) and the printer. Press <strong>Print a test page</strong>, then <strong>Save and start voting</strong>.</li>
+        <li><strong>Approve the booth:</strong> on the <strong>Booths</strong> tab press <strong>Generate booth token</strong>, then enter the token and your authenticator code on the booth screen.</li>
+        <li><strong>Leave the full screen</strong> with <code>Ctrl + Alt + Shift + Q</code> and the current authenticator code of an Election Officer. Maintenance offers Return to voting, Address and printer, Open saved receipts and Quit.</li>
+      </ol>
+      <p>Portal address to enter in the setup screen:</p>
+      <CopyBlock>{address}</CopyBlock>
+      <p>Printing options for all booths (on or off, printer name, copies) are in <strong>Settings → Booth printing</strong>. Saved copies are in <code>%APPDATA%\Campus E-Voting Booth\receipts</code> (Windows) or <code>~/.config/Campus E-Voting Booth/receipts</code> (Linux); treat them like the ballot box.</p>
+    </Step>
+  );
+};
+
 /** Ubuntu booth guide for the Election Officer / technician. */
 export default function BoothGuide() {
   return (
@@ -44,9 +80,11 @@ export default function BoothGuide() {
         <p>
           A <strong className="text-fg">voting booth</strong> is an Ubuntu computer locked down so it can only show the voting page{' '}
           <span className="font-mono text-fg">/kiosk/vote</span>. Votes are accepted only from computers set up this way. This guide covers
-          installing the lock-down, turning the computer into a booth, operating it, and turning it back into a normal computer.
+          the booth app, or alternatively installing the Linux lock-down, turning the computer into a booth, operating it, and turning it back into a normal computer.
         </p>
       </section>
+
+      <AppSection />
 
       <Step n="1" title="What you need">
         <ul className="list-disc pl-5 space-y-1">

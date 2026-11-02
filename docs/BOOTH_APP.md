@@ -15,7 +15,7 @@
 
 ## Install
 
-Get the files from GitHub (Actions → **Booth app** → Run workflow → download the artifacts; a tag `booth-app-vX.Y.Z` also attaches them to a release).
+Download buttons and the setup steps are in the officer panel: **Voting booths → Setup guide → Booth app**. They link to the GitHub release `booth-app-latest`, which the **Booth app** workflow (Actions → Booth app → Run workflow) creates and replaces on every run.
 
 * **Windows:** run the `Setup … .exe`. It is not code-signed, so SmartScreen says "Windows protected your PC": More info → Run anyway.
 * **Linux (Ubuntu 22.04 / 24.04 tested in a container):** `.deb` is the simplest: `sudo apt install ./evote-booth_1.0.0_amd64.deb`, then start *Campus E-Voting Booth* from the applications menu. Or the `.AppImage`: `chmod +x *.AppImage && ./*.AppImage` (on Ubuntu 24.04 install `libfuse2t64` first, or run it with `--appimage-extract-and-run`). Both start the app with `--no-sandbox`, which Ubuntu 23.10+ needs because it blocks the browser sandbox for normal users.

@@ -1,7 +1,8 @@
 name: Booth app
 
 # Builds the Campus E-Voting Booth desktop app (Windows installer, Linux AppImage and .deb).
-# Run it by hand (Actions -> Booth app -> Run workflow) or push a tag like booth-app-v1.0.0 to also attach the files to a release.
+# Run it by hand (Actions -> Booth app -> Run workflow) or push a tag like booth-app-v1.0.0.
+# The files are published as the release "booth-app-latest", which the officer panel links to.
 on:
   workflow_dispatch:
   push:
@@ -39,10 +40,23 @@ jobs:
             booth-app/dist/*.exe
             booth-app/dist/*.AppImage
             booth-app/dist/*.deb
-      - if: startsWith(github.ref, 'refs/tags/booth-app-v')
-        uses: softprops/action-gh-release@v2
+
+  # Publish the files under a fixed release tag so the officer panel can link to stable download addresses:
+  # https://github.com/<owner>/<repo>/releases/download/booth-app-latest/<file>
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          files: |
-            booth-app/dist/*.exe
-            booth-app/dist/*.AppImage
-            booth-app/dist/*.deb
+          path: files
+          merge-multiple: true
+      - name: Replace the booth-app-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la files
+          gh release delete booth-app-latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create booth-app-latest files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Booth app (latest build)" --prerelease --latest=false \
+            --notes "Windows installer, Ubuntu .deb and Linux AppImage of the Campus E-Voting Booth app. Built from $GITHUB_SHA."

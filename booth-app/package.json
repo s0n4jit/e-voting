@@ -24,7 +24,9 @@
     "files": ["main.js", "preload-page.js", "preload-ui.js", "lib/**", "ui/**", "package.json"],
     "directories": { "output": "dist" },
     "win": { "target": ["nsis"] },
-    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true },
+    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true, "artifactName": "Campus-E-Voting-Booth-Setup.${ext}" },
+    "appImage": { "artifactName": "Campus-E-Voting-Booth.${ext}" },
+    "deb": { "artifactName": "evote-booth_${arch}.${ext}" },
     "linux": { "target": ["AppImage", "deb"], "category": "Utility", "maintainer": "Campus E-Voting <noreply@example.com>", "executableArgs": ["--no-sandbox"] }
   }
 }
