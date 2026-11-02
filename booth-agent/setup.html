@@ -37,12 +37,7 @@
   <button id="savePrinter">Use this printer</button><button class="alt" id="test">Print a test page</button>
   <div class="msg" id="prMsg"></div></section>
 
-<section><h2>4. Maintenance password (optional)</h2>
-  <p><small>For the maintenance login (press Ctrl+Alt+F2, user <code>evoteadmin</code>) on a Booth OS machine.</small></p>
-  <input id="pw" type="password" placeholder="At least 8 characters" autocomplete="new-password">
-  <button id="savePw">Set password</button><div class="msg" id="pwMsg"></div></section>
-
-<section><h2>5. Finish</h2>
+<section><h2>4. Finish</h2>
   <button id="finish">Finish setup</button><div class="msg" id="finMsg"></div></section>
 </main>
 <script>
@@ -67,6 +62,5 @@ $('detect').onclick = async () => { say('prMsg', 'Looking…'); const r = await 
 $('addPrinter').onclick = async () => { say('prMsg', 'Adding…'); const r = await api('/api/printer/add', {uri: $('found').value, name: 'EVote-Printer'}); say('prMsg', r.ok ? 'Printer added and set as default.' : (r.message || 'Failed'), !r.ok); const c = await api('/api/config'); options($('printer'), c.printers || [], '(system default)'); $('printer').value = c.PRINTER || ''; };
 $('savePrinter').onclick = async () => { const r = await api('/api/config', {PRINTER: $('printer').value}); say('prMsg', r.ok ? 'Saved.' : r.error, !r.ok); };
 $('test').onclick = async () => { const r = await api('/api/printer/test', {printer: $('printer').value}); say('prMsg', r.ok ? 'Test page sent.' : (r.message || 'Failed'), !r.ok); };
-$('savePw').onclick = async () => { const r = await api('/api/password', {password: $('pw').value}); say('pwMsg', r.ok ? 'Password set.' : (r.message || 'Failed'), !r.ok); };
-$('finish').onclick = async () => { await api('/api/finish', {}); say('finMsg', 'Done. Restart the booth to start voting (Ctrl+Alt+F2 → evote → Reboot).'); };
+$('finish').onclick = async () => { await api('/api/finish', {}); say('finMsg', 'Done. Restart the booth browser to start voting (sudo evote restart-browser).'); };
 </script></body></html>

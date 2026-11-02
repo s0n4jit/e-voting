@@ -30,7 +30,7 @@ export default function PrintingSettings() {
       <h2 className="font-semibold">Booth printing</h2>
       <p className="text-sm text-muted">
         After each vote the booth prints a vote copy for the voter to drop into the box, silently, and keeps a copy on the booth machine's disk.
-        Connect the printer on the booth machine with <code>sudo evote setup</code> (or the first-boot setup page of Booth OS).
+        Connect the printer on the booth machine with <code>sudo evote setup</code>.
       </p>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />

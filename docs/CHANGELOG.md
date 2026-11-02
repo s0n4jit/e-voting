@@ -9,14 +9,15 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 - Booth app for Windows and Linux (`booth-app/`): setup screen for the portal address and printer, full-screen locked voting page, silent printing with the vote copy saved on the computer, and exit only with the Election Officer's authenticator code (Ctrl+Alt+Shift+Q). Built by the "Booth app" GitHub workflow. See docs/BOOTH_APP.md.
 - Lab PC installer fixes: the `evote` user is created reliably (the generated password no longer aborts the script), the browser lock applies to the `evote` user only (own profile with a proxy rule) so the administrator's Firefox is unrestricted, and a port in the portal address works.
 - Lab PC installer: no automatic sign-in by default (choose the user on the login screen; `AUTOLOGIN=yes` or `sudo evote autologin on` turns it on), the lock-down applies to the `evote` user only so the administrator keeps a normal desktop, and vote copies are saved in the administrator's private folder `~/.evote-receipts`.
-- Booth printing: after a vote the booth agent saves the receipt on the booth machine's disk and prints it silently through CUPS; officer settings for printing; `evote` maintenance commands (reboot, restart browser, network, printer, receipts); first-boot setup page; Booth OS maintenance login on Ctrl+Alt+F2. See docs/BOOTH_PRINTING.md.
+- The bootable Booth OS image was removed (the booth app and the lab-PC installer replace it).
+- Booth printing: after a vote the booth agent saves the receipt on the booth machine's disk and prints it silently through CUPS; officer settings for printing; `evote` maintenance commands (reboot, restart browser, network, printer, receipts); a setup page. See docs/BOOTH_PRINTING.md.
 - Results: each position lists every candidate with the actual vote count ("6 votes out of 12") and a NOTA row; no bars or percentages.
 - Mock election: the officer sees live results (counts per candidate) while the mock runs, and can close, publish and check the results before ending it.
 - Settings: "Mock election". With the election in the Ready stage the officer can start a mock (practice) run with the real set-up. Ending it ("RESET") deletes the ballots, PINs and audit entries recorded since it started, resets every voter and returns the election to Ready. A banner shows while a mock is running.
 - Voting booth: candidate cards read "Student of Department of ..., Semester ..." in bold; the Enter key moves to the next position once a choice is made (and opens the submit prompt on the review screen).
 - Voting booth: NOTA is a full-size card with an icon; candidate cards show department and semester (new optional "Semester / year" field for candidates) and line up evenly; "View profile" removed; the printed vote copy no longer shows the voter name.
 - Registrations: a student shows "Active" only while at a booth. "This is not me", the idle reset or leaving the booth sets the status back to "PIN issued"; the list refreshes every 2 seconds.
-- Voting booth: after the vote is recorded the booth prints a vote copy (Voter Slip ID, name and the choice for each position) for the voter to check and drop into the physical box. Booth OS prints it silently to its default printer (CUPS added).
+- Voting booth: after the vote is recorded the booth prints a vote copy (Voter Slip ID, name and the choice for each position) for the voter to check and drop into the physical box.
 - PINs are no longer issued automatically (registering or importing students makes none). The officer issues them with "Issue PINs" (everyone) or "Issue PIN" (one student). Statuses: No PIN yet, PIN issued, Active (entered the PIN at a booth, not voted yet), Voted.
 - Registrations: "Issue PINs" gives every student without a PIN one and prints the slips of everyone who has not voted. Printing no longer includes the open dialog.
 
@@ -34,8 +35,6 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 - Student lists: register many students from a CSV (installation wizard step and the Registrations page), with the slip IDs returned.
 - Results: "None of the Above" is shown as a count, never as a candidate: it cannot win or tie. Votes are shown as numbers instead of percentages, the report is counts only, and results can be printed on white paper with signature lines.
 - While voting is paused, voting PINs cannot be issued.
-- Booth OS: the boot image can read exFAT/FAT sticks, so it boots from Ventoy and loopback setups (it hung there before).
-- **Booth OS**: a bootable Debian-based image (Cage + Firefox kiosk, nothing installed or saved) built by a GitHub Actions workflow. The portal address is embedded into the downloaded ISO with `booth-os/embed-url.py`. See `docs/BOOTH_OS.md`.
 - The booth installer detects the distribution (Ubuntu, Debian, Fedora/RHEL family, Arch with GNOME/GDM) and installs Firefox and its policy the way each one ships it; `--detect` prints the result. Only Ubuntu has been tried on real hardware.
 - Booth installer (`kiosk/ubuntu/setup-kiosk.sh`): the `VOTING_URL` you pass is now really used (it was ignored and the example `localhost:3000` kept) and is added to the browser policy, so a booth works against any site, not only the example address.
 

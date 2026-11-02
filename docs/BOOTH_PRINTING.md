@@ -21,17 +21,17 @@ Settings, **Booth printing**: switch printing on or off, set a printer name (emp
 
 ## Connecting the printer (once per booth machine)
 
-Lab PC (installed with `kiosk/ubuntu/setup-kiosk.sh`) or Booth OS:
+Lab PC (installed with `kiosk/ubuntu/setup-kiosk.sh`), as the administrator account:
 
 ```bash
 sudo evote setup
 ```
 
-Then open `http://127.0.0.1:9631/setup` on that machine: set the portal address, join Wi-Fi, find and add the USB/network printer, send a test page, set the maintenance password, press **Finish**. On Booth OS the page opens by itself on first boot when no address was embedded.
+Then open `http://127.0.0.1:9631/setup` on that machine: set the portal address, join Wi-Fi, find and add the USB/network printer, send a test page, press **Finish**.
 
 ## Maintenance commands
 
-`sudo evote` opens a menu; `sudo evote <command>` runs one. On Booth OS press **Ctrl+Alt+F2** and log in as `evoteadmin` (set its password in the setup page): you get an `evote>` prompt that accepts only these commands.
+`sudo evote` opens a menu; `sudo evote <command>` runs one.
 
 | Command | What it does |
 |---|---|
@@ -42,15 +42,10 @@ Then open `http://127.0.0.1:9631/setup` on that machine: set the portal address,
 | `printer list` / `set NAME` / `test` / `status` / `queue` / `cancel` | printer |
 | `receipts count` / `list [DATE]` / `show SLIP` / `check` / `export FOLDER` | read the saved copies, verify none is missing, copy them to a USB stick |
 | `url show` / `url set ADDRESS` | portal address |
-| `setup`, `setup-off`, `logs [N]`, `password` | setup page, logs, maintenance password |
+| `setup`, `setup-off`, `logs [N]`, `autologin on/off` | setup page, logs, automatic sign-in of the kiosk user |
 
 ## Keeping the receipts
 
 * **Lab PC:** the installer keeps receipts in the administrator's private folder `~/.evote-receipts` (mode 700, owned by the account that ran the installer with `sudo`). The kiosk user cannot read it. Without a normal administrator account they go to `/var/lib/evote/receipts`.
-* **Booth OS (live USB):** the system itself is not saved between restarts. To keep receipts and settings, make a partition or stick with the label **EVOTE-DATA** (for example `sudo mkfs.ext4 -L EVOTE-DATA /dev/sdX1`). The booth mounts it automatically and stores everything there. Without it, run `evote receipts export FOLDER` to a USB stick **before** shutting the booth down.
 
 A receipt links a Voter Slip ID to the choices made. Keep the disk and the export under the same control as the ballot box.
-
-## Not included yet
-
-A disk installer for Booth OS with a graphical wizard. Use the lab-PC installer for a permanent booth, or the live USB with an EVOTE-DATA partition.

@@ -7,7 +7,7 @@
     evote printer list|set NAME|test|status|queue|cancel
     evote receipts count|list [DATE]|show SLIP|check|export FOLDER
     evote autologin on|off  (lab PC: sign in the kiosk user automatically, or choose the user on the login screen)
-    evote url [show|set ADDRESS]       evote setup       evote logs [LINES]       evote password
+    evote url [show|set ADDRESS]       evote setup       evote logs [LINES]
 
 Needs root: run it as `sudo evote ...` (it asks for sudo itself when started as a normal user). Python 3 only.
 """
@@ -62,10 +62,8 @@ def active(unit):
 
 
 def restart_browser():
-    if active("evote-booth.service"):  # Booth OS: restart the whole kiosk session
-        sh(["systemctl", "restart", "evote-booth.service"])
-    else:  # lab PC: the kiosk launcher restarts Firefox by itself
-        sh(["pkill", "-u", "evote", "-f", "firefox"])
+    """Lab PC: the kiosk launcher restarts Firefox by itself."""
+    sh(["pkill", "-u", "evote", "-f", "firefox"])
     print("The booth browser is restarting.")
 
 
@@ -73,7 +71,7 @@ def restart_browser():
 def cmd_status(_):
     c = conf()
     print(f"Portal address : {c['VOTING_URL'] or '(not set)'}")
-    print(f"Booth browser  : {'running' if active('evote-booth.service') or sh(['pgrep','-u','evote','firefox'], show=False)[0]==0 else 'NOT running'}")
+    print(f"Booth browser  : {'running' if sh(['pgrep','-u','evote','firefox'], show=False)[0]==0 else 'NOT running'}")
     print(f"Agent          : {'running' if active('evote-agent.service') else 'NOT running'}")
     print(f"Printer        : {c['PRINTER'] or '(system default)'}  printing {'on' if c['PRINT_ENABLED'] != '0' else 'OFF'}")
     n = receipts_all()
@@ -222,11 +220,7 @@ def cmd_setup_off(_):
 
 
 def cmd_logs(a):
-    sh(["journalctl", "-u", "evote-agent.service", "-u", "evote-booth.service", "-n", a[0] if a else "80", "--no-pager"])
-
-
-def cmd_password(_):
-    sh(["passwd", "evoteadmin"])
+    sh(["journalctl", "-u", "evote-agent.service", "-n", a[0] if a else "80", "--no-pager"])
 
 
 def cmd_autologin(a):
@@ -246,40 +240,9 @@ def cmd_autologin(a):
     print(f"Automatic sign-in is {a[0].upper()}. It takes effect at the next restart.")
 
 
-def cmd_shell(_):
-    """A small command prompt that accepts only evote commands (used as the maintenance login on Booth OS)."""
-    import shlex
-    print("Campus E-Voting booth maintenance. Type 'help' for the commands, 'exit' to log out.")
-    while True:
-        try:
-            line = input("evote> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return
-        if line in ("exit", "quit", "logout"):
-            return
-        if not line:
-            continue
-        if line in ("menu", "m"):
-            menu()
-            continue
-        parts = shlex.split(line)
-        if parts[0] == "help":
-            print(__doc__)
-        elif parts[0] in COMMANDS and parts[0] != "shell":
-            if parts[0] in ("reboot", "shutdown") and input("Are you sure? (yes/no) ").strip() != "yes":
-                continue
-            try:
-                COMMANDS[parts[0]](parts[1:])
-            except SystemExit as e:
-                print(e if isinstance(e.code, str) else "")
-        else:
-            print("Unknown command. Type 'help'.")
-
-
 COMMANDS = {"status": cmd_status, "reboot": cmd_reboot, "shutdown": cmd_shutdown, "restart-browser": cmd_restart_browser,
             "restart-agent": cmd_restart_agent, "network": cmd_network, "printer": cmd_printer, "receipts": cmd_receipts,
-            "url": cmd_url, "autologin": cmd_autologin, "shell": cmd_shell, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs, "password": cmd_password}
+            "url": cmd_url, "autologin": cmd_autologin, "setup": cmd_setup, "setup-off": cmd_setup_off, "logs": cmd_logs}
 
 MENU = [("Status", ["status"]), ("Restart the booth browser", ["restart-browser"]), ("Network status", ["network", "status"]),
         ("Scan Wi-Fi", ["network", "wifi"]), ("Printer status", ["printer", "status"]), ("Send a test page", ["printer", "test"]),

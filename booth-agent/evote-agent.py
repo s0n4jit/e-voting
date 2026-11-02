@@ -193,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
             if not setup_on(conf):
                 return self._send(403, "Setup mode is off. Run: sudo evote setup", "text/plain")
             here = os.path.dirname(os.path.abspath(__file__))
-            for cand in (os.path.join(here, "setup.html"), "/usr/share/evote/setup-gui.html"):
+            for cand in (os.path.join(here, "setup.html"),):
                 if os.path.exists(cand):
                     with open(cand, "rb") as f:
                         return self._send(200, f.read(), "text/html")
@@ -277,12 +277,6 @@ class Handler(BaseHTTPRequestHandler):
                 run(["lpadmin", "-d", name])
                 write_conf({"PRINTER": name})
             return self._send(200 if code == 0 else 400, {"ok": code == 0, "message": out}, conf=conf)
-        if path == "/api/password":  # the maintenance login on tty2 (Booth OS)
-            pw = str(body.get("password") or "")
-            if len(pw) < 8 or "\n" in pw or ":" in pw:
-                return self._send(400, {"ok": False, "message": "Use at least 8 characters, without ':'"}, conf=conf)
-            p = subprocess.run(["chpasswd"], input=f"evoteadmin:{pw}\n", text=True, capture_output=True)
-            return self._send(200 if p.returncode == 0 else 400, {"ok": p.returncode == 0, "message": p.stderr.strip()}, conf=conf)
         if path == "/api/finish":
             try:
                 os.remove(conf["SETUP_FLAG"])
