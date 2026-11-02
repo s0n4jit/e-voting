@@ -6,6 +6,8 @@ name: Booth app
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+    paths: ['booth-app/**', '.github/workflows/booth-app.yml']
     tags: ['booth-app-v*']
 
 permissions:
