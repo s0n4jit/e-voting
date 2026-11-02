@@ -222,13 +222,16 @@ if [[ -f "${POLICIES_SRC}" ]]; then
         for POLICY_FILE in "${POLICY_TARGETS[@]}"; do
             [[ -f "${POLICY_FILE}" ]] || continue
             python3 - "${POLICY_FILE}" "${VOTING_URL}*" <<'PYEOF'
-import json, sys
+import json, re, sys
 path, allowed = sys.argv[1], sys.argv[2]
+allowed = re.sub(r"^(https?://[^/:]+):\d+", r"\1", allowed)  # Firefox match patterns have no port
 policy = json.load(open(path))
 p = policy["policies"]
 for lst in (p["WebsiteFilter"]["Exceptions"], p["URLAllowlist"]):
     if allowed not in lst:
         lst.append(allowed)
+    if "http://127.0.0.1:9631/*" not in lst:
+        lst.append("http://127.0.0.1:9631/*")  # the booth agent on this machine (printing)
 json.dump(policy, open(path, "w"), indent=2)
 PYEOF
         done

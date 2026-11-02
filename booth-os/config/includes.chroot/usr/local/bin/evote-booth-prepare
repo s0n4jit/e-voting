@@ -43,8 +43,9 @@ chmod 755 "${OUT_DIR}"; chmod 644 "${OUT_DIR}/url"
 for dir in "${POLICY_DIRS[@]}"; do
     mkdir -p "${dir}"
     python3 - "${BASE_POLICY}" "${dir}/policies.json" "${allowed}" <<'PYEOF'
-import json, sys
+import json, re, sys
 base, out, allowed = sys.argv[1:4]
+allowed = re.sub(r"^(https?://[^/:]+):\d+", r"\1", allowed)  # Firefox match patterns have no port
 policy = json.load(open(base))
 p = policy["policies"]
 agent = "http://127.0.0.1:9631/*"  # the booth agent on this machine (printing)
