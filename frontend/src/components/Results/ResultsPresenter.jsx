@@ -225,7 +225,7 @@ export default function ResultsPresenter() {
             </div>
 
             <p className="text-center text-muted mt-[2vh] flex items-center justify-center gap-2" style={{ fontSize: '2.2vh' }}>
-              <NoSymbolIcon className="w-5 h-5" /> NOTA votes:{' '}
+              <NoSymbolIcon className="w-5 h-5" /> NOTA:{' '}
               <span className="font-semibold text-fg"><VoteCount votes={current.nota_count} run={pos.revealed} /></span>
             </p>
 

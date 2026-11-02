@@ -26,7 +26,7 @@ export default function PrintableResults({ data }) {
                     <td className="n">{c.votes}</td>
                   </tr>
                 ))}
-                <tr><td><b>NOTA votes</b></td><td className="n">{p.nota_count}</td></tr>
+                <tr><td><b>NOTA</b></td><td className="n">{p.nota_count}</td></tr>
               </tbody>
             </table>
             <p><b>Result:</b> {p.outcome?.type === 'winner' ? `${p.outcome.label} elected` : p.outcome?.label}</p>
