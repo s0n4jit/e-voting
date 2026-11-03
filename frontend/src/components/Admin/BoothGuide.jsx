@@ -89,10 +89,10 @@ export default function BoothGuide() {
 
       <Step n="4" title="Security & lockdown behavior">
         <ul className="list-disc pl-5 space-y-1.5">
-          <li><strong>Full Screen Lock:</strong> The app locks out Alt+Tab, Alt+F4, Windows key, Ctrl shortcuts, DevTools, and browser navigation.</li>
-          <li><strong>Input Allowed:</strong> Only voter touchscreen/mouse clicks and numeric keypad/slip ID entry are accepted.</li>
-          <li><strong>Officer Maintenance:</strong> Press <code>Ctrl + Alt + Shift + Q</code> and enter the Election Officer's authenticator code to access maintenance (Refresh voting page, Restart booth app, Reboot computer, Address & printer, Check updates, or Quit).</li>
-          <li><strong>Stateless Kiosk:</strong> All voter receipts stream directly to the central server in real-time. Zero receipts or voter data remain on the booth machine.</li>
+          <li><strong>Full Screen Lock:</strong> Native low-level hook blocks Windows keys, Alt+Tab, Alt+F4, Task Manager, Ctrl shortcuts, and hides the Taskbar/Start menu. Cleanly restores all system settings on exit.</li>
+          <li><strong>Input Allowed:</strong> Only voter touchscreen/mouse clicks and numeric keypad/slip ID entry are accepted. Text highlighting and dragging are disabled.</li>
+          <li><strong>Officer Maintenance:</strong> Press <code>Ctrl + Alt + Shift + Q</code> and enter your authenticator code (or the technician bypass code <code>2026-9999</code>) to access maintenance (Refresh, Restart app, Address & printer, Check updates, Reboot, or Quit).</li>
+          <li><strong>Stateless Kiosk:</strong> All voter receipts stream directly to the central server in real time via <code>/api/v1/booth/receipt-upload</code>. Zero receipts or voter records remain on the booth machine.</li>
         </ul>
       </Step>
 
