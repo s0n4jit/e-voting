@@ -13,7 +13,7 @@ export const setFavicon = (logo) => {
   link.href = logo || '/favicon.svg';
 };
 
-const DEFAULT = { institution_name: '', system_name: 'Election Portal', logo: '', language: 'en' };
+const DEFAULT = { institution_name: '', system_name: 'Election Portal', logo: '', language: 'en', enable_theme_toggle: 'false' };
 
 const getCachedBrand = () => {
   try {

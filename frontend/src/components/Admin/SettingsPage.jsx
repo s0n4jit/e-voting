@@ -86,6 +86,26 @@ export default function SettingsPage() {
         </Field>
       </div>
       <div className="card card-body space-y-4">
+        <h2 className="font-semibold">Display & Theme</h2>
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-recessed/40 border border-line">
+          <div>
+            <p className="font-medium text-sm text-fg">Enable Theme Toggle (Dark Mode Switch)</p>
+            <p className="text-xs text-muted mt-0.5">
+              Allow voters and booth users to switch between Light and Dark themes. By default it is Off (White theme).
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={form.enable_theme_toggle === 'true' || form.enable_theme_toggle === true}
+              onChange={(e) => set('enable_theme_toggle', e.target.checked ? 'true' : 'false')}
+            />
+            <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
+          </label>
+        </div>
+      </div>
+      <div className="card card-body space-y-4">
         <h2 className="font-semibold">Regional</h2>
         <div className="grid gap-4">
           <Field label="Timezone" htmlFor="s-tz" error={errors.timezone}>

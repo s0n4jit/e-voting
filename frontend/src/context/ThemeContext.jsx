@@ -1,23 +1,46 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useBrand } from './BrandContext';
 
-const ThemeContext = createContext({ theme: 'light', toggle: () => {} });
+const ThemeContext = createContext({ theme: 'light', toggle: () => {}, enabled: false });
 
-// Light unless the user has chosen dark with the toggle (the choice is remembered).
+// Light unless enabled and user explicitly chose dark.
 const KEY = 'theme-choice';
-const initial = () => (localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light');
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(initial);
+  const { branding } = useBrand();
+  const enabled = branding?.enable_theme_toggle === 'true' || branding?.enable_theme_toggle === true;
+
+  const [theme, setTheme] = useState(() => {
+    if (!enabled) return 'light';
+    try {
+      return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-  const toggle = () =>
+    // When disabled, strictly lock to White (light theme)
+    if (!enabled) {
+      document.documentElement.classList.remove('dark');
+      setTheme('light');
+    } else {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    }
+  }, [enabled, theme]);
+
+  const toggle = () => {
+    if (!enabled) return;
     setTheme((t) => {
       const next = t === 'dark' ? 'light' : 'dark';
-      localStorage.setItem(KEY, next);
+      try {
+        localStorage.setItem(KEY, next);
+      } catch {}
       return next;
     });
-  return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;
+  };
+
+  return <ThemeContext.Provider value={{ theme, toggle, enabled }}>{children}</ThemeContext.Provider>;
 };
 
 export const useTheme = () => useContext(ThemeContext);

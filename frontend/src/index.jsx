@@ -9,9 +9,9 @@ import { BrandProvider } from './context/BrandContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <BrowserRouter>
-        <BrandProvider>
+    <BrandProvider>
+      <ThemeProvider>
+        <BrowserRouter>
           <Toaster
             position="bottom-right"
             toastOptions={{
@@ -26,8 +26,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             }}
           />
           <App />
-        </BrandProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </BrandProvider>
   </React.StrictMode>
 );

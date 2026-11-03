@@ -6,7 +6,11 @@ import { useBrand } from '../../context/BrandContext';
 import { API_BASE_URL } from '../../api/axiosConfig';
 
 export const ThemeToggle = ({ className = '' }) => {
-  const { theme, toggle } = useTheme();
+  const { theme, toggle, enabled } = useTheme();
+  const { branding } = useBrand();
+  const isAllowed = enabled || branding?.enable_theme_toggle === 'true' || branding?.enable_theme_toggle === true;
+  if (!isAllowed) return null;
+
   const Icon = theme === 'dark' ? SunIcon : MoonIcon;
   return (
     <button

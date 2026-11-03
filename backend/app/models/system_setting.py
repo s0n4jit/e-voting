@@ -22,7 +22,7 @@ class SystemSetting(db.Model):
         nullable=False,
     )
 
-    BRANDING_KEYS = ("institution_name", "system_name", "logo", "timezone", "language", "slip_code")
+    BRANDING_KEYS = ("institution_name", "system_name", "logo", "timezone", "language", "slip_code", "enable_theme_toggle")
 
     @classmethod
     def get(cls, key, default=None):
@@ -49,7 +49,10 @@ class SystemSetting(db.Model):
 
     @classmethod
     def branding(cls) -> dict:
-        return {k: cls.get(k, "") for k in cls.BRANDING_KEYS}
+        data = {k: cls.get(k, "") for k in cls.BRANDING_KEYS}
+        if not data.get("enable_theme_toggle"):
+            data["enable_theme_toggle"] = "false"
+        return data
 
     @classmethod
     def is_installed(cls) -> bool:

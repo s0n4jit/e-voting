@@ -673,8 +673,8 @@ export const KioskVoting = () => {
           </div>
         )}
       </header>
-      <main className="flex-1 w-full overflow-y-auto px-4 py-3 sm:py-4 pb-24">
-        <div className="max-w-6xl mx-auto w-full">
+      <main className="flex-1 w-full overflow-y-auto">
+        <div className="max-w-6xl mx-auto w-full px-4 pb-24">
           {children}
         </div>
       </main>
@@ -781,9 +781,9 @@ export const KioskVoting = () => {
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
           <div key="review" className={animation}>
-            <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur -mx-4 px-4 py-2.5 border-b border-line/40">
+            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-3 border-b border-line shadow-xs">
               <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-brand">Final step</p>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">Review your choices</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 text-fg">Review your choices</h1>
               <p className="text-muted text-xs sm:text-sm mt-0.5">Check each choice. You can change any of them before submitting.</p>
             </div>
 
@@ -813,7 +813,7 @@ export const KioskVoting = () => {
           </div>
         ) : (
           <div key={step} className={animation}>
-            <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur -mx-4 px-4 py-2 sm:py-2.5 border-b border-line/40">
+            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-3 border-b border-line shadow-xs">
               <div className="flex items-center justify-between text-sm text-muted">
                 <span className="font-medium">Position {step + 1} of {total}</span>
                 <span className="flex gap-1.5" aria-hidden="true">
@@ -822,7 +822,7 @@ export const KioskVoting = () => {
                   ))}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">{current.position}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 text-fg">{current.position}</h1>
               <p className="text-muted text-xs mt-0.5">Choose one candidate for this position.</p>
             </div>
 
