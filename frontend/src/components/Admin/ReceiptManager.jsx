@@ -397,18 +397,27 @@ const ReceiptManager = () => {
 
       {/* Receipt Preview Modal */}
       {previewSlip && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full flex flex-col max-h-[92vh] overflow-hidden shadow-2xl animate-page-in">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Voter Receipt Slip</h3>
-                <p className="font-mono text-xs text-slate-500 font-bold">{previewSlip}</p>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full flex flex-col max-h-[94vh] overflow-hidden shadow-2xl animate-page-in">
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/90">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/50">
+                  <TicketIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">Voter Receipt Slip</h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      {previewSlip}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => downloadPdf(previewSlip)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-xs font-bold shadow-sm transition-all"
                 >
                   <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
@@ -416,24 +425,25 @@ const ReceiptManager = () => {
                 <button
                   type="button"
                   onClick={closePreview}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-100 flex justify-center items-start">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-100 dark:bg-slate-950/60 flex justify-center items-start">
               {previewLoading ? (
-                <div className="p-12">
+                <div className="p-16 flex flex-col items-center justify-center">
                   <LoadingSpinner size="md" />
+                  <p className="text-xs text-slate-500 font-medium mt-3">Rendering vector receipt...</p>
                 </div>
               ) : (
-                <div className="w-full bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="w-full max-w-[500px] flex justify-center">
                   <iframe
                     title="Receipt Preview"
                     srcDoc={previewHtml}
-                    className="w-full min-h-[580px] border-0"
+                    className="w-full h-[600px] border-0 rounded-xl shadow-md bg-white overflow-hidden"
                   />
                 </div>
               )}

@@ -70,5 +70,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release upload "$TAG_NAME" files/* --repo "$GITHUB_REPOSITORY" --clobber || \
           gh release create "$TAG_NAME" files/* --repo "$GITHUB_REPOSITORY" \
-            --title "Booth App $TAG_NAME" --notes "Campus E-Voting Booth $TAG_NAME release built from $GITHUB_SHA." || true
+            --title "Booth App $TAG_NAME" --notes "Campus E-Voting Booth $TAG_NAME release built from $GITHUB_SHA."

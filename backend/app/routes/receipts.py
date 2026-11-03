@@ -67,19 +67,30 @@ def get_receipt_html(slip_id):
     if not receipt:
         return jsonify({"error": "Receipt not found."}), 404
 
-    if receipt.html_content:
+    from app.services.receipt_service import generate_receipt_html
+    from app.extensions import db
+
+    if receipt.html_content and 'class="banner"' in receipt.html_content:
         html = receipt.html_content
     else:
-        from app.services.receipt_service import generate_receipt_html
         election_title = receipt.election.title if receipt.election else "Campus E-Voting"
+        from app.models.system_setting import SystemSetting
+        branding = SystemSetting.branding()
         html = generate_receipt_html({
             "slip": receipt.slip_id,
             "election": election_title,
+            "institution": branding.get("institution_name") or "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga",
             "booth": receipt.booth_name or "BOOTH-01",
             "time": receipt.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "is_mock": receipt.is_mock,
+            "logo": branding.get("logo") or "",
             "lines": receipt.get_choices(),
         })
+        try:
+            receipt.html_content = html
+            db.session.commit()
+        except Exception:
+            pass
 
     return Response(html, mimetype="text/html; charset=utf-8")
 

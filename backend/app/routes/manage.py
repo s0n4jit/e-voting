@@ -5,6 +5,7 @@ programmes, instance settings and reports. Every route is admin-only.
 
 import csv
 import io
+import logging
 from datetime import datetime, timezone
 
 from flask import Blueprint, Response, jsonify, request
@@ -29,6 +30,8 @@ from app.utils.timeutil import utc_iso
 from app.utils.validators import clean_name, sanitize_input
 
 manage_bp = Blueprint("manage", __name__)
+
+logger = logging.getLogger(__name__)
 
 _LOCKED_AFTER = Election.STATUSES.index("voting_active")  # positions/candidates frozen from here on
 
@@ -209,7 +212,7 @@ def end_mock(election_id):
         from app.services.receipt_service import ReceiptService
         ReceiptService.clear_mock_receipts(election_id=election.id)
     except Exception as e:
-        logger.warn(f"Failed to clear mock receipts during end_mock: {e}")
+        logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
     logs = AuditLog.query.filter(AuditLog.created_at >= election.mock_started_at).delete(synchronize_session=False)
     election.set_status("ready")
     election.is_mock = False
