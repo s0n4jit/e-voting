@@ -11,6 +11,20 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 
 const IDLE_RESET_MS = 5 * 60 * 1000;
+const formatTerm = (val) => {
+  if (!val && val !== 0) return '—';
+  const str = String(val).trim();
+  if (/sem|year/i.test(str)) return str;
+  const num = parseInt(str, 10);
+  if (!isNaN(num)) {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = num % 100;
+    const ord = s[(v - 20) % 10] || s[v] || s[0];
+    return `${num}${ord} Sem`;
+  }
+  return str;
+};
+
 const RESET_AFTER_VOTE_S = 10;
 
 /** The paper copy of the vote: the voter checks it and drops it into the box at the booth.
@@ -643,45 +657,44 @@ export const KioskVoting = () => {
 
   if (stage === 'intro') {
     return chrome(
-      <div className="max-w-xl mx-auto text-center py-8 animate-page-in">
+      <div className="max-w-xl mx-auto text-center py-6 animate-page-in">
         {voter.name && (
-          <div className="card text-left mb-6 border border-line shadow-card overflow-hidden" role="status">
-            <div className="bg-recessed/70 px-4 py-2.5 border-b border-line flex items-center justify-between">
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-                <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
+          <div className="card text-left mb-5 border border-line shadow-card overflow-hidden" role="status">
+            <div className="bg-recessed/60 px-4 py-2 border-b border-line flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted">
+                <span className="w-2 h-2 rounded-full bg-brand" />
                 Voter Verification
               </span>
-              <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-surface border border-line text-brand">
-                {voter.student_id}
+              <span className="font-mono text-muted text-xs">
+                Slip ID: <strong className="text-fg font-semibold">{voter.student_id}</strong>
               </span>
             </div>
-            <div className="p-4 sm:p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Student Name</p>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-fg mt-0.5">{voter.name}</h2>
+            <div className="p-4 space-y-2.5">
+              <div>
+                <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Student Name</p>
+                <p className="text-lg sm:text-xl font-bold tracking-tight text-fg">{voter.name}</p>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3 pt-3 border-t border-line/70 text-sm">
-                <div className="bg-recessed/40 p-2.5 rounded-lg border border-line/60">
-                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Roll/Enrollment No.</p>
-                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">{voter.roll_no || '—'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-2.5 border-t border-line/70 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted shrink-0">Roll/Enrollment No.:</span>
+                  <span className="font-semibold text-fg">{voter.roll_no || '—'}</span>
                 </div>
-                <div className="bg-recessed/40 p-2.5 rounded-lg border border-line/60">
-                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Semester / Year</p>
-                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">
-                    {voter.year ? `Semester / Year ${voter.year}` : '—'}
-                  </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted shrink-0">Semester:</span>
+                  <span className="font-semibold text-fg">{formatTerm(voter.year)}</span>
                 </div>
-                <div className="sm:col-span-2 bg-recessed/40 p-2.5 rounded-lg border border-line/60">
-                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Programme & Department</p>
-                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">{voter.department || '—'}</p>
+                <div className="flex items-baseline gap-1.5 sm:col-span-2">
+                  <span className="text-muted shrink-0">Programme:</span>
+                  <span className="font-semibold text-fg truncate">{voter.department || '—'}</span>
                 </div>
               </div>
             </div>
           </div>
         )}
-        <p className="text-sm text-muted">Welcome{voter.name ? `, ${voter.name.split(' ')[0]}` : ''}</p>
-        <h1 className="text-3xl font-semibold tracking-tight mt-2">{election.title}</h1>
-        {election.description && <p className="text-muted mt-3">{election.description}</p>}
-        <div className="card card-body text-left mt-8 space-y-3 text-sm">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{election.title}</h1>
+        {election.description && <p className="text-muted text-sm mt-1.5">{election.description}</p>}
+        <div className="card card-body text-left mt-6 space-y-3 text-sm">
           <p className="font-medium">How voting works</p>
           <ul className="space-y-2 text-muted">
             <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />There {total === 1 ? 'is' : 'are'} {total} {total === 1 ? 'position' : 'positions'} on your ballot.</li>
@@ -690,7 +703,7 @@ export const KioskVoting = () => {
             <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Once submitted, your vote cannot be changed.</li>
           </ul>
         </div>
-        <button className="btn-primary btn-lg mt-8" onClick={() => go(0, 'next')} autoFocus>
+        <button className="btn-primary btn-lg mt-6" onClick={() => go(0, 'next')} autoFocus>
           This is me, start voting <ArrowRightIcon className="w-5 h-5" />
         </button>
         <button className="btn-ghost mt-3 block mx-auto" onClick={finish}>This is not me</button>
