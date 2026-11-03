@@ -39,6 +39,12 @@ const VoteReceipt = ({ receipt }) => {
     cachedBrand.institution_name ||
     'ELECTION COMMISSION';
 
+  const lines = Array.isArray(receipt.lines) ? receipt.lines : [];
+  const mid = Math.ceil(lines.length / 2);
+  const col1 = lines.slice(0, mid);
+  const col2 = lines.slice(mid);
+  const isMock = Boolean(receipt.is_mock);
+
   return (
     <PrintPortal>
       <div
@@ -47,251 +53,279 @@ const VoteReceipt = ({ receipt }) => {
           width: '100%',
           maxWidth: '100%',
           margin: '0 auto',
-          padding: '16mm 0 0 0',
+          padding: '4mm 0 0 0',
           display: 'block',
           textAlign: 'center',
           boxSizing: 'border-box',
         }}
       >
         <div
-          className="print-receipt-container"
+          className="print-receipt-card"
           style={{
-            width: '100%',
-            maxWidth: '100%',
-            margin: '0 auto',
-            padding: 0,
+            width: '184mm',
+            maxWidth: '184mm',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            marginTop: 0,
+            marginBottom: 0,
             display: 'block',
-            textAlign: 'center',
+            textAlign: 'left',
+            border: isMock ? '1.5px solid #d97706' : '1.5px solid #0f172a',
+            borderRadius: '3mm',
+            background: '#ffffff',
+            color: '#0f172a',
+            overflow: 'hidden',
             boxSizing: 'border-box',
           }}
         >
+          {/* Header with College Logo */}
           <div
-            className="print-receipt-card"
+            className="print-receipt-header"
             style={{
-              width: '110mm',
-              maxWidth: '110mm',
-              marginLeft: 'auto',
-              marginRight: 'auto',
-              marginTop: 0,
-              marginBottom: 0,
-              display: 'block',
-              textAlign: 'left',
-              border: '1.5px solid #0f172a',
-              borderRadius: '3.5mm',
-              background: '#ffffff',
-              color: '#0f172a',
-              overflow: 'hidden',
-              boxSizing: 'border-box',
+              padding: '2.5mm 4mm 2mm',
+              textAlign: 'center',
+              borderBottom: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
+              background: isMock ? '#fffbeb' : '#fafafa',
             }}
           >
-            {/* Header with College Logo */}
-            <div
-              className="print-receipt-header"
-              style={{
-                padding: '4mm 5mm 3.5mm',
-                textAlign: 'center',
-                borderBottom: '1.5px dashed #64748b',
-                background: '#fafafa',
-              }}
-            >
-              {logo ? (
-                <img
-                  src={logo}
-                  alt="College Logo"
-                  className="receipt-logo"
-                  decoding="sync"
-                  loading="eager"
-                  style={{
-                    width: '18mm',
-                    height: '18mm',
-                    maxWidth: '18mm',
-                    maxHeight: '18mm',
-                    objectFit: 'contain',
-                    margin: '0 auto 2.5mm',
-                    display: 'block',
-                  }}
-                />
-              ) : null}
-              <h2
-                className="receipt-inst-name"
+            {logo ? (
+              <img
+                src={logo}
+                alt="College Logo"
+                className="receipt-logo"
+                decoding="sync"
+                loading="eager"
                 style={{
-                  fontSize: '11pt',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em',
-                  lineHeight: 1.2,
-                  margin: 0,
-                  color: '#0f172a',
-                  textAlign: 'center',
-                }}
-              >
-                {institution}
-              </h2>
-              <p
-                className="receipt-election-name"
-                style={{
-                  fontSize: '8.5pt',
-                  color: '#334155',
-                  margin: '1mm 0',
-                  fontWeight: 500,
-                  textAlign: 'center',
-                }}
-              >
-                {receipt.election}
-              </p>
-              <div style={{ textAlign: 'center', marginTop: '1mm' }}>
-                <span
-                  className="receipt-badge"
-                  style={{
-                    display: 'inline-block',
-                    fontSize: '6.5pt',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: receipt.is_mock ? '#b45309' : '#0f172a',
-                    background: receipt.is_mock ? '#fef3c7' : 'transparent',
-                    border: receipt.is_mock ? '0.8px solid #d97706' : '0.8px solid #0f172a',
-                    borderRadius: '1.5mm',
-                    padding: '0.5mm 2.5mm',
-                  }}
-                >
-                  {receipt.is_mock ? 'MOCK ELECTION · PRACTICE SLIP' : 'Official Vote Receipt · VVPAT'}
-                </span>
-              </div>
-            </div>
-
-            {/* Voter Slip ID */}
-            <div
-              className="receipt-slip-section"
-              style={{
-                padding: '3mm 4mm',
-                textAlign: 'center',
-                borderBottom: '1px dashed #94a3b8',
-                background: '#ffffff',
-              }}
-            >
-              <span
-                className="receipt-slip-label"
-                style={{
+                  height: '12mm',
+                  maxWidth: '14mm',
+                  maxHeight: '12mm',
+                  objectFit: 'contain',
+                  margin: '0 auto 1.5mm',
                   display: 'block',
-                  fontSize: '6.5pt',
-                  letterSpacing: '0.15em',
+                }}
+              />
+            ) : null}
+            <h2
+              className="receipt-inst-name"
+              style={{
+                fontSize: '8.5pt',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.02em',
+                lineHeight: 1.15,
+                margin: 0,
+                color: isMock ? '#92400e' : '#0f172a',
+                textAlign: 'center',
+              }}
+            >
+              {institution}
+            </h2>
+            <p
+              className="receipt-election-name"
+              style={{
+                fontSize: '7pt',
+                color: isMock ? '#b45309' : '#334155',
+                margin: '0.5mm 0',
+                fontWeight: 500,
+                textAlign: 'center',
+              }}
+            >
+              {receipt.election}
+            </p>
+            <div style={{ textAlign: 'center', marginTop: '0.5mm' }}>
+              <span
+                className="receipt-badge"
+                style={{
+                  display: 'inline-block',
+                  fontSize: '5.5pt',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
+                  color: isMock ? '#92400e' : '#0f172a',
+                  background: isMock ? '#fef3c7' : '#ffffff',
+                  border: isMock ? '0.8px solid #d97706' : '0.8px solid #0f172a',
+                  borderRadius: '1mm',
+                  padding: '0.2mm 2mm',
+                }}
+              >
+                {isMock ? 'MOCK ELECTION · PRACTICE SLIP' : 'Official Vote Receipt · VVPAT'}
+              </span>
+            </div>
+          </div>
+
+          {/* Banner: Booth, Slip ID, Timestamp */}
+          <div
+            className="receipt-banner"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.5mm 4mm',
+              borderBottom: isMock ? '1px dashed #f59e0b' : '1px dashed #94a3b8',
+              background: '#ffffff',
+              fontSize: '6.5pt',
+            }}
+          >
+            <div style={{ color: '#475569', fontWeight: 500 }}>
+              Booth: {receipt.booth || 'Kiosk'}
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span
+                style={{
+                  fontSize: '5pt',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
                   color: '#64748b',
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  display: 'block',
                 }}
               >
                 Voter Slip ID
               </span>
-              <p
+              <span
                 className="receipt-slip-id"
                 style={{
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                  fontSize: '15pt',
-                  fontWeight: 700,
+                  fontSize: '10.5pt',
+                  fontWeight: 800,
                   letterSpacing: '0.08em',
                   color: '#0f172a',
-                  margin: '0.5mm 0 0',
-                  textAlign: 'center',
                 }}
               >
                 {receipt.slip}
-              </p>
+              </span>
             </div>
+            <div style={{ color: '#475569', fontWeight: 500 }}>
+              Time: {receipt.time}
+            </div>
+          </div>
 
-            {/* Ballot Choices Table */}
+          {/* Ballot Choices Grid (2-column layout for <= 140mm height) */}
+          {lines.length <= 4 ? (
             <table
               className="receipt-table"
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt' }}
             >
               <thead>
-                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                  <th
-                    className="receipt-th-pos"
-                    style={{
-                      padding: '1.5mm 4mm',
-                      fontSize: '7pt',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      color: '#475569',
-                      textAlign: 'left',
-                    }}
-                  >
+                <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
                     Contested Position
                   </th>
-                  <th
-                    className="receipt-th-choice"
-                    style={{
-                      padding: '1.5mm 4mm',
-                      fontSize: '7pt',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      color: '#475569',
-                      textAlign: 'right',
-                    }}
-                  >
+                  <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
                     Selected Choice
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {receipt.lines.map((l) => (
-                  <tr key={l.position} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td
-                      className="receipt-td-pos"
-                      style={{ padding: '2mm 4mm', color: '#334155', fontWeight: 500 }}
-                    >
-                      {l.position}
-                    </td>
-                    <td
-                      className="receipt-td-choice"
-                      style={{
-                        padding: '2mm 4mm',
-                        textAlign: 'right',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                      }}
-                    >
-                      {l.choice}
-                    </td>
+                {lines.map((l) => (
+                  <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
+                    <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-
-            {/* Footer with Booth info and Verification Note */}
+          ) : (
             <div
-              className="receipt-footer"
+              className="receipt-grid"
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: '#ffffff' }}
+            >
+              <table
+                className="receipt-table"
+                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt', borderRight: '1px solid #cbd5e1' }}
+              >
+                <thead>
+                  <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
+                      Contested Position
+                    </th>
+                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
+                      Selected Choice
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {col1.map((l) => (
+                    <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
+                      <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <table
+                className="receipt-table"
+                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt' }}
+              >
+                <thead>
+                  <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
+                      Contested Position
+                    </th>
+                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
+                      Selected Choice
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {col2.map((l) => (
+                    <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
+                      <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Footer with Verification Note */}
+          <div
+            className="receipt-footer"
+            style={{
+              padding: '1.5mm 3mm',
+              borderTop: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
+              background: isMock ? '#fffbeb' : '#fafafa',
+              textAlign: 'center',
+            }}
+          >
+            <p
+              className="receipt-instructions"
               style={{
-                padding: '3mm 4mm',
-                borderTop: '1.5px dashed #64748b',
-                background: '#fafafa',
+                fontSize: '5.5pt',
+                color: isMock ? '#b45309' : '#64748b',
+                lineHeight: 1.2,
+                margin: 0,
                 textAlign: 'center',
               }}
             >
-              <div
-                className="receipt-meta"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '7pt',
-                  color: '#475569',
-                  marginBottom: '1.5mm',
-                }}
-              >
-                <span><strong>Booth:</strong> {receipt.booth || 'Kiosk'}</span>
-                <span><strong>Time:</strong> {receipt.time}</span>
-              </div>
-              <p
-                className="receipt-instructions"
-                style={{ fontSize: '6.5pt', color: receipt.is_mock ? '#b45309' : '#64748b', lineHeight: 1.35, margin: 0, textAlign: 'center' }}
-              >
-                {receipt.is_mock
-                  ? 'PRACTICE VOTE: This is a mock election. Recorded votes are wiped when the mock ends.'
-                  : 'Check your choices above, then fold this slip and drop it into the box at the booth.'}
-              </p>
-            </div>
+              {isMock
+                ? '*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE *** Check your choices above, then drop this practice slip into the mock box.'
+                : 'Check your choices above, then fold this slip and drop it into the box at the booth.'}
+            </p>
           </div>
+        </div>
+
+        {/* Tear or Cut Guide Line (Half A4 Mark) */}
+        <div
+          className="receipt-tear-guide"
+          style={{
+            width: '184mm',
+            margin: '5mm auto 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2mm',
+            color: '#94a3b8',
+            fontSize: '6pt',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+        >
+          <span>✂</span>
+          <div style={{ flex: 1, borderTop: '1px dashed #94a3b8' }} />
+          <span>TEAR OR CUT HERE (HALF A4 · 148.5 MM)</span>
+          <div style={{ flex: 1, borderTop: '1px dashed #94a3b8' }} />
+          <span>✂</span>
         </div>
       </div>
     </PrintPortal>

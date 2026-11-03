@@ -1,5 +1,7 @@
 'use strict';
 // The vote copy: validation, HTML for the printer, and the copy kept on this computer's disk.
+// Formatted to fit strictly in the top half of an A4 page (height < 120mm) so one A4 sheet
+// can be torn/cut in half to yield two receipts without clipping or overflowing.
 const fs = require('fs');
 const path = require('path');
 
@@ -13,7 +15,7 @@ function normalize(r = {}) {
   return {
     institution: clean(r.institution, 80),
     election: clean(r.election, 80),
-    slip: clean(r.slip, 40),
+    slip: clean(r.slip || r.slip_id, 40),
     booth: clean(r.booth, 20),
     time: clean(r.time, 40),
     printer: clean(r.printer, 120),
@@ -25,8 +27,34 @@ function normalize(r = {}) {
 }
 
 function toHtml(r) {
-  const rows = r.lines.map((l) => `<tr><td class="p">${esc(l.position)}</td><td class="c">${esc(l.choice)}</td></tr>`).join('');
+  const lines = Array.isArray(r.lines) ? r.lines : [];
+  const mid = Math.ceil(lines.length / 2);
+  const col1 = lines.slice(0, mid);
+  const col2 = lines.slice(mid);
+
+  const rowHtml = (l) => `<tr><td class="p">${esc(l.position)}</td><td class="c">${esc(l.choice)}</td></tr>`;
+  const col1Rows = col1.map(rowHtml).join('');
+  const col2Rows = col2.map(rowHtml).join('');
+
   const logoHtml = r.logo ? `<img class="logo" src="${esc(r.logo)}" alt="Logo" />` : '';
+  const isMock = Boolean(r.is_mock);
+
+  const gridHtml = lines.length <= 4
+    ? `<table class="col-table full-table">
+        <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
+        <tbody>${lines.map(rowHtml).join('')}</tbody>
+      </table>`
+    : `<div class="grid">
+        <table class="col-table">
+          <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
+          <tbody>${col1Rows}</tbody>
+        </table>
+        <table class="col-table">
+          <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
+          <tbody>${col2Rows}</tbody>
+        </table>
+      </div>`;
+
   return `<!doctype html><html><head><meta charset="utf-8"><title>Vote copy ${esc(r.slip)}</title><style>
     @page { size: A4 portrait; margin: 0; }
     html, body {
@@ -42,135 +70,168 @@ function toHtml(r) {
     .page-wrap {
       width: 100%;
       margin: 0 auto;
-      padding: 16mm 0 0 0;
-      display: block;
-      text-align: center;
+      padding: 4mm 0 0 0;
       box-sizing: border-box;
+      text-align: center;
     }
     .card {
-      width: 110mm;
-      max-width: 110mm;
+      width: 184mm;
+      max-width: 184mm;
       margin-left: auto;
       margin-right: auto;
       margin-top: 0;
       margin-bottom: 0;
       display: block;
       text-align: left;
-      border: 1.5px solid #0f172a;
-      border-radius: 3.5mm;
+      border: 1.5px solid ${isMock ? '#d97706' : '#0f172a'};
+      border-radius: 3mm;
       background: #ffffff;
       overflow: hidden;
       box-sizing: border-box;
     }
     .hdr {
-      padding: 4mm 5mm 3.5mm;
+      padding: 2.5mm 4mm 2mm;
       text-align: center;
-      border-bottom: 1.5px dashed #64748b;
-      background: #fafafa;
+      border-bottom: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
+      background: ${isMock ? '#fffbeb' : '#fafafa'};
     }
     .logo {
-      width: 18mm;
-      height: 18mm;
-      max-width: 18mm;
-      max-height: 18mm;
+      height: 12mm;
+      max-width: 14mm;
+      max-height: 12mm;
       object-fit: contain;
-      margin: 0 auto 2.5mm;
+      margin: 0 auto 1.5mm;
       display: block;
     }
     h1 {
-      font-size: 11pt;
+      font-size: 8.5pt;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: .03em;
+      letter-spacing: .02em;
       margin: 0;
-      line-height: 1.2;
+      line-height: 1.15;
       text-align: center;
+      color: ${isMock ? '#92400e' : '#0f172a'};
     }
     .sub {
-      font-size: 8.5pt;
-      color: #334155;
-      margin: 1mm 0;
+      font-size: 7pt;
+      color: ${isMock ? '#b45309' : '#334155'};
+      margin: 0.5mm 0;
       text-align: center;
+      font-weight: 500;
     }
     .badge {
       display: inline-block;
-      font-size: 6.5pt;
+      font-size: 5.5pt;
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: #0f172a;
-      border: .8px solid #0f172a;
-      border-radius: 1.5mm;
-      padding: .5mm 2.5mm;
-      margin-top: 1mm;
+      color: ${isMock ? '#92400e' : '#0f172a'};
+      border: .8px solid ${isMock ? '#d97706' : '#0f172a'};
+      background: ${isMock ? '#fef3c7' : '#ffffff'};
+      border-radius: 1mm;
+      padding: .2mm 2mm;
+      margin-top: .5mm;
       text-align: center;
     }
-    .slip-box {
-      padding: 3mm 4mm;
-      text-align: center;
-      border-bottom: 1px dashed #94a3b8;
+    .banner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5mm 4mm;
+      border-bottom: 1px dashed ${isMock ? '#f59e0b' : '#94a3b8'};
       background: #ffffff;
-    }
-    .l {
       font-size: 6.5pt;
+    }
+    .banner .side {
+      color: #475569;
+      font-weight: 500;
+    }
+    .banner .slip {
+      text-align: center;
+    }
+    .banner .slip-lbl {
+      font-size: 5pt;
       text-transform: uppercase;
-      letter-spacing: .15em;
+      letter-spacing: .12em;
       color: #64748b;
-      font-weight: 600;
+      font-weight: 700;
       display: block;
     }
-    .id {
+    .banner .slip-id {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 15pt;
-      font-weight: 700;
+      font-size: 10.5pt;
+      font-weight: 800;
       letter-spacing: .08em;
       color: #0f172a;
-      margin: .5mm 0 0;
-      text-align: center;
     }
-    table {
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      background: #ffffff;
+    }
+    .col-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 8.5pt;
+      font-size: 7.2pt;
+    }
+    .grid .col-table:first-child {
+      border-right: 1px solid #cbd5e1;
     }
     th {
-      background: #f1f5f9;
-      padding: 1.5mm 4mm;
-      font-size: 7pt;
+      background: ${isMock ? '#fef3c7' : '#f1f5f9'};
+      padding: 1.2mm 3mm;
+      font-size: 6pt;
       text-transform: uppercase;
-      letter-spacing: .06em;
+      letter-spacing: .05em;
       color: #475569;
       border-bottom: 1px solid #cbd5e1;
     }
     th.p { text-align: left; }
     th.c { text-align: right; }
     td {
-      padding: 2mm 4mm;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 1.2mm 3mm;
+      border-bottom: 1px solid #f1f5f9;
       vertical-align: middle;
+      line-height: 1.15;
     }
     tr:last-child td { border-bottom: 0; }
     .p { color: #334155; font-weight: 500; }
     .c { text-align: right; font-weight: 700; color: #0f172a; }
     .ftr {
-      padding: 3mm 4mm;
-      border-top: 1.5px dashed #64748b;
-      background: #fafafa;
+      padding: 1.5mm 3mm;
+      border-top: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
+      background: ${isMock ? '#fffbeb' : '#fafafa'};
       text-align: center;
-    }
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 7pt;
-      color: #475569;
-      margin-bottom: 1.5mm;
     }
     .info {
-      font-size: 6.5pt;
-      color: #64748b;
-      line-height: 1.35;
+      font-size: 5.5pt;
+      color: ${isMock ? '#b45309' : '#64748b'};
       margin: 0;
       text-align: center;
+      line-height: 1.2;
+    }
+    .mock-warning {
+      font-weight: 800;
+      letter-spacing: .05em;
+      display: block;
+      margin-bottom: .5mm;
+    }
+    .tear-guide {
+      width: 184mm;
+      margin: 5mm auto 0;
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+      color: #94a3b8;
+      font-size: 6pt;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .tear-line {
+      flex: 1;
+      border-top: 1px dashed #94a3b8;
     }
   </style></head><body>
     <div class="page-wrap">
@@ -179,33 +240,31 @@ function toHtml(r) {
           ${logoHtml}
           <h1>${esc(r.institution)}</h1>
           <div class="sub">${esc(r.election)}</div>
-          ${
-            r.is_mock
-              ? '<div class="badge" style="background:#fef3c7;border-color:#d97706;color:#92400e;">MOCK ELECTION · PRACTICE SLIP</div>'
-              : '<div class="badge">Official Vote Receipt · VVPAT</div>'
-          }
+          <div class="badge">${isMock ? 'MOCK ELECTION · PRACTICE SLIP' : 'OFFICIAL VOTE RECEIPT - VVPAT'}</div>
         </div>
-        <div class="slip-box">
-          <div class="l">Voter Slip ID</div>
-          <div class="id">${esc(r.slip)}</div>
-        </div>
-        <table>
-          <thead>
-            <tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="ftr">
-          <div class="meta">
-            <span><strong>Booth:</strong> ${esc(r.booth || 'Kiosk')}</span>
-            <span><strong>Time:</strong> ${esc(r.time)}</span>
+        <div class="banner">
+          <div class="side">Booth: ${esc(r.booth || 'BOOTH')}</div>
+          <div class="slip">
+            <span class="slip-lbl">VOTER SLIP ID</span>
+            <span class="slip-id">${esc(r.slip)}</span>
           </div>
+          <div class="side">Time: ${esc(r.time)}</div>
+        </div>
+        ${gridHtml}
+        <div class="ftr">
           ${
-            r.is_mock
-              ? '<p class="info" style="color:#b45309;font-weight:600;">PRACTICE BALLOT: This is a mock election. Choices will be wiped when the mock ends.</p>'
+            isMock
+              ? '<p class="info"><span class="mock-warning">*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE ***</span>Check your choices above, then drop this practice slip into the mock box.</p>'
               : '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
           }
         </div>
+      </div>
+      <div class="tear-guide">
+        <span>✂</span>
+        <div class="tear-line"></div>
+        <span>TEAR OR CUT HERE (HALF A4 · 148.5 MM)</span>
+        <div class="tear-line"></div>
+        <span>✂</span>
       </div>
     </div>
   </body></html>`;
@@ -213,7 +272,6 @@ function toHtml(r) {
 
 /** Save the copy before printing: one HTML file per vote plus one JSON line, flushed to disk. */
 function archive(dir, r, now = new Date()) {
-  const day = now.toISOString().slice(10);
   const folder = path.join(dir, now.toISOString().slice(0, 10));
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   const slip = r.slip.replace(/[^A-Za-z0-9_-]/g, '_') || 'unknown';

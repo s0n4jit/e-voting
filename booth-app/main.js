@@ -90,11 +90,18 @@ async function installedPrinters() {
 const FILE_PRINTER = /print to pdf|xps document writer/i;
 
 async function withPage(html, fn) {
-  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      sandbox: true,
+      javascript: false,
+      backgroundThrottling: false,
+    },
+  });
   try {
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    // Brief pause to allow any base64 images and styles to paint into layout buffer
-    await new Promise((r) => setTimeout(r, 200));
+    // Allow styles and base64 logo image to layout and rasterize before printing
+    await new Promise((r) => setTimeout(r, 450));
     return await fn(win.webContents);
   } finally {
     win.destroy();
