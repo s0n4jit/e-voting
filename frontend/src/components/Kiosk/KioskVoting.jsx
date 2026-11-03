@@ -650,12 +650,12 @@ export const KioskVoting = () => {
 
   const chrome = (children, { progress = true } = {}) => (
     <div
-      className="min-h-screen bg-bg flex flex-col select-none kiosk-screen overflow-y-auto"
+      className="h-screen w-full bg-bg flex flex-col select-none kiosk-screen overflow-hidden"
       data-kiosk="true"
       onDragStart={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur border-b border-line">
+      <header className="shrink-0 z-30 bg-bg/95 backdrop-blur border-b border-line shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 h-12 sm:h-14 flex items-center justify-between gap-4">
           <BrandMark />
           <div className="flex items-center gap-3">
@@ -673,7 +673,11 @@ export const KioskVoting = () => {
           </div>
         )}
       </header>
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-3 sm:py-4 pb-24">{children}</main>
+      <main className="flex-1 w-full overflow-y-auto px-4 py-3 sm:py-4 pb-24">
+        <div className="max-w-6xl mx-auto w-full">
+          {children}
+        </div>
+      </main>
       <NetworkOfflineOverlay />
     </div>
   );
@@ -777,9 +781,11 @@ export const KioskVoting = () => {
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
           <div key="review" className={animation}>
-            <p className="text-sm text-muted">Final step</p>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1">Review your choices</h1>
-            <p className="text-muted mt-1 text-sm">Check each choice. You can change any of them before submitting.</p>
+            <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur -mx-4 px-4 py-2.5 border-b border-line/40">
+              <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-brand">Final step</p>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">Review your choices</h1>
+              <p className="text-muted text-xs sm:text-sm mt-0.5">Check each choice. You can change any of them before submitting.</p>
+            </div>
 
             <ul className="card divide-y divide-line mt-6">
               {positions.map((p, i) => {
@@ -807,16 +813,18 @@ export const KioskVoting = () => {
           </div>
         ) : (
           <div key={step} className={animation}>
-            <div className="flex items-center justify-between text-sm text-muted">
-              <span>Position {step + 1} of {total}</span>
-              <span className="flex gap-1.5" aria-hidden="true">
-                {positions.map((p, i) => (
-                  <span key={p.position} className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-brand' : choices[p.position] ? 'w-1.5 bg-brand/60' : 'w-1.5 bg-line'}`} />
-                ))}
-              </span>
+            <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur -mx-4 px-4 py-2 sm:py-2.5 border-b border-line/40">
+              <div className="flex items-center justify-between text-sm text-muted">
+                <span className="font-medium">Position {step + 1} of {total}</span>
+                <span className="flex gap-1.5" aria-hidden="true">
+                  {positions.map((p, i) => (
+                    <span key={p.position} className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-brand' : choices[p.position] ? 'w-1.5 bg-brand/60' : 'w-1.5 bg-line'}`} />
+                  ))}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">{current.position}</h1>
+              <p className="text-muted text-xs mt-0.5">Choose one candidate for this position.</p>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">{current.position}</h1>
-            <p className="text-muted mt-0.5 text-xs">Choose one candidate for this position.</p>
 
             <div
               role="radiogroup"
