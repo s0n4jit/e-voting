@@ -60,11 +60,7 @@ docker compose ps</code></pre></div></li>
 </ol>
 
 <h2 id="booths">4. Set up voting booths</h2>
-<p>On the booth computer (Ubuntu), from the repository:</p>
-<pre><code>cd kiosk/ubuntu
-sudo VOTING_URL="https://vote.example.edu/kiosk/vote" bash setup-kiosk.sh
-sudo reboot</code></pre>
-<p>The script installs a locked-down browser session that opens only <code>/kiosk/vote</code>. In the Election Officer panel open <em>Voting booths</em>, generate a booth token, then enter the token and your current authenticator code on the booth screen. The booth is named <code>BOOTH-01</code>, <code>BOOTH-02</code>… automatically. Deleting a booth in the panel revokes it immediately. Removal of a machine is covered in the guide inside the panel and in <a href="guide?doc=KIOSK_SETUP">booth setup guide</a>.</p>
+<p>Download the official desktop booth app (Windows <code>.exe</code>, Ubuntu <code>.deb</code>, or Linux <code>.AppImage</code>) on each booth machine from the officer panel. Launch the app, enter your portal address and printer, and click <em>Save and start voting</em>. Generate a booth token in the officer panel to activate the booth. The app runs in locked full-screen mode and accepts only votes and numpad entries.</p>
 
 <h2 id="operate">5. Operate</h2>
 <table>

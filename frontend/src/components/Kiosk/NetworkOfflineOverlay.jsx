@@ -7,7 +7,7 @@ import {
   ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 
-export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
+export const NetworkOfflineOverlay = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [checking, setChecking] = useState(false);
   const [retryingIn, setRetryingIn] = useState(3);
@@ -105,19 +105,7 @@ export const NetworkOfflineOverlay = ({ onOpenMaintenance }) => {
           </span>
         </div>
 
-        {/* Staff diagnostics Shortcut Button */}
-        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
-          <span>Shortcuts: Ctrl+Alt+Shift+N</span>
-          {onOpenMaintenance && (
-            <button
-              onClick={onOpenMaintenance}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
-            >
-              <WrenchScrewdriverIcon className="w-4 h-4 text-amber-400" />
-              <span>Staff diagnostics</span>
-            </button>
-          )}
-        </div>
+
       </div>
     </div>
   );

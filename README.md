@@ -63,7 +63,7 @@ Open the app and complete the installation wizard; it asks for the setup token p
 |---|---|
 | `backend/` | Flask API, models, migrations, `manage.py` |
 | `frontend/` | React + Vite + Tailwind web app |
-| `kiosk/ubuntu/` | Lock-down scripts and policies for Ubuntu voting booths |
+| `booth-app/` | Desktop kiosk application for Windows and Linux |
 | `tests/` | Backend test suite (pytest) |
 | `docs/` | Guides, security notes, landing page and the LaTeX report |
 | `docker-compose.yml` | Self-hosted stack: PostgreSQL, API, web |

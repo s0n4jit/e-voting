@@ -114,7 +114,7 @@ server {
 
 ## Voting booths
 
-Booths use one address: `https://<portal>/kiosk/vote` (`/kiosk` and `/vote` redirect to it). Booth lock-down scripts are in `kiosk/ubuntu/`; the browser policy there lets the locked-down browser open only `/kiosk/vote…`, so nothing else can be typed in.
+Booths use one address: `https://<portal>/kiosk/vote` (`/kiosk` and `/vote` redirect to it). The dedicated desktop booth app (`Campus E-Voting Booth`) locks down the full screen on Windows and Linux and restricts navigation strictly to `/kiosk/vote…`.
 
 To set a booth up: in the officer panel open **Voting booths** and press **Generate booth token** (valid once, 15 minutes). On the booth computer enter that token and the Election Officer's current authenticator code at `/kiosk/vote`. The booth gets an automatic ID for the election (BOOTH-01, BOOTH-02, …) and takes votes only while the election is "Voting active". Deleting a booth in the panel signs it out within seconds.
 

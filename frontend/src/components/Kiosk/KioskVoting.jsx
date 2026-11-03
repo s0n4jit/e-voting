@@ -8,9 +8,7 @@ import Modal from '../common/Modal';
 import PrintPortal from '../common/PrintPortal';
 import { useBrand } from '../../context/BrandContext';
 import LoadingSpinner from '../common/LoadingSpinner';
-import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
-import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 const IDLE_RESET_MS = 5 * 60 * 1000;
 const RESET_AFTER_VOTE_S = 10;
@@ -145,7 +143,7 @@ const VoteReceipt = ({ receipt }) => {
                   padding: '0.2mm 2.5mm',
                 }}
               >
-                {isMock ? 'MOCK ELECTION · PRACTICE SLIP' : 'Official Vote Receipt · VVPAT'}
+                {isMock ? 'MOCK ELECTION' : 'Official Vote Receipt · VVPAT'}
               </span>
             </div>
           </div>
@@ -245,7 +243,7 @@ const VoteReceipt = ({ receipt }) => {
               }}
             >
               {isMock
-                ? '*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE *** Check your choices above, then drop this practice slip into the mock box.'
+                ? '*** MOCK ELECTION *** Check your choices above, then drop this slip into the box at the booth.'
                 : 'Check your choices above, then fold this slip and drop it into the box at the booth.'}
             </p>
           </div>
@@ -325,16 +323,6 @@ export const KioskVoting = () => {
   const [fromReview, setFromReview] = useState(false);
   const submitting = useRef(false);
 
-  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
-  const [maintenanceTab, setMaintenanceTab] = useState('overview');
-  useMaintenanceShortcuts({
-    onOpenMaintenance: (tab = 'overview') => {
-      setMaintenanceTab(tab);
-      setMaintenanceOpen(true);
-    },
-    onCloseMaintenance: () => setMaintenanceOpen(false),
-    isMaintenanceOpen: maintenanceOpen,
-  });
 
   const finish = useCallback(() => {
     voterApi.endSession(localStorage.getItem('access_token')).catch(() => {}); // the desk list stops showing this student as active
@@ -597,8 +585,7 @@ export const KioskVoting = () => {
         )}
       </header>
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-8">{children}</main>
-      <StaffMaintenanceModal isOpen={maintenanceOpen} onClose={() => setMaintenanceOpen(false)} initialTab={maintenanceTab} />
-      <NetworkOfflineOverlay onOpenMaintenance={() => { setMaintenanceTab('network'); setMaintenanceOpen(true); }} />
+      <NetworkOfflineOverlay />
     </div>
   );
 

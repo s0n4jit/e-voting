@@ -204,7 +204,7 @@ function toHtml(r) {
           ${logoHtml}
           <h1>${esc(r.institution)}</h1>
           <div class="sub">${esc(r.election)}</div>
-          <div class="badge">${isMock ? 'MOCK ELECTION · PRACTICE SLIP' : 'OFFICIAL VOTE RECEIPT - VVPAT'}</div>
+          <div class="badge">${isMock ? 'MOCK ELECTION' : 'OFFICIAL VOTE RECEIPT - VVPAT'}</div>
         </div>
         <div class="banner">
           <div class="side">Booth: ${esc(r.booth || 'BOOTH')}</div>
@@ -225,7 +225,7 @@ function toHtml(r) {
         <div class="ftr">
           ${
             isMock
-              ? '<p class="info"><span class="mock-warning">*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE ***</span>Check your choices above, then drop this practice slip into the mock box.</p>'
+              ? '<p class="info"><span class="mock-warning">*** MOCK ELECTION ***</span>Check your choices above, then drop this slip into the box at the booth.</p>'
               : '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
           }
         </div>

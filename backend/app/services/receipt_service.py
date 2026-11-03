@@ -119,14 +119,14 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
     badge_bg = "#fef3c7" if is_mock else "#ffffff"
     badge_border = "#d97706" if is_mock else "#0f172a"
     badge_text = "#92400e" if is_mock else "#0f172a"
-    badge_label = "MOCK ELECTION - PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
+    badge_label = "MOCK ELECTION" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
     banner_dash = "#f59e0b" if is_mock else "#94a3b8"
     th_bg = "#fef3c7" if is_mock else "#f1f5f9"
     th_border = "#fde68a" if is_mock else "#cbd5e1"
     th_text = "#92400e" if is_mock else "#475569"
 
     footer_content = (
-        '<p class="info"><span class="mock-warning">*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE ***</span>Check your choices above, then drop this practice slip into the mock box.</p>'
+        '<p class="info"><span class="mock-warning">*** MOCK ELECTION ***</span>Check your choices above, then drop this slip into the box at the booth.</p>'
         if is_mock
         else '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
     )
@@ -348,7 +348,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     badge_bg = colors.HexColor("#fef3c7") if is_mock else colors.HexColor("#ffffff")
     badge_border = colors.HexColor("#d97706") if is_mock else colors.HexColor("#0f172a")
     badge_text = colors.HexColor("#92400e") if is_mock else colors.HexColor("#0f172a")
-    badge_label = "MOCK ELECTION - PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
+    badge_label = "MOCK ELECTION" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
 
     # Running Y tracking
     y = card_top - 6.0
@@ -481,13 +481,13 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     y -= 7.0
 
     if is_mock:
-        c.setFont("Helvetica-Bold", 5.5)
+        c.setFont("Helvetica-Bold", 5.8)
         c.setFillColor(colors.HexColor("#b45309"))
-        c.drawCentredString(width / 2.0, y, "*** PRACTICE BALLOT - NOT AN OFFICIAL VOTE ***")
+        c.drawCentredString(width / 2.0, y, "*** MOCK ELECTION ***")
         y -= 7.0
         c.setFont("Helvetica", 5.4)
         c.setFillColor(colors.HexColor("#b45309"))
-        c.drawCentredString(width / 2.0, y, "Check your choices above, then drop this practice slip into the mock box.")
+        c.drawCentredString(width / 2.0, y, "Check your choices above, then drop this slip into the box at the booth.")
         y -= 6.0
     else:
         c.setFont("Helvetica", 5.5)
@@ -609,6 +609,8 @@ class ReceiptService:
 
         # Cache to disk
         try:
+            storage_dir = get_receipt_dir(receipt.is_mock)
+            pdf_path = os.path.join(storage_dir, f"{receipt.slip_id}.pdf")
             with open(pdf_path, "wb") as f:
                 f.write(pdf_bytes)
         except Exception:
@@ -637,7 +639,7 @@ class ReceiptService:
                     r.booth_name or "Booth",
                     r.election.title if r.election else "",
                     r.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    "Mock Practice" if r.is_mock else "Official Vote",
+                    "Mock Election" if r.is_mock else "Official Vote",
                     choices_summary,
                 ])
             zf.writestr("manifest.csv", csv_buf.getvalue())

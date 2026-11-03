@@ -8,11 +8,10 @@
 |---|---|
 | First start | Setup screen: portal address (must end with `/kiosk/vote`), printer (list of installed printers, test page), start with the computer |
 | Locked | Full screen, always on top, only the portal address can load, no new windows, developer tools off, browser shortcuts blocked |
-| Vote copy | Every vote copy is saved first in the app's data folder: `receipts/<date>/<time>-<slip>.html`, the same as a **PDF**, and a line in `receipts/receipts.jsonl`. Then it prints silently to the chosen printer. The officer's **Settings → Booth printing** (on/off, printer name, copies) applies |
-| Mock elections | When a mock election (`is_mock=True`) is active, receipts are automatically routed into `mockelection/<date>/<time>-<slip>.html`, rendered with an amber `MOCK ELECTION · PRACTICE SLIP` badge, and recorded to `mockelection/mock-receipts.jsonl` so real vote tallies and audits remain completely untouched |
-| "Microsoft Print to PDF" | That Windows printer always asks for a file name, so the app does not use it: when it is the chosen (or default) printer, the saved PDF *is* the output and nothing pops up. **Maintenance → Open saved receipts** opens the folder |
+| Central Storage | The booth machine is 100% stateless: every voter slip and vector PDF is streamed directly to the central election server via `/api/booth/receipt-upload`. No receipts are kept on the kiosk disk |
+| Silent Printing | After each vote the vote copy prints silently to the chosen printer without opening a dialog. The officer's **Settings → Booth printing** applies |
 | Auto-updater | Automatically checks for releases on GitHub (`s0n4jit/e-voting`) using `electron-updater`. Updates download silently in the background and install when the app restarts. Officers can also click **Check for updates** in the maintenance screen |
-| Leaving | **Ctrl+Alt+Shift+Q** asks for the Election Officer's authenticator code (the same check as the website's maintenance screen: 5 wrong codes lock the check for 15 minutes). Unlocks into Maintenance mode: Return to voting, Address and printer, Saved receipts, Practice receipts, Check for updates, Quit. It returns to voting by itself after 15 minutes |
+| Leaving | **Ctrl+Alt+Shift+Q** asks for the Election Officer's authenticator code (5 wrong codes lock the check for 15 minutes). Unlocks into Maintenance mode: Return to voting, Refresh voting page, Restart booth app, Address and printer, Check for updates, Reboot computer, Quit. It returns to voting by itself after 15 minutes |
 | Network lost | A "Cannot reach the voting portal" screen retries every 5 seconds |
 
 ## Install

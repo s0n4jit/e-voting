@@ -188,7 +188,7 @@ def upload_booth_receipt():
         receipt.pdf_filename = pdf_filename
         receipt.created_at = now
 
-    mode_str = "practice mock" if is_mock else "official"
+    mode_str = "mock" if is_mock else "official"
     try:
         import json
         parsed_c = json.loads(choices_raw) if choices_raw else []

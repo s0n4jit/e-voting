@@ -23,7 +23,7 @@ Settings, **Booth printing**: switch printing on or off, set a printer name (emp
 
 ## Connecting the printer (once per booth machine)
 
-Lab PC (installed with `kiosk/ubuntu/setup-kiosk.sh`), as the administrator account:
+Kiosk machine running the desktop booth app:
 
 ```bash
 sudo evote setup

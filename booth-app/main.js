@@ -174,6 +174,36 @@ function showUi(page, query = {}, opts = {}) {
   uiWin.on('closed', () => { uiWin = null; });
 }
 
+const SWALLOWED_SHORTCUTS = [
+  'Alt+Tab',
+  'Alt+F4',
+  'Alt+Escape',
+  'Alt+Space',
+  'CommandOrControl+Escape',
+  'CommandOrControl+W',
+  'CommandOrControl+Q',
+  'CommandOrControl+R',
+  'CommandOrControl+Shift+R',
+  'F5',
+  'F11',
+];
+
+function registerLockdownShortcuts() {
+  for (const sc of SWALLOWED_SHORTCUTS) {
+    try {
+      globalShortcut.register(sc, () => {});
+    } catch (_) {}
+  }
+}
+
+function unregisterLockdownShortcuts() {
+  for (const sc of SWALLOWED_SHORTCUTS) {
+    try {
+      globalShortcut.unregister(sc);
+    } catch (_) {}
+  }
+}
+
 function startKiosk() {
   if (mainWin) {
     mainWin.loadURL(cfg.url);
@@ -181,30 +211,104 @@ function startKiosk() {
   }
   Menu.setApplicationMenu(null);
   mainWin = new BrowserWindow({
-    fullscreen: true, kiosk: true, frame: false, show: false, backgroundColor: '#0f1330', autoHideMenuBar: true,
+    fullscreen: true,
+    kiosk: true,
+    frame: false,
+    show: false,
+    backgroundColor: '#0f1330',
+    autoHideMenuBar: true,
+    closable: false,
+    minimizable: false,
+    maximizable: false,
+    resizable: false,
+    movable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload-page.js'), contextIsolation: true, sandbox: true, nodeIntegration: false,
-      devTools: false, spellcheck: false, backgroundThrottling: false,
+      preload: path.join(__dirname, 'preload-page.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      devTools: false,
+      spellcheck: false,
+      backgroundThrottling: false,
     },
   });
-  mainWin.setAlwaysOnTop(true, 'screen-saver');
+  mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
   const wc = mainWin.webContents;
   wc.setVisualZoomLevelLimits(1, 1);
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));
   const guard = (e, url) => { if (!url.startsWith(`${config.originOf(cfg.url)}/`)) e.preventDefault(); };
   wc.on('will-navigate', guard);
   wc.on('will-redirect', guard);
+
+  // Disable context menu and browser navigation buttons
+  wc.on('context-menu', (e) => e.preventDefault());
+  wc.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward' || cmd === 'browser-forward') {
+      e.preventDefault();
+    }
+  });
+  wc.on('did-navigate-in-page', () => {
+    wc.clearHistory();
+  });
+
+  // Strict input lockdown: only allow typing voter slip ID / digits, and officer unlock shortcut
   wc.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return;
-    const k = input.key.toLowerCase();
-    const ctrl = input.control || input.meta;
-    if (ctrl && input.alt && input.shift && k === 'q') { e.preventDefault(); openExitPrompt(); return; }
-    const blocked = ['f5', 'f11', 'f12'].includes(k)
-      || (ctrl && ['r', 'w', 'p', 'u', 'l', 'n', 't', 's', '+', '-', '=', '0'].includes(k))
-      || (ctrl && input.shift && ['i', 'j', 'c', 'r'].includes(k))
-      || (input.alt && ['arrowleft', 'arrowright', 'home'].includes(k));
-    if (blocked) e.preventDefault();
+    const k = (input.key || '').toLowerCase();
+    const ctrl = Boolean(input.control || input.meta);
+
+    // 1. Officer exit shortcut: Ctrl+Alt+Shift+Q
+    if (ctrl && input.alt && input.shift && k === 'q') {
+      e.preventDefault();
+      openExitPrompt();
+      return;
+    }
+
+    // 2. Swallow any Meta / Windows / Super key
+    if (input.meta) {
+      e.preventDefault();
+      return;
+    }
+
+    // 3. Swallow ALL Alt combinations (Alt+Tab, Alt+F4, Alt+Esc, Alt+Space, etc.)
+    if (input.alt) {
+      e.preventDefault();
+      return;
+    }
+
+    // 4. Swallow ALL Control combinations (Ctrl+W, Ctrl+R, Ctrl+N, Ctrl+T, Ctrl+Q, Ctrl+Shift+..., etc.)
+    if (input.control) {
+      e.preventDefault();
+      return;
+    }
+
+    // 5. Swallow all Function keys (F1-F12)
+    if (/^f\d+$/i.test(k)) {
+      e.preventDefault();
+      return;
+    }
+
+    // 6. Swallow Escape
+    if (k === 'escape') {
+      e.preventDefault();
+      return;
+    }
   });
+
+  // Automatically reclaim focus if any background notification or OS element attempts to blur
+  mainWin.on('blur', () => {
+    if (!promptWin && !uiWin && mainWin && !mainWin.isDestroyed()) {
+      setImmediate(() => {
+        try {
+          mainWin.focus();
+          mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
+        } catch (_) {}
+      });
+    }
+  });
+
   wc.on('did-fail-load', (_e, code, _d, url, isMain) => {
     if (!isMain || code === -3) return; // -3: aborted by a new navigation
     mainWin.loadFile(path.join(UI_DIR, 'offline.html'), { query: { u: cfg.url } });
@@ -212,6 +316,7 @@ function startKiosk() {
   mainWin.on('close', (e) => { if (!allowQuit) e.preventDefault(); });
   mainWin.once('ready-to-show', () => mainWin.show());
   mainWin.loadURL(cfg.url);
+  registerLockdownShortcuts();
 }
 
 function enterKiosk() {
@@ -219,9 +324,10 @@ function enterKiosk() {
   if (uiWin) uiWin.destroy();
   if (!mainWin) return startKiosk();
   mainWin.setKiosk(true);
-  mainWin.setAlwaysOnTop(true, 'screen-saver');
+  mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWin.show();
   mainWin.focus();
+  registerLockdownShortcuts();
 }
 
 function openExitPrompt() {
@@ -230,13 +336,14 @@ function openExitPrompt() {
     width: 440, height: 320, frame: false, resizable: false, alwaysOnTop: true, parent: mainWin, modal: true, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload-ui.js'), contextIsolation: true, sandbox: true },
   });
-  promptWin.setAlwaysOnTop(true, 'screen-saver');
+  promptWin.setAlwaysOnTop(true, 'screen-saver', 1);
   promptWin.loadFile(path.join(UI_DIR, 'exit.html'));
   promptWin.once('ready-to-show', () => promptWin.show());
   promptWin.on('closed', () => { promptWin = null; });
 }
 
 function leaveKiosk() {
+  unregisterLockdownShortcuts();
   mainWin.setKiosk(false);
   mainWin.setAlwaysOnTop(false);
   mainWin.minimize();
@@ -369,6 +476,31 @@ ui('exit:verify', async (code) => {
 });
 ui('exit:cancel', () => { if (promptWin) promptWin.destroy(); });
 ui('maint:resume', enterKiosk);
+ui('maint:reload', () => {
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.reload();
+  }
+  enterKiosk();
+  return { ok: true };
+});
+ui('maint:relaunch', () => {
+  allowQuit = true;
+  app.relaunch();
+  app.exit(0);
+});
+ui('maint:reboot', () => {
+  allowQuit = true;
+  if (process.platform === 'win32') {
+    execFile('shutdown', ['/r', '/t', '2', '/f'], () => {});
+  } else {
+    execFile('systemctl', ['reboot'], (err) => {
+      if (err) execFile('shutdown', ['-r', 'now'], () => {});
+    });
+  }
+  setTimeout(() => {
+    app.exit(0);
+  }, 1000);
+});
 ui('maint:setup', () => showUi('setup.html', { maintenance: '1' }));
 // Centralized receipts storage: managed on the central election server
 ui('updater:check', async () => {

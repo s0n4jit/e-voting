@@ -457,7 +457,7 @@ const ReceiptManager = () => {
               Clear Mock Election Receipts?
             </h3>
             <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-              This will permanently delete all <strong>{mockCount}</strong> practice slips and PDF files stored on the server.
+              This will permanently delete all <strong>{mockCount}</strong> mock slips and PDF files stored on the server.
               Official live election receipts will NOT be touched.
             </p>
             <div className="mt-6 flex justify-end gap-2.5">
@@ -474,7 +474,7 @@ const ReceiptManager = () => {
                 onClick={clearMockData}
                 className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
               >
-                {clearingMock ? 'Clearing...' : 'Yes, Delete Practice Receipts'}
+                {clearingMock ? 'Clearing...' : 'Yes, Delete Mock Receipts'}
               </button>
             </div>
           </div>

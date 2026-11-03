@@ -1,5 +1,34 @@
 document.getElementById('resume').onclick = () => evoteUi.resume();
+
+const reloadBtn = document.getElementById('reload');
+if (reloadBtn) {
+  reloadBtn.onclick = async () => {
+    reloadBtn.disabled = true;
+    reloadBtn.textContent = 'Reloading ballot...';
+    await evoteUi.reloadPage();
+  };
+}
+
 document.getElementById('setup').onclick = () => evoteUi.openSetup();
+
+const relaunchBtn = document.getElementById('relaunch');
+if (relaunchBtn) {
+  relaunchBtn.onclick = () => {
+    if (confirm('Restart the voting booth app?')) {
+      evoteUi.relaunchApp();
+    }
+  };
+}
+
+const rebootBtn = document.getElementById('reboot');
+if (rebootBtn) {
+  rebootBtn.onclick = () => {
+    if (confirm('Are you sure you want to reboot the entire computer?')) {
+      evoteUi.rebootMachine();
+    }
+  };
+}
+
 document.getElementById('quit').onclick = () => evoteUi.quit();
 
 const checkBtn = document.getElementById('checkUpdate');

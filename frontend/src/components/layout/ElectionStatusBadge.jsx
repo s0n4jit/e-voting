@@ -20,14 +20,22 @@ export default function ElectionStatusBadge() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 1500);
+    const interval = setInterval(refresh, 1000);
 
     const onStateChange = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
     window.addEventListener('election-state-change', onStateChange);
+    window.addEventListener('focus', onVisibility);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('election-state-change', onStateChange);
+      window.removeEventListener('focus', onVisibility);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [refresh]);
 
@@ -40,8 +48,8 @@ export default function ElectionStatusBadge() {
   if (isMock) {
     return (
       <div
-        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-2xs tracking-wide uppercase"
-        title="Mock practice election is running. All test ballots are purged when the mock ends."
+        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-xs tracking-wider uppercase select-none"
+        title="Mock election is running. All test ballots are purged when the mock ends."
       >
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />

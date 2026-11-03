@@ -53,7 +53,7 @@ const page = (roles, element) => (
 /**
  * A browser that has been set up as a voting booth stays on the booth screens: any other address
  * (typed, refreshed or reached with the back button) returns to /kiosk/vote.
- * shortcut: this guards the app, not the browser; the booth's browser policy (kiosk/ubuntu) blocks other sites.
+ * shortcut: this guards the web view; the desktop booth app enforces full-screen kiosk lock and blocks navigation.
  */
 function BoothLock({ children }) {
   const { pathname } = useLocation();

@@ -7,10 +7,8 @@ import { useBooth } from '../../hooks/useBooth';
 import BoothSetup from './BoothSetup';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { BoothClock, BrandMark, Field, ThemeToggle, errorMessage, formatSchedule } from '../ui';
-import StaffMaintenanceModal from './StaffMaintenanceModal';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 import NumPad from './NumPad';
-import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 
 export const KioskLogin = () => {
   const navigate = useNavigate();
@@ -41,17 +39,6 @@ export const KioskLogin = () => {
     else setPin(pin.slice(0, -1));
   };
   const clear = () => (active === 'slip' ? setSlip('') : setPin(''));
-
-  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
-  const [maintenanceTab, setMaintenanceTab] = useState('overview');
-  useMaintenanceShortcuts({
-    onOpenMaintenance: (tab = 'overview') => {
-      setMaintenanceTab(tab);
-      setMaintenanceOpen(true);
-    },
-    onCloseMaintenance: () => setMaintenanceOpen(false),
-    isMaintenanceOpen: maintenanceOpen,
-  });
 
   // A previous voter's session never survives on a shared booth.
   useEffect(() => {
@@ -185,8 +172,7 @@ export const KioskLogin = () => {
       </main>
 
 
-      <StaffMaintenanceModal isOpen={maintenanceOpen} onClose={() => setMaintenanceOpen(false)} initialTab={maintenanceTab} />
-      <NetworkOfflineOverlay onOpenMaintenance={() => { setMaintenanceTab('network'); setMaintenanceOpen(true); }} />
+      <NetworkOfflineOverlay />
     </div>
   );
 };
