@@ -379,6 +379,23 @@ export const KioskVoting = () => {
       });
   }, [electionId]);
 
+  // Suppress drag, text selection, and copy in kiosk browser sessions
+  useEffect(() => {
+    document.body.classList.add('kiosk-screen');
+    const handleDrag = (e) => e.preventDefault();
+    const handleSelect = (e) => e.preventDefault();
+    const handleCopy = (e) => e.preventDefault();
+    window.addEventListener('dragstart', handleDrag, true);
+    window.addEventListener('selectstart', handleSelect, true);
+    window.addEventListener('copy', handleCopy, true);
+    return () => {
+      document.body.classList.remove('kiosk-screen');
+      window.removeEventListener('dragstart', handleDrag, true);
+      window.removeEventListener('selectstart', handleSelect, true);
+      window.removeEventListener('copy', handleCopy, true);
+    };
+  }, []);
+
   // Shared booth: return to the start page when left unattended.
   useEffect(() => {
     if (stage === 'done' || stage === 'submitting') return undefined;

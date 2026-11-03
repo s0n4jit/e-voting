@@ -43,6 +43,22 @@ export const KioskLogin = () => {
   // A previous voter's session never survives on a shared booth.
   useEffect(() => {
     ['access_token', 'refresh_token', 'user'].forEach((k) => localStorage.removeItem(k));
+    document.body.classList.add('kiosk-screen');
+    const handleDrag = (e) => e.preventDefault();
+    const handleSelect = (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      e.preventDefault();
+    };
+    const handleCopy = (e) => e.preventDefault();
+    window.addEventListener('dragstart', handleDrag, true);
+    window.addEventListener('selectstart', handleSelect, true);
+    window.addEventListener('copy', handleCopy, true);
+    return () => {
+      document.body.classList.remove('kiosk-screen');
+      window.removeEventListener('dragstart', handleDrag, true);
+      window.removeEventListener('selectstart', handleSelect, true);
+      window.removeEventListener('copy', handleCopy, true);
+    };
   }, []);
 
   const open = Boolean(info?.voting_open);
