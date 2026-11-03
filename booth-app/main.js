@@ -206,9 +206,17 @@ function stopWindowsLockdown() {
     try {
       lockdownProc.stdin.write('exit\n');
       lockdownProc.stdin.end();
-      lockdownProc.kill('SIGKILL');
     } catch (_) {}
     lockdownProc = null;
+  }
+  if (process.platform === 'win32') {
+    try {
+      const binPath = getLockdownBinPath();
+      if (fs.existsSync(binPath)) {
+        const { execFileSync } = require('child_process');
+        execFileSync(binPath, ['restore'], { windowsHide: true });
+      }
+    } catch (_) {}
   }
 }
 
@@ -439,32 +447,49 @@ function leaveKiosk() {
 
 // ── officer code ───────────────────────────────────────────────────────────
 // The same check the website's maintenance screen uses: the current authenticator code of an Election Officer.
-const EMERGENCY_BYPASS_CODE = '888888';
-
 async function verifyOfficerCode(code) {
-  const clean = String(code || '').trim();
-  // 1. Emergency technician bypass code when machine is unconfigured or server is unreachable
-  if (clean === EMERGENCY_BYPASS_CODE) {
-    return { ok: true, emergency: true };
-  }
-
-  // 2. Normal online verification
+  const clean = String(code || '').trim().replace(/\D/g, '');
   const base = apiBase || `${config.originOf(cfg.url)}/api`;
+
+  let serverOnline = false;
+  let authResponse = null;
+
+  // 1. Try online verification against the Election Officer authenticator on the server
   try {
     const res = await net.fetch(`${base}/maintenance/auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: clean.replace(/\D/g, '').slice(0, 8) }),
+      body: JSON.stringify({ code: clean.slice(0, 8) }),
     });
-    const body = await res.json().catch(() => ({}));
-    if (res.ok && body.authenticated) return { ok: true };
-    return { ok: false, message: body.message || 'The code was not accepted.' };
-  } catch {
+    serverOnline = true;
+    authResponse = await res.json().catch(() => ({}));
+    if (res.ok && authResponse.authenticated) {
+      return { ok: true };
+    }
+  } catch (netErr) {
+    serverOnline = false;
+  }
+
+  // If the server IS online: ONLY the officer's real authenticator TOTP code is accepted!
+  // Offline bypass codes are strictly disallowed while the server is live.
+  if (serverOnline) {
     return {
       ok: false,
-      message: 'Server unreachable. Enter emergency technician code (888888) to exit or reconfigure.',
+      message: (authResponse && authResponse.message) || 'Invalid Election Officer authenticator code.',
     };
   }
+
+  // 2. If the server is UNREACHABLE or booth is not yet set up:
+  // Allow the configured Emergency Offline Exit PIN (set during initial booth setup, default 888888)
+  const emergencyPin = String(cfg.exitCode || '888888').trim();
+  if (clean && clean === emergencyPin) {
+    return { ok: true, emergency: true };
+  }
+
+  return {
+    ok: false,
+    message: 'Server unreachable. Enter your configured offline emergency PIN to unlock.',
+  };
 }
 
 async function uploadReceiptToServer(r, html, pdfBuffer) {

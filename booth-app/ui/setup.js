@@ -6,6 +6,7 @@ const say = (t, bad) => { $('msg').textContent = t; $('msg').className = 'msg' +
   const printers = await evoteUi.listPrinters();
   $('url').value = cfg.url || '';
   $('auto').checked = cfg.autoStart !== false;
+  $('exitCode').value = cfg.exitCode || '888888';
   $('printer').innerHTML = '<option value="">(computer default printer)</option>'
     + printers.map((p) => `<option>${p.name.replace(/</g, '&lt;')}</option>`).join('');
   $('printer').value = cfg.printer || '';
@@ -18,6 +19,11 @@ $('test').onclick = async () => {
   say(r.ok ? (r.file ? `This printer asks for a file name, so the app saves PDFs by itself. Test PDF: ${r.file}` : 'Test page sent to the printer.') : `Could not print: ${r.error}`, !r.ok);
 };
 $('save').onclick = async () => {
-  const r = await evoteUi.saveConfig({ url: $('url').value, printer: $('printer').value, autoStart: $('auto').checked });
+  const r = await evoteUi.saveConfig({
+    url: $('url').value,
+    printer: $('printer').value,
+    autoStart: $('auto').checked,
+    exitCode: $('exitCode').value,
+  });
   if (r.error) say(r.error, true);
 };

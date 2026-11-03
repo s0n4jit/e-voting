@@ -69,7 +69,7 @@ class KioskLockdown {
     private static LowLevelKeyboardProc _proc = HookCallback;
     private static IntPtr _hookID = IntPtr.Zero;
 
-    private static void SetTaskbarVisible(bool visible) {
+    public static void SetTaskbarVisible(bool visible) {
         try {
             int cmd = visible ? 5 : 0; // SW_SHOW = 5, SW_HIDE = 0
             IntPtr tray = FindWindow("Shell_TrayWnd", null);
@@ -86,6 +86,12 @@ class KioskLockdown {
     }
 
     public static void Main(string[] args) {
+        // If run with 'restore', just restore taskbar and exit immediately
+        if (args.Length > 0 && args[0].ToLower() == "restore") {
+            SetTaskbarVisible(true);
+            return;
+        }
+
         SetTaskbarVisible(false);
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule) {

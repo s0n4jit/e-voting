@@ -3,13 +3,14 @@
 const fs = require('fs');
 
 const URL_RE = /^https?:\/\/[^/\s]+\/kiosk\/vote$/;
-const DEFAULTS = { url: '', printer: '', autoStart: true };
+const DEFAULTS = { url: '', printer: '', autoStart: true, exitCode: '888888' };
 
 function validate(c = {}) {
   const url = String(c.url || '').trim();
   if (!URL_RE.test(url)) return { error: 'The address must look like https://your-site.example/kiosk/vote' };
   const printer = String(c.printer || '').trim().slice(0, 200);
-  return { value: { url, printer, autoStart: c.autoStart !== false } };
+  const exitCode = String(c.exitCode || '888888').trim().replace(/\D/g, '').slice(0, 8) || '888888';
+  return { value: { url, printer, autoStart: c.autoStart !== false, exitCode } };
 }
 
 function load(file) {

@@ -8,6 +8,9 @@
 <label for="printer">Printer for the vote copy</label>
 <select id="printer"></select>
 <button class="alt" id="test" type="button">Print a test page</button>
+<label for="exitCode">Emergency Offline Exit PIN (4 to 8 digits)</label>
+<input id="exitCode" type="password" inputmode="numeric" maxlength="8" placeholder="888888" autocomplete="off">
+<p class="sub" style="margin:2px 0 10px;font-size:11px">Only works when the election server is offline or unreachable. Online exit always requires the officer's live authenticator app.</p>
 <label><input id="auto" type="checkbox" checked>Start this app automatically when the computer starts</label>
 <div class="msg" id="msg"></div>
 <button id="save" type="button">Save and start voting</button>
