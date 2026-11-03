@@ -19,6 +19,8 @@ export const KioskLogin = () => {
   const [slip, setSlip] = useState('');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
+  const [checkingSlip, setCheckingSlip] = useState(false);
+  const [slipValid, setSlipValid] = useState(null); // null | true | false
   const [error, setError] = useState('');
   const [active, setActive] = useState('slip'); // the field the number pad types into
   const slipRef = useRef(null);
@@ -28,17 +30,21 @@ export const KioskLogin = () => {
     if (active === 'slip') {
       const next = (slip + d).slice(0, 6);
       setSlip(next);
-      if (next.length === 6) { setActive('pin'); pinRef.current?.focus(); } // the PIN comes next
+      setError('');
+      if (next.length < 6) setSlipValid(null);
     } else {
       setPin((pin + d).slice(0, 6));
     }
   };
   const backspace = () => {
-    if (active === 'pin' && pin === '') { setActive('slip'); slipRef.current?.focus(); setSlip(slip.slice(0, -1)); return; }
-    if (active === 'slip') setSlip(slip.slice(0, -1));
+    if (active === 'pin' && pin === '') { setActive('slip'); slipRef.current?.focus(); setSlip(slip.slice(0, -1)); setSlipValid(null); return; }
+    if (active === 'slip') { setSlip(slip.slice(0, -1)); setSlipValid(null); setError(''); }
     else setPin(pin.slice(0, -1));
   };
-  const clear = () => (active === 'slip' ? setSlip('') : setPin(''));
+  const clear = () => {
+    if (active === 'slip') { setSlip(''); setSlipValid(null); setError(''); }
+    else setPin('');
+  };
 
   // A previous voter's session never survives on a shared booth.
   useEffect(() => {
@@ -64,6 +70,40 @@ export const KioskLogin = () => {
   const open = Boolean(info?.voting_open);
   const ended = Boolean(info?.voting_ended);
   const prefix = info?.slip_prefix || 'SUE';
+
+  // Real-time silent verification of slip ID & auto-jump to PIN
+  useEffect(() => {
+    if (slip.length === 6) {
+      let cancelled = false;
+      setCheckingSlip(true);
+      authApi.verifySlip(`${prefix}${slip}`, election?.id, kioskToken)
+        .then((res) => {
+          if (cancelled) return;
+          if (res.valid) {
+            setSlipValid(true);
+            setError('');
+            setActive('pin');
+            pinRef.current?.focus();
+          } else {
+            setSlipValid(false);
+            setError(res.message || 'We could not verify that slip ID. Check your slip and try again.');
+          }
+        })
+        .catch(() => {
+          // Offline/fallback: still auto-advance to PIN input
+          if (!cancelled) {
+            setActive('pin');
+            pinRef.current?.focus();
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingSlip(false);
+        });
+      return () => { cancelled = true; };
+    } else {
+      setSlipValid(null);
+    }
+  }, [slip, prefix, election?.id, kioskToken]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -140,7 +180,13 @@ export const KioskLogin = () => {
               </p>
             )}
             <Field label="Voter slip ID" htmlFor="slip" hint="Type only the 6 digits printed at the end of your slip ID.">
-              <div className="flex items-stretch rounded-lg border border-line focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25 overflow-hidden bg-surface">
+              <div className={`flex items-stretch rounded-lg border transition-all duration-200 overflow-hidden bg-surface ${
+                slipValid === true
+                  ? 'border-ok ring-2 ring-ok/25'
+                  : slipValid === false
+                  ? 'border-bad ring-2 ring-bad/25'
+                  : 'border-line focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25'
+              }`}>
                 <span className="px-3 flex items-center bg-recessed text-muted font-mono text-base sm:text-lg select-none">{prefix}</span>
                 <input
                   id="slip"
@@ -150,12 +196,23 @@ export const KioskLogin = () => {
                   maxLength={6}
                   placeholder="000000"
                   value={slip}
-                  onChange={(e) => setSlip(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setSlip(val);
+                    setError('');
+                    if (val.length < 6) setSlipValid(null);
+                  }}
                   onFocus={() => setActive('slip')}
                   autoComplete="off"
                   autoFocus
                   required
                 />
+                {checkingSlip && (
+                  <span className="px-3 flex items-center text-muted animate-spin">⟳</span>
+                )}
+                {!checkingSlip && slipValid === true && (
+                  <span className="px-3 flex items-center text-ok font-bold">✓</span>
+                )}
               </div>
             </Field>
             <Field label="Voting PIN" htmlFor="pin" hint="The 6-digit PIN given to you at the desk.">

@@ -550,6 +550,65 @@ def voter_session_end():
     return jsonify({"ok": True}), 200
 
 
+@auth_bp.post("/voter-verify-slip")
+@limiter.exempt
+def voter_verify_slip():
+    """
+    Silent real-time verification of a voter slip ID at the booth.
+    Checks whether the voter slip exists, belongs to the election, has not already voted,
+    and has an active voting PIN.
+    """
+    payload = request.get_json(silent=True) or {}
+    student_id = sanitize_input(payload.get("student_id"))
+    election_id = payload.get("election_id")
+    kiosk_token = sanitize_input(payload.get("kiosk_token") or request.headers.get("X-Kiosk-Token"))
+
+    if not student_id:
+        return jsonify({"valid": False, "reason": "empty"}), 400
+
+    # Resolve election
+    election = None
+    if kiosk_token:
+        is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
+        if is_kiosk_valid and kiosk_device and kiosk_device.election:
+            election = kiosk_device.election
+
+    if not election and election_id:
+        election = db.session.get(Election, election_id)
+    if not election:
+        election = Election.current()
+
+    if not election:
+        return jsonify({"valid": False, "reason": "no_election"}), 400
+
+    # Resolve student user
+    user = User.query.filter(
+        db.func.upper(User.student_id) == student_id.strip().upper(),
+        User.role == "voter"
+    ).first()
+    if not user:
+        return jsonify({"valid": False, "reason": "not_found"}), 200
+
+    # Check if voter has already voted
+    voter_hash = User.hash_student_id(user.student_id)
+    voter_record = VoterRecord.query.filter_by(
+        election_id=election.id, voter_hash=voter_hash
+    ).first()
+    if voter_record and voter_record.has_voted:
+        return jsonify({"valid": False, "reason": "already_voted", "message": "This slip has already cast its ballot in this election."}), 200
+
+    # Check if active token exists
+    token = VotingToken.query.filter_by(
+        student_id=user.student_id,
+        election_id=election.id,
+        is_used=False
+    ).first()
+    if not token:
+        return jsonify({"valid": False, "reason": "no_active_pin", "message": "No active PIN found for this slip. Please ask the desk."}), 200
+
+    return jsonify({"valid": True, "student_id": user.student_id, "name": user.name}), 200
+
+
 @auth_bp.post("/voter-pin-login")
 @limiter.limit("30 per minute")
 def voter_pin_login():

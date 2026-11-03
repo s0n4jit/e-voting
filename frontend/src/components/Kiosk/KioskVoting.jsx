@@ -373,6 +373,17 @@ export const KioskVoting = () => {
   const { branding } = useBrand();
   const [fromReview, setFromReview] = useState(false);
   const submitting = useRef(false);
+  const submitBtnRef = useRef(null);
+
+  // When reaching final review, autoscroll smoothly to the submit button
+  useEffect(() => {
+    if (stage === 'review') {
+      const timer = setTimeout(() => {
+        submitBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [stage]);
 
 
   const finish = useCallback(() => {
@@ -639,7 +650,7 @@ export const KioskVoting = () => {
 
   const chrome = (children, { progress = true } = {}) => (
     <div
-      className="min-h-screen bg-bg flex flex-col select-none kiosk-screen"
+      className="min-h-screen bg-bg flex flex-col select-none kiosk-screen overflow-y-auto"
       data-kiosk="true"
       onDragStart={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
@@ -662,7 +673,7 @@ export const KioskVoting = () => {
           </div>
         )}
       </header>
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-3 sm:py-4">{children}</main>
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-3 sm:py-4 pb-24">{children}</main>
       <NetworkOfflineOverlay />
     </div>
   );
@@ -791,7 +802,7 @@ export const KioskVoting = () => {
             )}
             <div className="flex items-center justify-between mt-8">
               <button className="btn-secondary" onClick={() => go(total - 1, 'prev')}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button className="btn-primary btn-lg" disabled={answered < total} onClick={() => setConfirmOpen(true)}>Submit my vote</button>
+              <button ref={submitBtnRef} className="btn-primary btn-lg" disabled={answered < total} onClick={() => setConfirmOpen(true)}>Submit my vote</button>
             </div>
           </div>
         ) : (

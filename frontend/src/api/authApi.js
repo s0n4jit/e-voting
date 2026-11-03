@@ -57,6 +57,16 @@ export const authApi = {
     return response.data;
   },
 
+  verifySlip: async (studentId, electionId, kioskToken) => {
+    const payload = {
+      student_id: studentId,
+      election_id: electionId,
+      kiosk_token: kioskToken,
+    };
+    const response = await apiClient.post('/auth/voter-verify-slip', payload);
+    return response.data;
+  },
+
   getActiveElection: async () => {
     const response = await apiClient.get('/auth/active-election');
     return response.data;
