@@ -540,6 +540,12 @@ def voter_session_end():
         VotingToken.query.filter_by(
             student_id=claims.get("student_id"), election_id=claims["election_id"], is_used=False
         ).update({"authenticated_at": None}, synchronize_session=False)
+        db.session.add(AuditLog(
+            action="BOOTH_SESSION_ENDED",
+            details=f"Voter session for {claims.get('student_id')} at booth {claims.get('booth_id', 'BOOTH-01')} ended without casting a ballot.",
+            ip_address=request.remote_addr or "",
+            user_agent=(request.user_agent.string or "")[:255],
+        ))
         db.session.commit()
     return jsonify({"ok": True}), 200
 

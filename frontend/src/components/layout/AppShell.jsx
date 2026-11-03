@@ -26,7 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark, ThemeToggle, UserAvatar } from '../ui';
 import { useBrand } from '../../context/BrandContext';
 import StatusBadge from '../common/StatusBadge';
-import MockBanner from './MockBanner';
+import ElectionStatusBadge from './ElectionStatusBadge';
 
 const ROLE_LABEL = { admin: 'Election officer', polling_officer: 'Desk officer' };
 
@@ -127,6 +127,7 @@ export const AppShell = ({ children }) => {
             {branding.institution_name && <p className="text-xs sm:text-sm text-muted truncate">{branding.institution_name}</p>}
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <ElectionStatusBadge />
             <ThemeToggle />
             <span className="hidden sm:block w-px h-6 bg-line" aria-hidden="true" />
             <button
@@ -146,7 +147,7 @@ export const AppShell = ({ children }) => {
           </div>
         </header>
 
-        <MockBanner />
+
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {/* key re-triggers the entrance animation on every route change */}
           <div key={location.pathname} className="animate-page-in">

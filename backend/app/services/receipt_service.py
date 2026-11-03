@@ -671,4 +671,14 @@ class ReceiptService:
         except Exception as e:
             logger.warning(f"Could not clear all mock files from disk: {e}")
 
+        try:
+            from app.models.audit_log import AuditLog
+            db.session.add(AuditLog(
+                action="MOCK_RECEIPTS_CLEARED",
+                details=f"Cleared mock election receipts archive ({count} records wiped).",
+            ))
+            db.session.commit()
+        except Exception:
+            pass
+
         return count

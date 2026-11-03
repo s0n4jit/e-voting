@@ -131,7 +131,12 @@ def upload_booth_receipt():
         return jsonify({"error": "slip_id is required"}), 400
 
     is_mock = request.form.get("is_mock", "false").lower() in ("true", "1", "yes")
-    booth_name = request.form.get("booth_name") or "Booth"
+    booth_name = request.form.get("booth_name") or ""
+    ok, device = KioskDevice.verify_token(booth_token_from_request())
+    if ok and device:
+        booth_name = device.booth_id
+    elif not booth_name or booth_name.lower() == "booth":
+        booth_name = "BOOTH-01"
     election_id = request.form.get("election_id", type=int)
     html_content = request.form.get("html") or ""
     choices_raw = request.form.get("choices") or "[]"
@@ -182,6 +187,22 @@ def upload_booth_receipt():
             receipt.html_content = html_content
         receipt.pdf_filename = pdf_filename
         receipt.created_at = now
+
+    mode_str = "practice mock" if is_mock else "official"
+    try:
+        import json
+        parsed_c = json.loads(choices_raw) if choices_raw else []
+        choices_cnt = len(parsed_c) if isinstance(parsed_c, list) else 0
+    except Exception:
+        choices_cnt = 0
+
+    db.session.add(AuditLog(
+        action="RECEIPT_ARCHIVED",
+        details=f"Receipt slip {slip_id} archived centrally from {booth_name} ({mode_str}, {choices_cnt} position(s) voted).",
+        ip_address=request.remote_addr or "",
+        user_agent=(request.user_agent.string or "")[:255],
+        created_at=now,
+    ))
 
     db.session.commit()
     return jsonify({"success": True, "slip_id": slip_id}), 200

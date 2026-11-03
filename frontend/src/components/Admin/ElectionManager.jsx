@@ -55,6 +55,7 @@ export const ElectionManager = () => {
     try {
       await adminApi.setElectionStatus(election.id, status);
       toast.success('Election updated');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
       setConfirm(null);
       await load();
     } catch (err) {
@@ -71,6 +72,7 @@ export const ElectionManager = () => {
       if (election.voting_paused) await adminApi.resumeVoting(election.id);
       else await adminApi.pauseVoting(election.id);
       toast.success(election.voting_paused ? 'Voting resumed' : 'Voting paused');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
       await load();
     } catch (err) {
       toast.error(errorMessage(err));

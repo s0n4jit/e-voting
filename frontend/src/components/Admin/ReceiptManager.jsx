@@ -335,9 +335,32 @@ const ReceiptManager = () => {
                       {new Date(r.created_at).toLocaleString()}
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                        {r.choices?.length || 0} position(s) voted
-                      </span>
+                      {r.choices && r.choices.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 max-w-md">
+                          {r.choices.slice(0, 3).map((c, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200/80 shadow-2xs"
+                              title={`${c.position}: ${c.choice}`}
+                            >
+                              <span className="text-slate-500 font-semibold">{c.position}:</span>
+                              <span className={c.choice === 'NOTA' ? 'text-amber-700 font-bold' : 'text-slate-900 font-bold'}>
+                                {c.choice}
+                              </span>
+                            </span>
+                          ))}
+                          {r.choices.length > 3 && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-help"
+                              title={r.choices.slice(3).map((c) => `${c.position}: ${c.choice}`).join('\n')}
+                            >
+                              +{r.choices.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">No choices recorded</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="inline-flex items-center gap-2">

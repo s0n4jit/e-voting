@@ -86,7 +86,16 @@ export const KioskLogin = () => {
     <div className="min-h-screen bg-bg flex flex-col">
       <header className="flex items-center justify-between px-6 py-4">
         <BrandMark />
-        <div className="flex items-center gap-4"><BoothClock /><ThemeToggle /></div>
+        <div className="flex items-center gap-3">
+          {(info?.booth_id || localStorage.getItem('kiosk_name')) && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{info?.booth_id || localStorage.getItem('kiosk_name')}</span>
+            </div>
+          )}
+          <BoothClock />
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-4 pb-16">

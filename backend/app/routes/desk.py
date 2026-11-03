@@ -152,6 +152,9 @@ def desk_state():
     return jsonify({"open": bool(election.desk_open) if election else True,
                     "paused": bool(election and election.voting_paused),
                     "mock": bool(election and election.is_mock),
+                    "is_mock": bool(election and election.is_mock),
+                    "is_active": bool(election and election.is_active),
+                    "title": election.title if election else None,
                     "status": election.effective_status if election else None}), 200
 
 

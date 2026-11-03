@@ -303,6 +303,8 @@ export const KioskVoting = () => {
     }
   }, []);
 
+  const activeBoothId = boothInfo?.booth_id || localStorage.getItem('kiosk_name') || localStorage.getItem('booth_id') || 'BOOTH-01';
+
   const [stage, setStage] = useState('loading'); // loading | error | intro | ballot | review | submitting | done
   const [error, setError] = useState('');
   const [election, setElection] = useState(null);
@@ -548,7 +550,8 @@ export const KioskVoting = () => {
       setReceipt({
         slip: voter.student_id,
         election: election.title,
-        booth: localStorage.getItem('kiosk_name') || '',
+        election_id: election.id,
+        booth: activeBoothId,
         time: new Date().toLocaleString(),
         logo: activeLogo,
         institution_name: activeInst,
@@ -578,7 +581,14 @@ export const KioskVoting = () => {
       <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur border-b border-line">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <BrandMark />
-          <div className="flex items-center gap-4"><BoothClock /><ThemeToggle /></div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{activeBoothId}</span>
+            </div>
+            <BoothClock />
+            <ThemeToggle />
+          </div>
         </div>
         {progress && (
           <div className="h-1 bg-recessed" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={answered}>

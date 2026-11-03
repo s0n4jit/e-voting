@@ -253,7 +253,7 @@ class VoteService:
                 }
                 for entry in validated_entries
             ]
-            booth_name = getattr(booth, "name", None) or "BOOTH-01"
+            booth_name = getattr(booth, "booth_id", None) or getattr(booth, "device_name", None) or getattr(booth, "name", None) or "BOOTH-01"
             ReceiptService.record_receipt(
                 election_id=election.id,
                 slip_id=voter_user.student_id,

@@ -28,6 +28,7 @@ export default function MockElection() {
     try {
       await fn(election.id);
       toast.success(done);
+      window.dispatchEvent(new CustomEvent('election-state-change'));
       setEnding(false);
       setWord('');
       load();
