@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -396,9 +397,9 @@ const ReceiptManager = () => {
       </div>
 
       {/* Receipt Preview Modal */}
-      {previewSlip && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full flex flex-col max-h-[94vh] overflow-hidden shadow-2xl animate-page-in">
+      {previewSlip && createPortal(
+        <div className="no-flip fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full flex flex-col max-h-[94vh] overflow-hidden shadow-2xl">
             <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/90">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/50">
@@ -432,30 +433,29 @@ const ReceiptManager = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-100 dark:bg-slate-950/60 flex justify-center items-start">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-100/90 dark:bg-slate-950 flex justify-center items-start">
               {previewLoading ? (
                 <div className="p-16 flex flex-col items-center justify-center">
                   <LoadingSpinner size="md" />
                   <p className="text-xs text-slate-500 font-medium mt-3">Rendering vector receipt...</p>
                 </div>
               ) : (
-                <div className="w-full max-w-[500px] flex justify-center">
-                  <iframe
-                    title="Receipt Preview"
-                    srcDoc={previewHtml}
-                    className="w-full h-[600px] border-0 rounded-xl shadow-md bg-white overflow-hidden"
-                  />
-                </div>
+                <iframe
+                  title="Receipt Preview"
+                  srcDoc={previewHtml}
+                  className="w-[130mm] max-w-full h-[610px] border-0 bg-transparent"
+                />
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirm Clear Mock Modal */}
-      {confirmClearOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-amber-300 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-page-in">
+      {confirmClearOpen && createPortal(
+        <div className="no-flip fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white border border-amber-300 rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 border border-amber-200">
               <TrashIcon className="w-6 h-6" />
             </div>
@@ -484,7 +484,8 @@ const ReceiptManager = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

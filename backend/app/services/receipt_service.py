@@ -119,7 +119,7 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
     badge_bg = "#fef3c7" if is_mock else "#ffffff"
     badge_border = "#d97706" if is_mock else "#0f172a"
     badge_text = "#92400e" if is_mock else "#0f172a"
-    badge_label = "MOCK ELECTION · PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
+    badge_label = "MOCK ELECTION - PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
     banner_dash = "#f59e0b" if is_mock else "#94a3b8"
     th_bg = "#fef3c7" if is_mock else "#f1f5f9"
     th_border = "#fde68a" if is_mock else "#cbd5e1"
@@ -137,31 +137,35 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
       width: 100%;
       margin: 0;
       padding: 0;
-      background: #ffffff;
+      background: transparent;
       color: #0f172a;
+      display: flex;
+      justify-content: center;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }}
+    @media print {{
+      html, body {{ background: #ffffff !important; }}
+      .card {{ box-shadow: none !important; }}
+    }}
     .page-wrap {{
       width: 100%;
       margin: 0 auto;
-      padding: 6mm 0 0 0;
+      padding: 4mm 0 8mm;
       box-sizing: border-box;
       text-align: center;
     }}
     .card {{
       width: 125mm;
-      max-width: 125mm;
-      margin-left: auto;
-      margin-right: auto;
-      margin-top: 0;
-      margin-bottom: 0;
+      max-width: 100%;
+      margin: 0 auto;
       display: block;
       text-align: left;
       border: 1.5px solid {border_color};
       border-radius: 3mm;
       background: #ffffff;
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.12);
       overflow: hidden;
       box-sizing: border-box;
     }}
@@ -344,7 +348,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     badge_bg = colors.HexColor("#fef3c7") if is_mock else colors.HexColor("#ffffff")
     badge_border = colors.HexColor("#d97706") if is_mock else colors.HexColor("#0f172a")
     badge_text = colors.HexColor("#92400e") if is_mock else colors.HexColor("#0f172a")
-    badge_label = "MOCK ELECTION · PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
+    badge_label = "MOCK ELECTION - PRACTICE SLIP" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
 
     # Running Y tracking
     y = card_top - 6.0
@@ -433,10 +437,22 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     td_pos = ParagraphStyle("TdP", fontName="Helvetica", fontSize=7.0, leading=8.5, textColor=colors.HexColor("#334155"))
     td_ch = ParagraphStyle("TdC", fontName="Helvetica-Bold", fontSize=7.0, leading=8.5, textColor=colors.HexColor("#0f172a"), alignment=2)
 
+    def _clean_pdf_text(val: Any) -> str:
+        s = str(val or "")
+        return (
+            s.replace("\u2019", "'")
+            .replace("\u2018", "'")
+            .replace("\u201c", '"')
+            .replace("\u201d", '"')
+            .replace("\u2013", "-")
+            .replace("\u2014", "-")
+            .replace("\u00b7", "-")
+        )
+
     table_data = [[Paragraph("CONTESTED POSITION", th_pos), Paragraph("SELECTED CHOICE", th_ch)]]
     for row in data.get("lines", []):
-        p_txt = Paragraph(str(row.get("position", "")), td_pos)
-        choice_val = str(row.get("choice", ""))
+        p_txt = Paragraph(_clean_pdf_text(row.get("position", "")), td_pos)
+        choice_val = _clean_pdf_text(row.get("choice", ""))
         c_txt = Paragraph(choice_val, td_ch)
         table_data.append([p_txt, c_txt])
 
@@ -467,7 +483,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     if is_mock:
         c.setFont("Helvetica-Bold", 5.5)
         c.setFillColor(colors.HexColor("#b45309"))
-        c.drawCentredString(width / 2.0, y, "*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE ***")
+        c.drawCentredString(width / 2.0, y, "*** PRACTICE BALLOT - NOT AN OFFICIAL VOTE ***")
         y -= 7.0
         c.setFont("Helvetica", 5.4)
         c.setFillColor(colors.HexColor("#b45309"))
@@ -570,17 +586,8 @@ class ReceiptService:
 
     @classmethod
     def get_receipt_pdf_bytes(cls, receipt: VoteReceipt) -> bytes:
-        """Read PDF file or generate on the fly if missing."""
-        storage_dir = get_receipt_dir(receipt.is_mock)
-        pdf_path = os.path.join(storage_dir, receipt.pdf_filename or f"{receipt.slip_id}.pdf")
-        if os.path.exists(pdf_path):
-            try:
-                with open(pdf_path, "rb") as f:
-                    return f.read()
-            except Exception:
-                pass
-
-        # Regenerate in memory
+        """Always generate fresh vector PDF matching the preview layout."""
+        # Regenerate in memory to guarantee the exact current layout
         buf = io.BytesIO()
         election_title = receipt.election.title if receipt.election else "Campus E-Voting"
         from app.models.system_setting import SystemSetting
