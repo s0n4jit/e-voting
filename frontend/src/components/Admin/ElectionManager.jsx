@@ -48,7 +48,7 @@ export const ElectionManager = () => {
     load();
   }, [load]);
   // the list follows what happens elsewhere (status changes, votes) without a refresh
-  usePolling(() => adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {}), 4000);
+  usePolling(() => adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {}), 2000);
 
   const move = async (election, status) => {
     setBusy(true);

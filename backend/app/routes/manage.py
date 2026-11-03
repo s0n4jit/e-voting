@@ -90,13 +90,15 @@ def overview():
         VoterRecord.query.filter_by(election_id=election.id, has_voted=True).count() if election else 0
     )
     candidates = Candidate.query.filter_by(election_id=election.id).count() if election else 0
+    desk_officers = User.query.filter_by(role="polling_officer").count()
     recent = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
-    actors = {u.id: u.name for u in User.query.filter(User.id.in_({a.user_id for a in recent if a.user_id})).all()}
+    user_ids = {a.user_id for a in recent if a.user_id}
+    actors = {u.id: u.name for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
     return jsonify({
         "election": election.to_dict() if election else None,
         "stats": {
             "registered_voters": voters,
-            "desk_officers": User.query.filter_by(role="polling_officer").count(),
+            "desk_officers": desk_officers,
             "candidates": candidates,
             "votes_cast": cast,
             "remaining_voters": max(voters - cast, 0),
@@ -106,7 +108,7 @@ def overview():
             "programmes": Programme.query.filter_by(is_active=True).count(),
             "positions": len(election.positions) if election else 0,
             "candidates": candidates,
-            "desk_officers": User.query.filter_by(role="polling_officer").count(),
+            "desk_officers": desk_officers,
         },
         "recent_activity": [
             {

@@ -21,7 +21,7 @@ export const KioskManager = () => {
     adminApi.getKiosks().then(setBooths).catch((e) => { toast.error(errorMessage(e)); setBooths([]); });
   }, []);
   useEffect(load, [load]);
-  usePolling(load, 5000); // online / offline follows the booths' own check-ins
+  usePolling(load, 2000); // online / offline follows the booths' own check-ins
 
   const generate = async () => {
     setBusy(true);

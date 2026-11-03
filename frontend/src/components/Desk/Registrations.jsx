@@ -447,9 +447,10 @@ export default function Registrations() {
           <StudentPanel
             student={selected}
             programmes={programmes}
+            onClose={() => setSelected(null)}
             onChanged={() => {
               load();
-              setSelected(null);
+              // Keep modal open so the officer can view and hand over the issued PIN!
             }}
           />
         )}

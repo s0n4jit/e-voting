@@ -733,19 +733,13 @@ export const KioskVoting = () => {
                 ))}
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">{current.position}</h1>
-            <p className="text-muted mt-0.5 text-xs">Choose one candidate.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-2">{current.position}</h1>
+            <p className="text-muted mt-1 text-sm">Choose one candidate for this position.</p>
 
             <div
               role="radiogroup"
               aria-label={current.position}
-              className={`grid gap-3 sm:gap-4 mt-3 sm:mt-4 ${
-                (current.candidates.length + 1) <= 3
-                  ? 'grid-cols-2 sm:grid-cols-3'
-                  : (current.candidates.length + 1) <= 6
-                  ? 'grid-cols-3'
-                  : 'grid-cols-3 md:grid-cols-4'
-              }`}
+              className="grid grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 lg:gap-8 mt-5 sm:mt-6 max-w-5xl mx-auto"
             >
               {current.candidates.map((c) => {
                 const on = choices[current.position]?.id === c.id;
@@ -760,21 +754,23 @@ export const KioskVoting = () => {
                     onDragStart={(e) => e.preventDefault()}
                     onClick={() => select(c)}
                     onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && on ? next() : select(c))}
-                    className={`relative flex flex-col rounded-xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
-                      on ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
+                    className={`relative flex flex-col rounded-2xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
+                      on
+                        ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-1'
+                        : 'border-line hover:border-brand/50 hover:shadow-card-hover hover:-translate-y-0.5'
                     }`}
                   >
-                    <Avatar candidate={c} size="w-full h-24 sm:h-28 md:h-32" rounded="rounded-none" text="text-4xl sm:text-5xl" />
+                    <Avatar candidate={c} size="w-full aspect-square" rounded="rounded-none" text="text-6xl sm:text-7xl" />
                     <span
-                      className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                        on ? 'bg-brand border-brand scale-100' : 'bg-surface/90 border-line'
+                      className={`absolute top-3.5 right-3.5 w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                        on ? 'bg-brand border-brand scale-105 shadow-md' : 'bg-surface/90 border-line shadow-xs'
                       }`}
                     >
-                      {on && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
+                      {on && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                     </span>
-                    <div className={`px-2.5 py-2 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
-                      <p className="text-sm sm:text-base font-bold leading-tight break-words line-clamp-1">{c.name}</p>
-                      <p className="text-xs text-muted font-medium mt-0.5 line-clamp-1 min-h-[1.1rem]">
+                    <div className={`px-4 py-4 sm:py-5 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight leading-snug break-words">{c.name}</p>
+                      <p className="text-xs sm:text-sm font-medium text-muted mt-1 min-h-[1.25rem]">
                         {c.department ? `${c.department}` : ''}{c.semester ? `, ${c.semester}` : ''}
                       </p>
                     </div>
@@ -790,26 +786,28 @@ export const KioskVoting = () => {
                 onDragStart={(e) => e.preventDefault()}
                 onClick={() => select('NOTA')}
                 onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? next() : select('NOTA'))}
-                className={`relative flex flex-col rounded-xl border-2 cursor-pointer overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
-                  choices[current.position] === 'NOTA' ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
+                className={`relative flex flex-col rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
+                  choices[current.position] === 'NOTA'
+                    ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-1'
+                    : 'border-slate-500 bg-recessed hover:border-brand/60 hover:-translate-y-0.5'
                 }`}
               >
-                <div className="w-full h-24 sm:h-28 md:h-32 flex items-center justify-center bg-slate-200 dark:bg-slate-700">
-                  <NoSymbolIcon className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 dark:text-slate-200" strokeWidth={1.5} />
+                <div className="w-full aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-700">
+                  <NoSymbolIcon className="w-16 h-16 sm:w-20 sm:h-20 text-slate-600 dark:text-slate-200" strokeWidth={1.5} />
                 </div>
-                <span className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
-                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
+                <span className={`absolute top-3.5 right-3.5 w-10 h-10 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand shadow-md scale-105' : 'bg-surface/90 border-line shadow-xs'}`}>
+                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <div className={`px-2.5 py-2 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-sm sm:text-base font-bold leading-tight">NOTA</p>
-                  <p className="text-xs text-muted mt-0.5 line-clamp-1 min-h-[1.1rem]">I do not choose anyone</p>
+                <div className={`px-4 py-4 sm:py-5 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight leading-snug">NOTA</p>
+                  <p className="text-xs sm:text-sm font-medium text-muted mt-1 min-h-[1.25rem]">I do not choose anyone</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-4 sm:mt-6">
-              <button className="btn-secondary py-2 px-4" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button className="btn-primary btn-lg py-2.5 px-6" onClick={() => next()} disabled={!choices[current.position]}>
+            <div className="flex items-center justify-between mt-6 sm:mt-8 max-w-5xl mx-auto">
+              <button className="btn-secondary py-2.5 px-6" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
+              <button className="btn-primary btn-lg py-3 px-8 text-base" onClick={() => next()} disabled={!choices[current.position]}>
                 {fromReview || step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
               </button>
             </div>

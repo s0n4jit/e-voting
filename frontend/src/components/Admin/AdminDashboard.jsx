@@ -12,6 +12,7 @@ import {
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, StatCard, formatSchedule } from '../ui';
 import StatusBadge from '../common/StatusBadge';
+import { usePolling } from '../../hooks/usePolling';
 
 const STAGES = [
   ['setup', 'Setup'],
@@ -40,9 +41,9 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
   }, [load]);
+
+  usePolling(load, 2000);
 
   const s = data?.stats;
   const loading = !data && !error;

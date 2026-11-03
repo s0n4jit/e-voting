@@ -7,6 +7,7 @@ import { PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 import { adminApi } from '../../api/adminApi';
 import { ElectionPicker, EmptyState, Field, PageHeader, TableSkeleton, errorMessage, photoSrc } from '../ui';
 import Modal from '../common/Modal';
+import ImageCropperModal from '../common/ImageCropperModal';
 import StatusBadge from '../common/StatusBadge';
 
 const LOCKED = ['voting_active', 'voting_closed', 'results_published', 'archived'];
@@ -24,6 +25,8 @@ export const CandidateManager = () => {
   const [departments, setDepartments] = useState([]);
   const [photoError, setPhotoError] = useState('');
   const [preview, setPreview] = useState('');
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [rawPhotoSrc, setRawPhotoSrc] = useState('');
 
   const load = useCallback(async () => {
     if (!electionId) return;
@@ -87,7 +90,17 @@ export const CandidateManager = () => {
       return;
     }
     setPhotoError('');
-    set('photo', file);
+    if (rawPhotoSrc) URL.revokeObjectURL(rawPhotoSrc);
+    setRawPhotoSrc(URL.createObjectURL(file));
+    setCropperOpen(true);
+  };
+
+  const handleCropComplete = (croppedFile, previewUrl) => {
+    set('photo', croppedFile);
+    setPreview(previewUrl);
+    setCropperOpen(false);
+    if (rawPhotoSrc) URL.revokeObjectURL(rawPhotoSrc);
+    setRawPhotoSrc('');
   };
 
   useEffect(() => {
@@ -218,6 +231,17 @@ export const CandidateManager = () => {
           <button className="btn-danger" onClick={remove}>Remove</button>
         </div>
       </Modal>
+
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageSrc={rawPhotoSrc}
+        onClose={() => {
+          setCropperOpen(false);
+          if (rawPhotoSrc) URL.revokeObjectURL(rawPhotoSrc);
+          setRawPhotoSrc('');
+        }}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 };

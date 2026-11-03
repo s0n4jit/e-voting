@@ -11,7 +11,7 @@ import ProgrammePicker from './ProgrammePicker';
 const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', active: 'Active', voted: 'Voted' };
 
 /** Details, edit, delete, slip printing and PIN issuing for one registered voter. */
-export default function StudentPanel({ student, programmes, onChanged }) {
+export default function StudentPanel({ student, programmes, onChanged, onClose }) {
   const [current, setCurrent] = useState(student);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -75,6 +75,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
       await deskApi.deleteStudent(current.slip_id);
       toast.success(`Registration for ${current.name} deleted`);
       onChanged?.();
+      onClose?.();
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -88,6 +89,7 @@ export default function StudentPanel({ student, programmes, onChanged }) {
       const res = await deskApi.issuePin(current.slip_id);
       setPin(res.pin);
       setCurrent((c) => ({ ...c, status: 'pin_active' }));
+      toast.success(`Voting PIN issued: ${res.pin}`);
       onChanged?.();
     } catch (err) {
       setError(errorMessage(err));
@@ -145,15 +147,31 @@ export default function StudentPanel({ student, programmes, onChanged }) {
 
             {error && <p className="error-text" role="alert">{error}</p>}
 
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              <p className="text-sm font-medium">Voting PIN</p>
+            <div className="rounded-xl border border-brand/30 bg-brand-soft/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Voting PIN</p>
+                {pin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(pin);
+                      toast.success('PIN copied to clipboard');
+                    }}
+                    className="btn-ghost btn-sm text-xs font-mono"
+                  >
+                    Copy PIN
+                  </button>
+                )}
+              </div>
               {pin ? (
                 <>
-                  <p className="font-mono text-3xl font-semibold tracking-[0.3em]">{pin}</p>
-                  <p className="hint">This PIN stays valid until a new one is issued, the student votes, or voting closes.</p>
+                  <div className="bg-surface rounded-xl border border-line py-3 px-4 text-center shadow-xs">
+                    <p className="font-mono text-3xl sm:text-4xl font-bold tracking-[0.25em] text-brand-fg select-all">{pin}</p>
+                  </div>
+                  <p className="text-xs text-muted">This single-use PIN is active and valid for the voter at the booth.</p>
                 </>
               ) : (
-                <p className="hint">{pin === undefined ? 'Loading…' : voted ? 'Already voted.' : 'No PIN issued yet.'}</p>
+                <p className="text-sm text-muted">{pin === undefined ? 'Loading PIN…' : voted ? 'Already voted.' : 'No PIN issued yet.'}</p>
               )}
               <button
                 className={pin ? 'btn-secondary' : 'btn-primary'}

@@ -32,7 +32,7 @@ export const ResultsPage = () => {
     setShowAll(false);
     load();
   }, [load]);
-  usePolling(load, 5000);
+  usePolling(load, 2000);
   useEffect(() => { if (data?.mock) setShowAll(true); }, [data?.mock]); // a mock election shows its live results
 
   if (elections && elections.length === 0) {
