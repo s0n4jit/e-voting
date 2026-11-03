@@ -1,7 +1,7 @@
 'use strict';
 // Campus E-Voting booth app: setup screen, full-screen locked voting page, silent receipt printing,
 // and an exit that needs the Election Officer's authenticator code.
-const { app, BrowserWindow, globalShortcut, ipcMain, Menu, net, session, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Menu, net, session, shell, screen } = require('electron');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -210,7 +210,14 @@ function startKiosk() {
     return;
   }
   Menu.setApplicationMenu(null);
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { x, y, width, height } = primaryDisplay.bounds;
+
   mainWin = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
     fullscreen: true,
     kiosk: true,
     frame: false,
@@ -219,11 +226,12 @@ function startKiosk() {
     autoHideMenuBar: true,
     closable: false,
     minimizable: false,
-    maximizable: false,
-    resizable: false,
+    maximizable: true,
+    resizable: true,
     movable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
+    thickFrame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload-page.js'),
       contextIsolation: true,
@@ -236,7 +244,11 @@ function startKiosk() {
   });
   mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
   const wc = mainWin.webContents;
-  wc.setVisualZoomLevelLimits(1, 1);
+  wc.on('dom-ready', () => {
+    try {
+      wc.setVisualZoomLevelLimits(1, 1);
+    } catch (_) {}
+  });
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));
   const guard = (e, url) => { if (!url.startsWith(`${config.originOf(cfg.url)}/`)) e.preventDefault(); };
   wc.on('will-navigate', guard);
@@ -314,7 +326,16 @@ function startKiosk() {
     mainWin.loadFile(path.join(UI_DIR, 'offline.html'), { query: { u: cfg.url } });
   });
   mainWin.on('close', (e) => { if (!allowQuit) e.preventDefault(); });
-  mainWin.once('ready-to-show', () => mainWin.show());
+  mainWin.once('ready-to-show', () => {
+    try {
+      const pd = screen.getPrimaryDisplay();
+      mainWin.setBounds(pd.bounds);
+      mainWin.setFullScreen(true);
+      mainWin.setKiosk(true);
+    } catch (_) {}
+    mainWin.show();
+    mainWin.focus();
+  });
   mainWin.loadURL(cfg.url);
   registerLockdownShortcuts();
 }
@@ -323,7 +344,12 @@ function enterKiosk() {
   clearTimeout(resumeTimer);
   if (uiWin) uiWin.destroy();
   if (!mainWin) return startKiosk();
-  mainWin.setKiosk(true);
+  try {
+    const pd = screen.getPrimaryDisplay();
+    mainWin.setBounds(pd.bounds);
+    mainWin.setFullScreen(true);
+    mainWin.setKiosk(true);
+  } catch (_) {}
   mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWin.show();
   mainWin.focus();
