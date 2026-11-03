@@ -11,6 +11,32 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import NetworkOfflineOverlay from './NetworkOfflineOverlay';
 
 const IDLE_RESET_MS = 5 * 60 * 1000;
+const formatCandidateClass = (dept, sem) => {
+  const parts = [];
+  if (dept) {
+    const d = dept.trim();
+    if (/^department of/i.test(d)) {
+      parts.push(d.replace(/^department of/i, 'Department of'));
+    } else {
+      parts.push(`Department of ${d}`);
+    }
+  }
+  if (sem) {
+    const s = String(sem).trim();
+    const match = s.match(/(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      const ords = ['th', 'st', 'nd', 'rd'];
+      const v = num % 100;
+      const ord = ords[(v - 20) % 10] || ords[v] || ords[0];
+      parts.push(`Semester: ${num}${ord}`);
+    } else {
+      parts.push(`Semester: ${s}`);
+    }
+  }
+  return parts.join(' | ') || '—';
+};
+
 const formatTerm = (val) => {
   if (!val && val !== 0) return '—';
   const str = String(val).trim();
@@ -658,8 +684,21 @@ export const KioskVoting = () => {
   if (stage === 'intro') {
     return chrome(
       <div className="max-w-xl mx-auto text-center py-6 animate-page-in">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{election.title}</h1>
+        {election.description && <p className="text-muted text-sm mt-1.5">{election.description}</p>}
+
+        <div className="card card-body text-left mt-5 space-y-2.5 text-sm">
+          <p className="font-semibold text-fg">How voting works</p>
+          <ul className="space-y-2 text-muted">
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />There {total === 1 ? 'is' : 'are'} {total} {total === 1 ? 'position' : 'positions'} on your ballot.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Choose one candidate for each, or NOTA.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />You will review everything before you submit.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Once submitted, your vote cannot be changed.</li>
+          </ul>
+        </div>
+
         {voter.name && (
-          <div className="card text-left mb-5 border border-line shadow-card overflow-hidden" role="status">
+          <div className="card text-left mt-5 border border-line shadow-card overflow-hidden" role="status">
             <div className="bg-recessed/60 px-4 py-2 border-b border-line flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted">
                 <span className="w-2 h-2 rounded-full bg-brand" />
@@ -669,13 +708,12 @@ export const KioskVoting = () => {
                 Slip ID: <strong className="text-fg font-semibold">{voter.student_id}</strong>
               </span>
             </div>
-            <div className="p-4 space-y-2.5">
-              <div>
-                <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Student Name</p>
-                <p className="text-lg sm:text-xl font-bold tracking-tight text-fg">{voter.name}</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-2.5 border-t border-line/70 text-sm">
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                <div className="flex items-center gap-1.5 sm:col-span-2">
+                  <span className="text-muted shrink-0">Student Name:</span>
+                  <span className="font-bold text-fg text-base">{voter.name}</span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted shrink-0">Roll/Enrollment No.:</span>
                   <span className="font-semibold text-fg">{voter.roll_no || '—'}</span>
@@ -692,17 +730,7 @@ export const KioskVoting = () => {
             </div>
           </div>
         )}
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{election.title}</h1>
-        {election.description && <p className="text-muted text-sm mt-1.5">{election.description}</p>}
-        <div className="card card-body text-left mt-6 space-y-3 text-sm">
-          <p className="font-medium">How voting works</p>
-          <ul className="space-y-2 text-muted">
-            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />There {total === 1 ? 'is' : 'are'} {total} {total === 1 ? 'position' : 'positions'} on your ballot.</li>
-            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Choose one candidate for each, or abstain.</li>
-            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />You will review everything before you submit.</li>
-            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Once submitted, your vote cannot be changed.</li>
-          </ul>
-        </div>
+
         <button className="btn-primary btn-lg mt-6" onClick={() => go(0, 'next')} autoFocus>
           This is me, start voting <ArrowRightIcon className="w-5 h-5" />
         </button>
@@ -821,7 +849,7 @@ export const KioskVoting = () => {
                     <div className={`px-3 py-2.5 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
                       <p className="text-base sm:text-lg font-bold leading-tight break-words">{c.name}</p>
                       <p className="text-xs sm:text-sm text-muted font-medium mt-1">
-                        {[c.department, c.semester].filter(Boolean).join(', ') || '—'}
+                        {formatCandidateClass(c.department, c.semester)}
                       </p>
                     </div>
                   </div>
