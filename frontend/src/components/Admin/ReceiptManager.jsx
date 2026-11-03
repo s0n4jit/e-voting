@@ -168,20 +168,10 @@ const ReceiptManager = () => {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <CheckBadgeIcon className="w-7 h-7 text-indigo-600" />
-              Vote Receipts & Audit
-            </h2>
-            {/* Real-time Indicator */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              Real-time sync
-            </span>
-          </div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <CheckBadgeIcon className="w-7 h-7 text-indigo-600" />
+            Vote Receipts & Audit
+          </h2>
           <p className="text-xs text-slate-500 mt-1">
             Centrally stored voter receipts received in real-time from all voting booth terminals.
           </p>
