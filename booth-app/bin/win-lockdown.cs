@@ -5,17 +5,21 @@ using System.Threading;
 
 class KioskLockdown {
     private const int WH_KEYBOARD_LL = 13;
-    private const int WM_KEYDOWN = 0x0100;
-    private const int WM_KEYUP = 0x0101;
-    private const int WM_SYSKEYDOWN = 0x0104;
-    private const int WM_SYSKEYUP = 0x0105;
-
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
     private const int VK_TAB = 0x09;
     private const int VK_ESCAPE = 0x1B;
     private const int VK_F4 = 0x73;
     private const int VK_SPACE = 0x20;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT {
+        public int vkCode;
+        public int scanCode;
+        public int flags;
+        public int time;
+        public IntPtr dwExtraInfo;
+    }
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -38,6 +42,9 @@ class KioskLockdown {
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
 
     [DllImport("user32.dll")]
     private static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
@@ -66,9 +73,15 @@ class KioskLockdown {
         try {
             int cmd = visible ? 5 : 0; // SW_SHOW = 5, SW_HIDE = 0
             IntPtr tray = FindWindow("Shell_TrayWnd", null);
-            if (tray != IntPtr.Zero) ShowWindow(tray, cmd);
+            if (tray != IntPtr.Zero) {
+                ShowWindow(tray, cmd);
+                EnableWindow(tray, visible);
+            }
             IntPtr sec = FindWindow("Shell_SecondaryTrayWnd", null);
-            if (sec != IntPtr.Zero) ShowWindow(sec, cmd);
+            if (sec != IntPtr.Zero) {
+                ShowWindow(sec, cmd);
+                EnableWindow(sec, visible);
+            }
         } catch (Exception) {}
     }
 
@@ -81,6 +94,9 @@ class KioskLockdown {
 
         AppDomain.CurrentDomain.ProcessExit += (s, e) => Cleanup();
         Console.CancelKeyPress += (s, e) => Cleanup();
+
+        Console.WriteLine("LOCKDOWN_ACTIVE");
+        Console.Out.Flush();
 
         Thread stdinThread = new Thread(() => {
             string line;
@@ -115,30 +131,37 @@ class KioskLockdown {
 
     private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
         if (nCode >= 0) {
-            int vkCode = Marshal.ReadInt32(lParam);
+            KBDLLHOOKSTRUCT kbd = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+            int vkCode = kbd.vkCode;
+            bool altDown = (kbd.flags & 0x20) != 0 || ((GetAsyncKeyState(0x12) & 0x8000) != 0);
+            bool ctrlDown = (GetAsyncKeyState(0x11) & 0x8000) != 0;
+            bool shiftDown = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+            bool winDown = ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0) || ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0);
 
-            // Block Windows Keys (Left and Right)
+            // 1. Allow Election Officer unlock combination: Ctrl+Alt+Shift+Q
+            if (ctrlDown && altDown && shiftDown && (vkCode == 0x51 || vkCode == 0x71)) {
+                return CallNextHookEx(_hookID, nCode, wParam, lParam);
+            }
+
+            // 2. Block any Windows key press or release
             if (vkCode == VK_LWIN || vkCode == VK_RWIN) {
                 return (IntPtr)1;
             }
 
-            // Block Alt+Tab, Alt+Esc, Alt+Space, Alt+F4
-            bool altDown = (GetAsyncKeyState(0x12) & 0x8000) != 0;
+            // 3. Block ANY key pressed while the Windows key is down (e.g. Win+S, Win+R, Win+X, etc.)
+            if (winDown) {
+                return (IntPtr)1;
+            }
+
+            // 4. Block Alt key combinations: Alt+Tab, Alt+Esc, Alt+Space, Alt+F4
             if (altDown) {
-                bool ctrlDown = (GetAsyncKeyState(0x11) & 0x8000) != 0;
-                bool shiftDown = (GetAsyncKeyState(0x10) & 0x8000) != 0;
-                // Allow Ctrl+Alt+Shift+Q (officer exit shortcut)
-                if (ctrlDown && shiftDown && (vkCode == 0x51 || vkCode == 0x71)) {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
                 if (vkCode == VK_TAB || vkCode == VK_ESCAPE || vkCode == VK_SPACE || vkCode == VK_F4) {
                     return (IntPtr)1;
                 }
             }
 
-            // Block Ctrl+Esc
-            bool ctrl = (GetAsyncKeyState(0x11) & 0x8000) != 0;
-            if (ctrl && vkCode == VK_ESCAPE) {
+            // 5. Block Ctrl+Esc (Start Menu) and Ctrl+Shift+Esc (Task Manager)
+            if (ctrlDown && vkCode == VK_ESCAPE) {
                 return (IntPtr)1;
             }
         }

@@ -176,11 +176,18 @@ function showUi(page, query = {}, opts = {}) {
 
 let lockdownProc = null;
 
+function getLockdownBinPath() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, 'bin', 'win-lockdown.exe');
+  }
+  return path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'win-lockdown.exe');
+}
+
 function startWindowsLockdown() {
   if (process.platform !== 'win32') return;
   stopWindowsLockdown();
   try {
-    const binPath = path.join(__dirname, 'bin', 'win-lockdown.exe');
+    const binPath = getLockdownBinPath();
     if (fs.existsSync(binPath)) {
       const { spawn } = require('child_process');
       lockdownProc = spawn(binPath, [], {
@@ -205,6 +212,16 @@ function stopWindowsLockdown() {
 }
 
 const SWALLOWED_SHORTCUTS = [
+  'Super+S',
+  'Super+R',
+  'Super+X',
+  'Super+E',
+  'Super+A',
+  'Super+I',
+  'Super+D',
+  'Super+L',
+  'Control+Shift+Escape',
+  'Control+Escape',
   'Alt+Tab',
   'Alt+F4',
   'Alt+Escape',

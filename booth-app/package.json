@@ -30,6 +30,9 @@
       "bin/**",
       "package.json"
     ],
+    "asarUnpack": [
+      "bin/**"
+    ],
     "directories": {
       "output": "dist"
     },
