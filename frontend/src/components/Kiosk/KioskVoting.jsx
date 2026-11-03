@@ -782,7 +782,7 @@ export const KioskVoting = () => {
             <div
               role="radiogroup"
               aria-label={current.position}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 max-w-4xl mx-auto w-full select-none"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3 max-w-5xl mx-auto w-full select-none"
             >
               {current.candidates.map((c) => {
                 const on = choices[current.position]?.id === c.id;
@@ -803,12 +803,12 @@ export const KioskVoting = () => {
                         : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
                   >
-                    <div className="w-full flex items-center justify-center pt-2 pb-1 px-2 bg-recessed/30 pointer-events-none">
+                    <div className="w-full flex items-center justify-center pt-3.5 pb-2 px-3 bg-recessed/30 pointer-events-none">
                       <Avatar
                         candidate={c}
-                        size="w-16 h-16 sm:w-20 sm:h-20 aspect-square"
+                        size="w-24 h-24 sm:w-28 sm:h-28 aspect-square"
                         rounded="rounded-xl shadow-xs"
-                        text="text-2xl sm:text-3xl"
+                        text="text-3xl sm:text-4xl"
                       />
                     </div>
                     <span
@@ -818,10 +818,10 @@ export const KioskVoting = () => {
                     >
                       {on && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
                     </span>
-                    <div className={`px-3 py-2 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
-                      <p className="text-sm sm:text-base font-bold leading-tight break-words line-clamp-1">{c.name}</p>
-                      <p className="text-xs text-muted font-medium mt-0.5 line-clamp-1 min-h-[1.1rem]">
-                        {c.department ? `${c.department}` : ''}{c.semester ? `, ${c.semester}` : ''}
+                    <div className={`px-3 py-2.5 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-base sm:text-lg font-bold leading-tight break-words">{c.name}</p>
+                      <p className="text-xs sm:text-sm text-muted font-medium mt-1">
+                        {[c.department, c.semester].filter(Boolean).join(', ') || '—'}
                       </p>
                     </div>
                   </div>
@@ -837,24 +837,22 @@ export const KioskVoting = () => {
                 onClick={() => select('NOTA')}
                 onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? next() : select('NOTA'))}
                 className={`relative flex flex-col rounded-xl border-2 cursor-pointer overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
-                  current.candidates.length <= 2 ? 'sm:col-start-1' : ''
-                } ${
                   choices[current.position] === 'NOTA'
                     ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5'
                     : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
               >
-                <div className="w-full flex items-center justify-center pt-2 pb-1 px-2 bg-recessed/30 pointer-events-none">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-xl flex items-center justify-center bg-slate-200 dark:bg-slate-700 shadow-xs">
-                    <NoSymbolIcon className="w-8 h-8 sm:w-10 sm:h-10 text-slate-600 dark:text-slate-300" strokeWidth={1.5} />
+                <div className="w-full flex items-center justify-center pt-3.5 pb-2 px-3 bg-recessed/30 pointer-events-none">
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 aspect-square rounded-xl flex items-center justify-center bg-slate-200 dark:bg-slate-700 shadow-xs">
+                    <NoSymbolIcon className="w-12 h-12 sm:w-14 sm:h-14 text-slate-600 dark:text-slate-300" strokeWidth={1.5} />
                   </div>
                 </div>
                 <span className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
                   {choices[current.position] === 'NOTA' && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <div className={`px-3 py-2 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-sm sm:text-base font-bold leading-tight">NOTA</p>
-                  <p className="text-xs text-muted mt-0.5 line-clamp-1 min-h-[1.1rem]">I do not choose anyone</p>
+                <div className={`px-3 py-2.5 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-base sm:text-lg font-bold leading-tight">NOTA</p>
+                  <p className="text-xs sm:text-sm text-muted font-medium mt-1">I do not choose anyone</p>
                 </div>
               </div>
             </div>
