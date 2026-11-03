@@ -70,7 +70,7 @@ function toHtml(r) {
     .page-wrap {
       width: 100%;
       margin: 0 auto;
-      padding: 4mm 0 0 0;
+      padding: 12mm 0 0 0;
       box-sizing: border-box;
       text-align: center;
     }
@@ -90,7 +90,7 @@ function toHtml(r) {
       box-sizing: border-box;
     }
     .hdr {
-      padding: 2.5mm 4mm 2mm;
+      padding: 3mm 4mm 2.5mm;
       text-align: center;
       border-bottom: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
       background: ${isMock ? '#fffbeb' : '#fafafa'};

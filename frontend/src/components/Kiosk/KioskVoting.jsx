@@ -53,7 +53,7 @@ const VoteReceipt = ({ receipt }) => {
           width: '100%',
           maxWidth: '100%',
           margin: '0 auto',
-          padding: '4mm 0 0 0',
+          padding: '12mm 0 0 0',
           display: 'block',
           textAlign: 'center',
           boxSizing: 'border-box',
@@ -82,7 +82,7 @@ const VoteReceipt = ({ receipt }) => {
           <div
             className="print-receipt-header"
             style={{
-              padding: '2.5mm 4mm 2mm',
+              padding: '3mm 4mm 2.5mm',
               textAlign: 'center',
               borderBottom: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
               background: isMock ? '#fffbeb' : '#fafafa',
