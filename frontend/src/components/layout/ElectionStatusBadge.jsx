@@ -48,9 +48,6 @@ export default function ElectionStatusBadge() {
           <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
         </span>
         <span className="font-extrabold">Mock Election</span>
-        <span className="hidden xl:inline text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 lowercase">
-          (practice)
-        </span>
       </div>
     );
   }
@@ -78,9 +75,6 @@ export default function ElectionStatusBadge() {
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
         </span>
         <span className="font-extrabold">Official Live</span>
-        <span className="hidden xl:inline text-[10px] font-semibold text-emerald-600/80 dark:text-emerald-400/80 lowercase">
-          (ongoing)
-        </span>
       </div>
     );
   }
