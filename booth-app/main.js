@@ -255,6 +255,33 @@ async function verifyOfficerCode(code) {
   }
 }
 
+async function uploadReceiptToServer(r, html, pdfBuffer) {
+  let targetOrigin = '';
+  try {
+    if (cfg.url) targetOrigin = new URL(cfg.url).origin;
+  } catch {}
+  if (!targetOrigin && apiBase) {
+    targetOrigin = apiBase.replace(/\/api\/?$/, '');
+  }
+  if (!targetOrigin) targetOrigin = 'http://localhost:8080';
+
+  const form = new FormData();
+  form.append('slip_id', r.slip || '');
+  form.append('election_id', String(r.election_id || ''));
+  form.append('booth_name', r.booth || 'Booth');
+  form.append('is_mock', String(Boolean(r.is_mock)));
+  form.append('choices', JSON.stringify(r.lines || []));
+  form.append('html', html || '');
+  if (pdfBuffer) {
+    form.append('pdf', new Blob([pdfBuffer], { type: 'application/pdf' }), `${r.slip}.pdf`);
+  }
+
+  await fetch(`${targetOrigin}/api/booth/receipt-upload`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
 // ── IPC ────────────────────────────────────────────────────────────────────
 ipcMain.handle('print-receipt', async (event, raw) => {
   if (!fromPortal(event)) return { archived: false, printed: false, error: 'not allowed' };
@@ -262,19 +289,36 @@ ipcMain.handle('print-receipt', async (event, raw) => {
   const html = receipt.toHtml(r);
   let saved = '';
   let pdf = '';
+  let pdfBuffer = null;
+
+  try {
+    pdfBuffer = await toPdf(html);
+  } catch (e) {
+    console.warn('PDF render error:', e.message);
+  }
+
   if (cfg.keepLocalReceipts) {
     try {
       saved = receipt.archive(spoolDir(r.is_mock), r);
-      pdf = await savePdf(saved, html);
+      if (pdfBuffer) {
+        pdf = path.join(spoolDir(r.is_mock), `${r.slip}.pdf`);
+        fs.writeFileSync(pdf, pdfBuffer);
+      }
     } catch (e) {
       console.warn('Local receipt archive skipped:', e.message);
     }
   }
+
+  // Real-time stream to the central election server
+  uploadReceiptToServer(r, html, pdfBuffer).catch((e) => {
+    console.warn('Real-time receipt upload failed:', e.message);
+  });
+
   try {
     await printHtml(html, r.printer || cfg.printer, r.copies);
-    return { archived: Boolean(saved), printed: true, pdf };
+    return { archived: true, printed: true, pdf };
   } catch (e) {
-    return { archived: Boolean(saved), printed: false, error: e.message, pdf };
+    return { archived: true, printed: false, error: e.message, pdf };
   }
 });
 
