@@ -645,12 +645,37 @@ export const KioskVoting = () => {
     return chrome(
       <div className="max-w-xl mx-auto text-center py-8 animate-page-in">
         {voter.name && (
-          <div className="card card-body text-left mb-6 space-y-1" role="status">
-            <p className="eyebrow text-muted">Please check that this is you</p>
-            <p className="text-2xl font-semibold">{voter.name}</p>
-            <p className="text-muted">{[voter.department, voter.year ? `Semester / year ${voter.year}` : ''].filter(Boolean).join(' · ')}</p>
-            {voter.roll_no && <p className="text-muted text-sm">Roll or enrollment no.: {voter.roll_no}</p>}
-            <p className="font-mono text-sm text-muted">{voter.student_id}</p>
+          <div className="card text-left mb-6 border border-line shadow-card overflow-hidden" role="status">
+            <div className="bg-recessed/70 px-4 py-2.5 border-b border-line flex items-center justify-between">
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
+                Voter Verification
+              </span>
+              <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-surface border border-line text-brand">
+                {voter.student_id}
+              </span>
+            </div>
+            <div className="p-4 sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Student Name</p>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-fg mt-0.5">{voter.name}</h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3 pt-3 border-t border-line/70 text-sm">
+                <div className="bg-recessed/40 p-2.5 rounded-lg border border-line/60">
+                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Roll/Enrollment No.</p>
+                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">{voter.roll_no || '—'}</p>
+                </div>
+                <div className="bg-recessed/40 p-2.5 rounded-lg border border-line/60">
+                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Semester / Year</p>
+                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">
+                    {voter.year ? `Semester / Year ${voter.year}` : '—'}
+                  </p>
+                </div>
+                <div className="sm:col-span-2 bg-recessed/40 p-2.5 rounded-lg border border-line/60">
+                  <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Programme & Department</p>
+                  <p className="text-sm sm:text-base font-semibold text-fg mt-0.5">{voter.department || '—'}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         <p className="text-sm text-muted">Welcome{voter.name ? `, ${voter.name.split(' ')[0]}` : ''}</p>
@@ -744,17 +769,7 @@ export const KioskVoting = () => {
             <div
               role="radiogroup"
               aria-label={current.position}
-              className={`grid gap-3 sm:gap-4 mt-3 sm:mt-4 max-w-6xl mx-auto w-full ${
-                (current.candidates.length + 1) <= 2
-                  ? 'grid-cols-2 max-w-2xl'
-                  : (current.candidates.length + 1) === 3
-                  ? 'grid-cols-3 max-w-4xl'
-                  : (current.candidates.length + 1) === 4
-                  ? 'grid-cols-2 sm:grid-cols-4 max-w-5xl'
-                  : (current.candidates.length + 1) <= 6
-                  ? 'grid-cols-3 max-w-4xl'
-                  : 'grid-cols-3 sm:grid-cols-4 max-w-5xl'
-              }`}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 max-w-4xl mx-auto w-full select-none"
             >
               {current.candidates.map((c) => {
                 const on = choices[current.position]?.id === c.id;
@@ -775,12 +790,12 @@ export const KioskVoting = () => {
                         : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
                   >
-                    <div className="w-full flex items-center justify-center pt-3 pb-1 px-3 bg-recessed/30">
+                    <div className="w-full flex items-center justify-center pt-2 pb-1 px-2 bg-recessed/30 pointer-events-none">
                       <Avatar
                         candidate={c}
-                        size="w-24 h-24 sm:w-28 sm:h-28 aspect-square"
+                        size="w-16 h-16 sm:w-20 sm:h-20 aspect-square"
                         rounded="rounded-xl shadow-xs"
-                        text="text-3xl sm:text-4xl"
+                        text="text-2xl sm:text-3xl"
                       />
                     </div>
                     <span
@@ -809,14 +824,16 @@ export const KioskVoting = () => {
                 onClick={() => select('NOTA')}
                 onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? next() : select('NOTA'))}
                 className={`relative flex flex-col rounded-xl border-2 cursor-pointer overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
+                  current.candidates.length <= 2 ? 'sm:col-start-1' : ''
+                } ${
                   choices[current.position] === 'NOTA'
                     ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5'
                     : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
               >
-                <div className="w-full flex items-center justify-center pt-3 pb-1 px-3 bg-recessed/30">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 aspect-square rounded-xl flex items-center justify-center bg-slate-200 dark:bg-slate-700 shadow-xs">
-                    <NoSymbolIcon className="w-12 h-12 sm:w-14 sm:h-14 text-slate-600 dark:text-slate-300" strokeWidth={1.5} />
+                <div className="w-full flex items-center justify-center pt-2 pb-1 px-2 bg-recessed/30 pointer-events-none">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-xl flex items-center justify-center bg-slate-200 dark:bg-slate-700 shadow-xs">
+                    <NoSymbolIcon className="w-8 h-8 sm:w-10 sm:h-10 text-slate-600 dark:text-slate-300" strokeWidth={1.5} />
                   </div>
                 </div>
                 <span className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>

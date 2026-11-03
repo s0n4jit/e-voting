@@ -114,7 +114,7 @@ export default function StudentPanel({ student, programmes, onChanged, onClose }
               </div>
               <StatusBadge
                 label={STATUS[current.status]}
-                variant={current.status === 'voted' ? 'ok' : ['pin_active', 'active'].includes(current.status) ? 'warn' : 'brand'}
+                variant={current.status === 'voted' ? 'ok' : current.status === 'active' ? 'brand' : current.status === 'pin_active' ? 'warn' : 'neutral'}
               />
             </div>
 
@@ -131,7 +131,7 @@ export default function StudentPanel({ student, programmes, onChanged, onClose }
             <dl className="grid grid-cols-2 gap-4 text-sm">
               {current.roll_no && (
                 <div className="col-span-2">
-                  <dt className="text-muted">Roll or enrollment no.</dt>
+                  <dt className="text-muted">Roll/Enrollment No.</dt>
                   <dd className="font-medium">{current.roll_no}</dd>
                 </div>
               )}
@@ -222,7 +222,7 @@ export default function StudentPanel({ student, programmes, onChanged, onClose }
             <Field label="Full name" htmlFor="edit-name">
               <input id="edit-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
-            <Field label="Roll or enrollment no. (optional)" htmlFor="edit-roll">
+            <Field label="Roll/Enrollment No. (optional)" htmlFor="edit-roll">
               <input id="edit-roll" className="input" value={form.roll_no || ''} maxLength={40} onChange={(e) => setForm({ ...form, roll_no: e.target.value })} />
             </Field>
             <ProgrammePicker programmes={programmes} value={form} onChange={(v) => setForm({ ...form, ...v })} idPrefix="edit" />

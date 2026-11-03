@@ -23,7 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePolling } from '../../hooks/usePolling';
 
 const STATUS = { registered: 'No PIN yet', pin_active: 'PIN issued', active: 'Active', voted: 'Voted' };
-const TONE = { registered: 'brand', pin_active: 'warn', active: 'ok', voted: 'ok' };
+const TONE = { registered: 'neutral', pin_active: 'warn', active: 'brand', voted: 'ok' };
 
 export default function Registrations() {
   const [programmes, setProgrammes] = useState([]);
@@ -351,7 +351,7 @@ export default function Registrations() {
                   </th>
                   <th>Voter slip ID</th>
                   <th>Name</th>
-                  <th>Roll or enrollment no.</th>
+                  <th>Roll/Enrollment No.</th>
                   <th>Programme</th>
                   <th>Term</th>
                   <th>Status</th>

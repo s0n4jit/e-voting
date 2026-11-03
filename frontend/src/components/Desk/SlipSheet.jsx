@@ -40,7 +40,7 @@ export const PrintSlip = ({ slip, institution, electionTitle }) => {
         </div>
         {slip.roll_no && (
           <div className="col-span-2 flex items-baseline gap-1.5 flex-wrap">
-            <dt className="text-slate-600 font-normal shrink-0">Roll / Enrollment no.:</dt>
+            <dt className="text-slate-600 font-normal shrink-0">Roll/Enrollment No.:</dt>
             <dd className="font-medium text-slate-900">{slip.roll_no}</dd>
           </div>
         )}

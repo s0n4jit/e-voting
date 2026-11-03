@@ -64,7 +64,7 @@ export default function ImportStudents({ onDone }) {
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              A CSV with the columns <code>name, programme, department, semester</code> and, if you want it, <code>roll_no</code> (roll or enrollment number). The programme and department must be written
+              A CSV with the columns <code>name, programme, department, semester</code> and, if you want it, <code>roll_no</code> (Roll/Enrollment No.). The programme and department must be written
               exactly as in the Programmes list (for Higher Secondary: programme <i>Higher Secondary</i> and the stream as department).
               Nothing is imported unless every row is correct.
             </p>

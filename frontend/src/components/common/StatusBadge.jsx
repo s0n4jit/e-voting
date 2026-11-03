@@ -1,10 +1,10 @@
 import React from 'react';
 
 const GROUPS = {
-  ok: ['active', 'open', 'voted', 'published', 'verified', 'success', 'voting active', 'results published'],
+  ok: ['open', 'voted', 'published', 'verified', 'success', 'voting active', 'results published'],
   warn: ['inactive', 'closed', 'not voted', 'pending', 'unverified', 'draft', 'pin active', 'voting closed', 'ready', 'voting paused'],
   bad: ['failed', 'error', 'revoked', 'banned', 'danger'],
-  brand: ['admin', 'primary', 'info', 'registration', 'registered'],
+  brand: ['active', 'admin', 'primary', 'info', 'registration', 'registered'],
 };
 const CLASS = { ok: 'badge-ok', warn: 'badge-warn', bad: 'badge-bad', brand: 'badge-brand', neutral: 'badge-neutral' };
 const ALIAS = { success: 'ok', warning: 'warn', danger: 'bad', primary: 'brand', default: 'neutral' };

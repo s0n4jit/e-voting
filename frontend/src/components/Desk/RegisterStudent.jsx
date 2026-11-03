@@ -115,7 +115,7 @@ export default function RegisterStudent() {
           <Field label="Student's full name" htmlFor="name" error={errors.name}>
             <input id="name" className={`input ${errors.name ? 'input-error' : ''}`} value={form.name} onChange={(e) => change({ name: e.target.value })} autoFocus autoComplete="off" required />
           </Field>
-          <Field label="Roll or enrollment no. (optional)" htmlFor="roll_no" error={errors.roll_no}>
+          <Field label="Roll/Enrollment No. (optional)" htmlFor="roll_no" error={errors.roll_no}>
             <input id="roll_no" className={`input ${errors.roll_no ? 'input-error' : ''}`} value={form.roll_no} onChange={(e) => change({ roll_no: e.target.value })} maxLength={40} autoComplete="off" />
           </Field>
           <ProgrammePicker programmes={programmes} value={form} onChange={(v) => change(v)} errors={errors} />
