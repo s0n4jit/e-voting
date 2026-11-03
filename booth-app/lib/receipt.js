@@ -4,6 +4,10 @@
 // so that one A4 sheet can be torn/split into 2 parts horizontally.
 const fs = require('fs');
 const path = require('path');
+let DEFAULT_LOGO = '';
+try {
+  DEFAULT_LOGO = require('./logo');
+} catch {}
 
 const clean = (v, limit = 80) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, limit).trim();
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,7 +35,8 @@ function toHtml(r) {
   const rowHtml = (l) => `<tr><td class="p">${esc(l.position)}</td><td class="c">${esc(l.choice)}</td></tr>`;
   const tableRows = lines.map(rowHtml).join('');
 
-  const logoHtml = r.logo ? `<img class="logo" src="${esc(r.logo)}" alt="Logo" />` : '';
+  const activeLogo = r.logo || DEFAULT_LOGO || '';
+  const logoHtml = activeLogo ? `<img class="logo" src="${activeLogo}" alt="Logo" />` : '';
   const isMock = Boolean(r.is_mock);
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Vote copy ${esc(r.slip)}</title><style>

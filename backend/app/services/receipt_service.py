@@ -68,6 +68,9 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
 
     mock_warning = '<div style="color: #b45309; font-weight: 700; font-size: 6.5pt; margin-top: 2px;">*** PRACTICE BALLOT — NOT AN OFFICIAL VOTE ***</div>' if is_mock else ''
 
+    logo_url = data.get("logo", "")
+    logo_html = f'<img class="logo" src="{logo_url}" alt="Logo" style="height: 12mm; max-width: 15mm; max-height: 12mm; object-fit: contain; margin: 0 auto 1.5mm; display: block;" />' if logo_url else ""
+
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -114,6 +117,7 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
 </head>
 <body>
   <div class="receipt-card">
+    {logo_html}
     <div class="institution">{institution}</div>
     <div class="election">{election_title}</div>
     {mock_badge}
@@ -154,7 +158,22 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     top_margin = 17.0
     card_top = height - top_margin
 
-    y = card_top - 12.0
+    y = card_top - 8.0
+
+    # Draw logo if provided
+    logo_data = data.get("logo", "")
+    if logo_data and "base64," in logo_data:
+        try:
+            import base64
+            from reportlab.lib.utils import ImageReader
+            b64_bytes = base64.b64decode(logo_data.split("base64,")[1])
+            img_r = ImageReader(io.BytesIO(b64_bytes))
+            logo_w = 36.0
+            logo_h = 32.0
+            c.drawImage(img_r, (width - logo_w) / 2.0, y - logo_h, width=logo_w, height=logo_h, preserveAspectRatio=True, mask='auto')
+            y -= (logo_h + 3.0)
+        except Exception:
+            pass
 
     # Institution name
     inst = data.get("institution", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga")
@@ -269,11 +288,18 @@ class ReceiptService:
         booth_name: str = "Booth",
         is_mock: bool = False,
         institution_name: Optional[str] = None,
+        logo_b64: Optional[str] = None,
         election_title: Optional[str] = None,
     ) -> VoteReceipt:
         """Atomically record and persist the receipt on the server (DB, HTML, and PDF)."""
         now = datetime.now(timezone.utc)
         time_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        from app.models.system_setting import SystemSetting
+        if not logo_b64:
+            logo_b64 = SystemSetting.get("logo", "")
+        if not institution_name:
+            institution_name = SystemSetting.get("institution_name", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga")
 
         election = db.session.get(Election, election_id)
         if election and not election_title:
@@ -286,6 +312,7 @@ class ReceiptService:
             "booth": booth_name or "BOOTH-01",
             "time": time_str,
             "is_mock": is_mock,
+            "logo": logo_b64 or "",
             "lines": choices,
         }
 

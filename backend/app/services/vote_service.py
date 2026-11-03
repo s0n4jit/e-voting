@@ -261,6 +261,7 @@ class VoteService:
                 booth_name=booth_name,
                 is_mock=bool(election.is_mock),
                 institution_name=branding.get("institution_name"),
+                logo_b64=branding.get("logo"),
                 election_title=election.title,
             )
         except Exception as e:
