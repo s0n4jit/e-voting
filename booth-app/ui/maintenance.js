@@ -1,7 +1,5 @@
 document.getElementById('resume').onclick = () => evoteUi.resume();
 document.getElementById('setup').onclick = () => evoteUi.openSetup();
-document.getElementById('receipts').onclick = () => evoteUi.openReceipts();
-document.getElementById('mockReceipts').onclick = () => evoteUi.openMockReceipts();
 document.getElementById('quit').onclick = () => evoteUi.quit();
 
 const checkBtn = document.getElementById('checkUpdate');

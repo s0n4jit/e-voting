@@ -16,10 +16,16 @@ const EXIT_KEYS = 'CommandOrControl+Alt+Shift+Q';
 const MAINTENANCE_MINUTES = 15; // the booth returns to voting by itself after this long outside kiosk mode
 
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
-const spoolDir = (isMock = false) =>
-  isMock
-    ? path.join(app.getPath('userData'), 'mockelection')
-    : path.join(app.getPath('userData'), 'receipts');
+function cleanupLegacyLocalSpool() {
+  try {
+    const receiptsDir = path.join(app.getPath('userData'), 'receipts');
+    const mockDir = path.join(app.getPath('userData'), 'mockelection');
+    if (fs.existsSync(receiptsDir)) fs.rmSync(receiptsDir, { recursive: true, force: true });
+    if (fs.existsSync(mockDir)) fs.rmSync(mockDir, { recursive: true, force: true });
+  } catch (e) {
+    console.warn('Legacy spool cleanup notice:', e?.message || e);
+  }
+}
 
 let autoUpdater = null;
 try {
@@ -287,8 +293,6 @@ ipcMain.handle('print-receipt', async (event, raw) => {
   if (!fromPortal(event)) return { archived: false, printed: false, error: 'not allowed' };
   const r = receipt.normalize(raw);
   const html = receipt.toHtml(r);
-  let saved = '';
-  let pdf = '';
   let pdfBuffer = null;
 
   try {
@@ -297,28 +301,16 @@ ipcMain.handle('print-receipt', async (event, raw) => {
     console.warn('PDF render error:', e.message);
   }
 
-  if (cfg.keepLocalReceipts) {
-    try {
-      saved = receipt.archive(spoolDir(r.is_mock), r);
-      if (pdfBuffer) {
-        pdf = path.join(spoolDir(r.is_mock), `${r.slip}.pdf`);
-        fs.writeFileSync(pdf, pdfBuffer);
-      }
-    } catch (e) {
-      console.warn('Local receipt archive skipped:', e.message);
-    }
-  }
-
-  // Real-time stream to the central election server
+  // Real-time stream to the central election server (no local disk storage)
   uploadReceiptToServer(r, html, pdfBuffer).catch((e) => {
     console.warn('Real-time receipt upload failed:', e.message);
   });
 
   try {
     await printHtml(html, r.printer || cfg.printer, r.copies);
-    return { archived: true, printed: true, pdf };
+    return { archived: true, printed: true };
   } catch (e) {
-    return { archived: true, printed: false, error: e.message, pdf };
+    return { archived: true, printed: false, error: e.message };
   }
 });
 
@@ -358,8 +350,7 @@ ui('print-test', async (printer) => {
   try {
     const how = await printHtml(html, printer, 1);
     if (how === 'pdf') {
-      fs.mkdirSync(spoolDir(), { recursive: true });
-      const file = path.join(spoolDir(), `test-${Date.now()}.pdf`);
+      const file = path.join(os.tmpdir(), `test-print-${Date.now()}.pdf`);
       fs.writeFileSync(file, await toPdf(html));
       return { ok: true, file };
     }
@@ -379,16 +370,7 @@ ui('exit:verify', async (code) => {
 ui('exit:cancel', () => { if (promptWin) promptWin.destroy(); });
 ui('maint:resume', enterKiosk);
 ui('maint:setup', () => showUi('setup.html', { maintenance: '1' }));
-ui('maint:receipts', () => {
-  const dir = spoolDir(false);
-  fs.mkdirSync(dir, { recursive: true });
-  return shell.openPath(dir);
-});
-ui('maint:mock-receipts', () => {
-  const dir = spoolDir(true);
-  fs.mkdirSync(dir, { recursive: true });
-  return shell.openPath(dir);
-});
+// Centralized receipts storage: managed on the central election server
 ui('updater:check', async () => {
   if (!autoUpdater || !app.isPackaged) {
     return { ok: false, message: 'Auto-updater is active only in packaged builds.' };
@@ -410,6 +392,7 @@ ui('maint:quit', () => { allowQuit = true; app.quit(); });
 // ── start ──────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   cfg = config.load(cfgFile());
+  cleanupLegacyLocalSpool();
   initAutoUpdater();
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
