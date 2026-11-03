@@ -15,37 +15,283 @@ import { useMaintenanceShortcuts } from '../../hooks/useMaintenanceShortcuts';
 const IDLE_RESET_MS = 5 * 60 * 1000;
 const RESET_AFTER_VOTE_S = 10;
 
-/** The paper copy of the vote: the voter checks it and drops it into the box at the booth. */
+/** The paper copy of the vote: the voter checks it and drops it into the box at the booth.
+ * Laid out on A4 paper, positioned at the top center with college logo and clear VVPAT structure. */
 const VoteReceipt = ({ receipt }) => {
   const { branding } = useBrand();
+  const cachedBrand = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('evote_branding') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const logo =
+    receipt.logo ||
+    sessionStorage.getItem('ballot_logo') ||
+    branding.logo ||
+    cachedBrand.logo ||
+    '';
+  const institution =
+    receipt.institution_name ||
+    sessionStorage.getItem('ballot_inst') ||
+    branding.institution_name ||
+    cachedBrand.institution_name ||
+    'ELECTION COMMISSION';
+
   return (
     <PrintPortal>
-      <div className="print-page">
-        <div className="print-slip border border-slate-400 rounded-xl overflow-hidden bg-white text-slate-900">
-          <div className="px-4 py-3 border-b border-dashed border-slate-400 flex items-center gap-3">
-            {branding.logo && <img src={branding.logo} alt="" className="w-10 h-10 object-contain" />}
-            <div className="min-w-0">
-              <p className="font-semibold text-sm leading-tight">{branding.institution_name}</p>
-              <p className="text-xs text-slate-600">{receipt.election} · Vote copy</p>
+      <div
+        className="print-receipt-page"
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          margin: '0 auto',
+          padding: '16mm 0 0 0',
+          display: 'block',
+          textAlign: 'center',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          className="print-receipt-container"
+          style={{
+            width: '100%',
+            maxWidth: '100%',
+            margin: '0 auto',
+            padding: 0,
+            display: 'block',
+            textAlign: 'center',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            className="print-receipt-card"
+            style={{
+              width: '110mm',
+              maxWidth: '110mm',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              marginTop: 0,
+              marginBottom: 0,
+              display: 'block',
+              textAlign: 'left',
+              border: '1.5px solid #0f172a',
+              borderRadius: '3.5mm',
+              background: '#ffffff',
+              color: '#0f172a',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+            }}
+          >
+            {/* Header with College Logo */}
+            <div
+              className="print-receipt-header"
+              style={{
+                padding: '4mm 5mm 3.5mm',
+                textAlign: 'center',
+                borderBottom: '1.5px dashed #64748b',
+                background: '#fafafa',
+              }}
+            >
+              {logo ? (
+                <img
+                  src={logo}
+                  alt="College Logo"
+                  className="receipt-logo"
+                  decoding="sync"
+                  loading="eager"
+                  style={{
+                    width: '18mm',
+                    height: '18mm',
+                    maxWidth: '18mm',
+                    maxHeight: '18mm',
+                    objectFit: 'contain',
+                    margin: '0 auto 2.5mm',
+                    display: 'block',
+                  }}
+                />
+              ) : null}
+              <h2
+                className="receipt-inst-name"
+                style={{
+                  fontSize: '11pt',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.03em',
+                  lineHeight: 1.2,
+                  margin: 0,
+                  color: '#0f172a',
+                  textAlign: 'center',
+                }}
+              >
+                {institution}
+              </h2>
+              <p
+                className="receipt-election-name"
+                style={{
+                  fontSize: '8.5pt',
+                  color: '#334155',
+                  margin: '1mm 0',
+                  fontWeight: 500,
+                  textAlign: 'center',
+                }}
+              >
+                {receipt.election}
+              </p>
+              <div style={{ textAlign: 'center', marginTop: '1mm' }}>
+                <span
+                  className="receipt-badge"
+                  style={{
+                    display: 'inline-block',
+                    fontSize: '6.5pt',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: receipt.is_mock ? '#b45309' : '#0f172a',
+                    background: receipt.is_mock ? '#fef3c7' : 'transparent',
+                    border: receipt.is_mock ? '0.8px solid #d97706' : '0.8px solid #0f172a',
+                    borderRadius: '1.5mm',
+                    padding: '0.5mm 2.5mm',
+                  }}
+                >
+                  {receipt.is_mock ? 'MOCK ELECTION · PRACTICE SLIP' : 'Official Vote Receipt · VVPAT'}
+                </span>
+              </div>
+            </div>
+
+            {/* Voter Slip ID */}
+            <div
+              className="receipt-slip-section"
+              style={{
+                padding: '3mm 4mm',
+                textAlign: 'center',
+                borderBottom: '1px dashed #94a3b8',
+                background: '#ffffff',
+              }}
+            >
+              <span
+                className="receipt-slip-label"
+                style={{
+                  display: 'block',
+                  fontSize: '6.5pt',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  color: '#64748b',
+                  fontWeight: 600,
+                }}
+              >
+                Voter Slip ID
+              </span>
+              <p
+                className="receipt-slip-id"
+                style={{
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  fontSize: '15pt',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  color: '#0f172a',
+                  margin: '0.5mm 0 0',
+                  textAlign: 'center',
+                }}
+              >
+                {receipt.slip}
+              </p>
+            </div>
+
+            {/* Ballot Choices Table */}
+            <table
+              className="receipt-table"
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}
+            >
+              <thead>
+                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                  <th
+                    className="receipt-th-pos"
+                    style={{
+                      padding: '1.5mm 4mm',
+                      fontSize: '7pt',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: '#475569',
+                      textAlign: 'left',
+                    }}
+                  >
+                    Contested Position
+                  </th>
+                  <th
+                    className="receipt-th-choice"
+                    style={{
+                      padding: '1.5mm 4mm',
+                      fontSize: '7pt',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: '#475569',
+                      textAlign: 'right',
+                    }}
+                  >
+                    Selected Choice
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {receipt.lines.map((l) => (
+                  <tr key={l.position} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td
+                      className="receipt-td-pos"
+                      style={{ padding: '2mm 4mm', color: '#334155', fontWeight: 500 }}
+                    >
+                      {l.position}
+                    </td>
+                    <td
+                      className="receipt-td-choice"
+                      style={{
+                        padding: '2mm 4mm',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                      }}
+                    >
+                      {l.choice}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Footer with Booth info and Verification Note */}
+            <div
+              className="receipt-footer"
+              style={{
+                padding: '3mm 4mm',
+                borderTop: '1.5px dashed #64748b',
+                background: '#fafafa',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                className="receipt-meta"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '7pt',
+                  color: '#475569',
+                  marginBottom: '1.5mm',
+                }}
+              >
+                <span><strong>Booth:</strong> {receipt.booth || 'Kiosk'}</span>
+                <span><strong>Time:</strong> {receipt.time}</span>
+              </div>
+              <p
+                className="receipt-instructions"
+                style={{ fontSize: '6.5pt', color: receipt.is_mock ? '#b45309' : '#64748b', lineHeight: 1.35, margin: 0, textAlign: 'center' }}
+              >
+                {receipt.is_mock
+                  ? 'PRACTICE VOTE: This is a mock election. Recorded votes are wiped when the mock ends.'
+                  : 'Check your choices above, then fold this slip and drop it into the box at the booth.'}
+              </p>
             </div>
           </div>
-          <div className="px-4 py-3 text-center">
-            <p className="text-[10px] uppercase tracking-widest text-slate-600">Voter slip ID</p>
-            <p className="font-mono text-2xl font-semibold tracking-wider">{receipt.slip}</p>
-          </div>
-          <table className="w-full text-sm border-t border-dashed border-slate-400">
-            <tbody>
-              {receipt.lines.map((l) => (
-                <tr key={l.position} className="border-b border-slate-200 last:border-0">
-                  <td className="px-4 py-1.5 text-slate-600">{l.position}</td>
-                  <td className="px-4 py-1.5 font-semibold text-right">{l.choice}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="px-4 py-2 text-[10px] text-slate-600 text-center border-t border-dashed border-slate-400">
-            Booth {receipt.booth} · {receipt.time}. Check your choices, then drop this slip into the box at the booth.
-          </p>
         </div>
       </div>
     </PrintPortal>
@@ -111,6 +357,9 @@ export const KioskVoting = () => {
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
   const [countdown, setCountdown] = useState(RESET_AFTER_VOTE_S);
   const [receipt, setReceipt] = useState(null);
+  const [electionLogo, setElectionLogo] = useState('');
+  const [institutionName, setInstitutionName] = useState('');
+  const [isMock, setIsMock] = useState(false);
   const [printState, setPrintState] = useState('idle'); // idle | sending | printed | failed | browser | off
   const { branding } = useBrand();
   const [fromReview, setFromReview] = useState(false);
@@ -148,6 +397,19 @@ export const KioskVoting = () => {
           setStage('error');
           return;
         }
+        if (data.logo) {
+          setElectionLogo(data.logo);
+          try { sessionStorage.setItem('ballot_logo', data.logo); } catch {}
+        }
+        if (data.institution_name) {
+          setInstitutionName(data.institution_name);
+          try { sessionStorage.setItem('ballot_inst', data.institution_name); } catch {}
+        }
+        if (data.is_mock !== undefined) {
+          setIsMock(Boolean(data.is_mock));
+        } else if (data.election?.is_mock !== undefined) {
+          setIsMock(Boolean(data.election.is_mock));
+        }
         setElection(data.election || { title: data.title });
         setPositions(list);
         setStage('intro');
@@ -181,7 +443,35 @@ export const KioskVoting = () => {
     const settings = boothInfo?.print || { enabled: true, printer: '', copies: 1 };
     if (!settings.enabled) return setPrintState('off');
     setPrintState('sending');
-    const payload = { ...r, institution: branding.institution_name, printer: settings.printer, copies: settings.copies };
+    const cachedBrand = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('evote_branding') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const activeLogo =
+      r.logo ||
+      electionLogo ||
+      sessionStorage.getItem('ballot_logo') ||
+      branding.logo ||
+      cachedBrand.logo ||
+      '';
+    const activeInst =
+      r.institution_name ||
+      institutionName ||
+      sessionStorage.getItem('ballot_inst') ||
+      branding.institution_name ||
+      cachedBrand.institution_name ||
+      '';
+    const payload = {
+      ...r,
+      institution: activeInst,
+      logo: activeLogo,
+      is_mock: Boolean(r.is_mock),
+      printer: settings.printer,
+      copies: settings.copies,
+    };
     if (window.evoteApp) { // the Campus E-Voting Booth desktop app prints and keeps the copy itself
       try {
         const out = await window.evoteApp.printReceipt(payload);
@@ -201,9 +491,24 @@ export const KioskVoting = () => {
       setPrintState(out.printed ? 'printed' : 'failed');
     } catch {
       setPrintState('browser'); // no agent here
-      setTimeout(() => window.print(), 600);
+      // Decode image in memory before triggering print preview so pixels are ready in GPU/bitmap cache
+      if (activeLogo) {
+        try {
+          const preImg = new Image();
+          preImg.src = activeLogo;
+          if (preImg.decode) {
+            await preImg.decode().catch(() => {});
+          } else {
+            await new Promise((res) => {
+              preImg.onload = res;
+              preImg.onerror = res;
+            });
+          }
+        } catch {}
+      }
+      setTimeout(() => window.print(), 350);
     }
-  }, [boothInfo, branding.institution_name]);
+  }, [boothInfo, branding.institution_name, branding.logo, electionLogo, institutionName]);
 
   useEffect(() => {
     if (stage === 'done' && receipt) printReceipt(receipt);
@@ -263,11 +568,33 @@ export const KioskVoting = () => {
     const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
     try {
       await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
+      const cachedBrand = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('evote_branding') || '{}');
+        } catch {
+          return {};
+        }
+      })();
+      const activeLogo =
+        electionLogo ||
+        sessionStorage.getItem('ballot_logo') ||
+        branding.logo ||
+        cachedBrand.logo ||
+        '';
+      const activeInst =
+        institutionName ||
+        sessionStorage.getItem('ballot_inst') ||
+        branding.institution_name ||
+        cachedBrand.institution_name ||
+        '';
       setReceipt({
         slip: voter.student_id,
         election: election.title,
         booth: localStorage.getItem('kiosk_name') || '',
         time: new Date().toLocaleString(),
+        logo: activeLogo,
+        institution_name: activeInst,
+        is_mock: Boolean(isMock || election?.is_mock),
         lines: positions.map((p) => ({ position: p.position, choice: choices[p.position] === 'NOTA' ? 'NOTA' : choices[p.position].name })),
       });
       setChoices({});
@@ -366,7 +693,7 @@ export const KioskVoting = () => {
         <div className="flex gap-3 mt-10">
           <button className="btn-primary btn-lg" onClick={finish}>Finish</button>
         </div>
-        {receipt && printState === 'browser' && <VoteReceipt receipt={receipt} />}
+        {receipt && <VoteReceipt receipt={receipt} />}
         <p className="text-xs text-muted mt-4">This screen clears itself in {Math.max(countdown, 0)}s for the next voter.</p>
       </div>,
       { progress: false }

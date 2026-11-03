@@ -72,12 +72,19 @@ def clean(text, limit=80):
 def render(r):
     """The vote copy as plain text (works on every printer CUPS can drive, thermal or A4)."""
     bar = "-" * WIDTH
-    out = [clean(r.get("institution"), WIDTH), clean(r.get("election"), WIDTH) + " - VOTE COPY", bar,
-           "Voter Slip ID: " + clean(r.get("slip_id"), 40), bar]
+    is_mock = bool(r.get("is_mock"))
+    header_title = clean(r.get("election"), WIDTH) + (" - PRACTICE VOTE (MOCK)" if is_mock else " - VOTE COPY")
+    out = [clean(r.get("institution"), WIDTH), header_title]
+    if is_mock:
+        out.append("*** MOCK ELECTION - NOT AN OFFICIAL VOTE ***")
+    out += [bar, "Voter Slip ID: " + clean(r.get("slip_id"), 40), bar]
     for line in (r.get("lines") or [])[:40]:
         out.append(f"{clean(line.get('position'), 28)}\n    {clean(line.get('choice'), 40)}")
-    out += [bar, f"Booth {clean(r.get('booth'), 20)}  {clean(r.get('time'), 30)}", "Check your choices, then drop this",
-            "slip into the box at the booth."]
+    out += [bar, f"Booth {clean(r.get('booth'), 20)}  {clean(r.get('time'), 30)}"]
+    if is_mock:
+        out += ["*** PRACTICE ONLY - DO NOT COUNT ***", "Drop this slip into the practice box."]
+    else:
+        out += ["Check your choices, then drop this", "slip into the box at the booth."]
     return "\n".join(out) + "\n"
 
 
@@ -98,8 +105,10 @@ def give_to_owner(paths, conf):
 def archive(r, text, conf):
     """Write the receipt to disk before printing: one text file per vote and a JSON line for later retrieval."""
     now = datetime.now()
-    os.makedirs(conf["RECEIPT_DIR"], mode=0o700, exist_ok=True)
-    folder = os.path.join(conf["RECEIPT_DIR"], now.strftime("%Y-%m-%d"))
+    is_mock = bool(r.get("is_mock"))
+    base_dir = os.path.join(os.path.dirname(conf["RECEIPT_DIR"]), "mockelection") if is_mock else conf["RECEIPT_DIR"]
+    os.makedirs(base_dir, mode=0o700, exist_ok=True)
+    folder = os.path.join(base_dir, now.strftime("%Y-%m-%d"))
     os.makedirs(folder, mode=0o700, exist_ok=True)
     slip = re.sub(r"[^A-Za-z0-9_-]", "_", clean(r.get("slip_id"), 40)) or "unknown"
     base = f"{now.strftime('%H%M%S')}-{slip}"
@@ -112,13 +121,14 @@ def archive(r, text, conf):
         f.write(text)
         f.flush()
         os.fsync(f.fileno())
-    record = {"saved_at": now.isoformat(timespec="seconds"), "file": path,
+    record = {"saved_at": now.isoformat(timespec="seconds"), "file": path, "is_mock": is_mock,
               **{k: r.get(k) for k in ("slip_id", "election", "booth", "time", "lines")}}
-    with open(os.path.join(conf["RECEIPT_DIR"], "receipts.jsonl"), "a", encoding="utf-8") as f:
+    log_name = "mock-receipts.jsonl" if is_mock else "receipts.jsonl"
+    with open(os.path.join(base_dir, log_name), "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
         f.flush()
         os.fsync(f.fileno())
-    give_to_owner([conf["RECEIPT_DIR"], folder, path, os.path.join(conf["RECEIPT_DIR"], "receipts.jsonl")], conf)
+    give_to_owner([base_dir, folder, path, os.path.join(base_dir, log_name)], conf)
     return path
 
 

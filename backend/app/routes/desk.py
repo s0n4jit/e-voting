@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import get_jwt_identity
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
@@ -87,7 +87,7 @@ def _statuses(users, election):
     }
 
 
-def _serialize(user, status, programmes, election=None):
+def _serialize(user, status, programmes, election=None, is_duplicate=False):
     prog = programmes.get(user.programme_id)
     return {
         "slip_id": user.student_id,
@@ -103,6 +103,8 @@ def _serialize(user, status, programmes, election=None):
         "registered_at": utc_iso(user.created_at),
         "election_title": election.title if election else None,
         "institution_name": SystemSetting.get("institution_name", ""),
+        "logo": SystemSetting.get("logo", ""),
+        "is_duplicate": bool(is_duplicate),
     }
 
 
@@ -298,6 +300,40 @@ def list_registrations():
     q = clean_name(request.args.get("q"))
     election = Election.current()
     query = _of_election(User.query.filter(User.role == "voter"), election)
+
+    # Detect duplicates (students with matching names or roll numbers in this election)
+    dup_names = set()
+    dup_rolls = set()
+    if election:
+        name_dups = _of_election(
+            db.session.query(func.lower(User.name))
+            .filter(User.role == "voter")
+            .group_by(func.lower(User.name))
+            .having(func.count(User.id) > 1),
+            election,
+        ).all()
+        dup_names = {row[0] for row in name_dups if row[0]}
+
+        roll_dups = _of_election(
+            db.session.query(func.lower(User.roll_no))
+            .filter(User.role == "voter", User.roll_no.isnot(None), User.roll_no != "")
+            .group_by(func.lower(User.roll_no))
+            .having(func.count(User.id) > 1),
+            election,
+        ).all()
+        dup_rolls = {row[0] for row in roll_dups if row[0]}
+
+    if request.args.get("duplicates") == "1":
+        dup_conds = []
+        if dup_names:
+            dup_conds.append(func.lower(User.name).in_(dup_names))
+        if dup_rolls:
+            dup_conds.append(func.lower(User.roll_no).in_(dup_rolls))
+        if dup_conds:
+            query = query.filter(or_(*dup_conds))
+        else:
+            query = query.filter(User.id == -1)
+
     if q:
         term = f"%{q}%"
         query = query.filter(User.student_id.ilike(term) | User.name.ilike(term) | User.roll_no.ilike(term))
@@ -314,10 +350,20 @@ def list_registrations():
     status = _statuses(users, election)
     programmes = _programme_map()
     return jsonify({
-        "registrations": [_serialize(u, status[u.student_id], programmes) for u in users],
+        "registrations": [
+            _serialize(
+                u,
+                status[u.student_id],
+                programmes,
+                election,
+                is_duplicate=(bool(u.name and u.name.lower() in dup_names) or bool(u.roll_no and u.roll_no.lower() in dup_rolls)),
+            )
+            for u in users
+        ],
         "total": total,
         "page": page,
         "per_page": per_page,
+        "duplicate_count": len(dup_names) + len(dup_rolls),
         "election": {"id": election.id, "title": election.title, "status": election.effective_status} if election else None,
     }), 200
 
@@ -333,7 +379,7 @@ def export_registrations():
     w = csv.writer(out)
     w.writerow(["Voter slip ID", "Name", "Roll or enrollment no.", "Programme", "Department/Stream", "Semester/Year", "Status", "Registered at"])
     for u in users:
-        row = _serialize(u, status[u.student_id], programmes)
+        row = _serialize(u, status[u.student_id], programmes, election)
         w.writerow([row["slip_id"], _csv_safe(row["name"]), _csv_safe(row["roll_no"]), _csv_safe(row["programme"]),
                     _csv_safe(row["department"]), row["term"], row["status"], row["registered_at"]])
     _audit("REGISTRATIONS_EXPORTED", f"Downloaded the registrations list ({len(users)} students).")
@@ -348,11 +394,22 @@ def export_registrations():
 @desk_bp.post("/registrations/issue-pins")
 @desk_required
 def issue_all_pins():
-    """Give every student who has no active PIN one, and return all slips (with PINs) of students who have not voted."""
+    """Give students without an active PIN one, and return slips (with PINs) of students who have not voted.
+    Accepts optional {"slip_ids": [...]} to issue pins for specific students only."""
     election = Election.current()
     if not election or not election.desk_open or election.voting_paused:
         return jsonify({"error": "PINs can only be issued while registration or voting is open and not paused."}), 409
-    users = _of_election(User.query.filter_by(role="voter"), election).order_by(User.student_id).all()
+
+    payload = request.get_json(silent=True) or {}
+    slip_ids = payload.get("slip_ids")
+
+    query = _of_election(User.query.filter_by(role="voter"), election)
+    if slip_ids and isinstance(slip_ids, list):
+        slip_ids_clean = [str(s).strip().upper() for s in slip_ids if str(s).strip()]
+        if slip_ids_clean:
+            query = query.filter(func.upper(User.student_id).in_(slip_ids_clean))
+
+    users = query.order_by(User.student_id).all()
     status = _statuses(users, election)
     programmes = _programme_map()
     slips, issued = [], 0
@@ -366,7 +423,7 @@ def issue_all_pins():
             pin, _t = VotingToken.generate_pin(u.student_id, election.id, _actor_id(), STATIC_PIN_MINUTES, rounds=8)
             issued += 1
         slips.append({**_serialize(u, status[u.student_id], programmes, election), "pin": pin})
-    _audit("PINS_ISSUED_BULK", f"Issued {issued} new voting PINs and printed {len(slips)} slips.")
+    _audit("PINS_ISSUED_BULK", f"Issued {issued} new voting PINs and prepared {len(slips)} slips." + (f" ({len(users)} selected students)" if slip_ids else ""))
     db.session.commit()
     return jsonify({"issued": issued, "students": slips, "election_title": election.title}), 200
 
@@ -401,7 +458,14 @@ def get_registration(slip_id):
         said = {"registered": "no PIN yet", "active": "at a booth now", "pin_active": "PIN already issued", "voted": "already voted"}[status]
         _audit("DESK_CHECKIN", f"Checked in {user.name} ({user.student_id}) at the desk: {said}.")
         db.session.commit()
-    return jsonify(_serialize(user, status, _programme_map(), election)), 200
+
+    is_dup = False
+    if election:
+        same_name = _of_election(User.query.filter(User.role == "voter", func.lower(User.name) == user.name.lower(), User.id != user.id), election).first()
+        same_roll = _of_election(User.query.filter(User.role == "voter", func.lower(User.roll_no) == user.roll_no.lower(), User.id != user.id), election).first() if user.roll_no else None
+        is_dup = bool(same_name or same_roll)
+
+    return jsonify(_serialize(user, status, _programme_map(), election, is_duplicate=is_dup)), 200
 
 
 @desk_bp.patch("/registrations/<slip_id>")
@@ -448,3 +512,84 @@ def update_registration(slip_id):
     _audit("STUDENT_UPDATED", f"Edited the registration details of {user.name} ({user.student_id}).")
     db.session.commit()
     return jsonify(_serialize(user, _statuses([user], election)[user.student_id], _programme_map(), election)), 200
+
+
+@desk_bp.delete("/registrations/<slip_id>")
+@desk_required
+def delete_registration(slip_id):
+    """Desk Officer or Election Officer: delete an individual student registration (e.g. duplicate or mistaken registration).
+    Can be done even when voting is open, as long as the student has not already voted."""
+    user = _find_voter(slip_id)
+    if not user:
+        return jsonify({"error": "No registration found for this voter slip ID."}), 404
+    election = Election.current()
+    status = _statuses([user], election)[user.student_id]
+    if status == "voted":
+        return jsonify({"error": "This voter has already voted and cannot be deleted."}), 409
+
+    if election:
+        VotingToken.query.filter(VotingToken.election_id == election.id,
+                                 VotingToken.student_id == user.student_id).delete(synchronize_session=False)
+        voter_hash = User.hash_student_id(user.student_id)
+        VoterRecord.query.filter(VoterRecord.election_id == election.id,
+                                 VoterRecord.voter_hash == voter_hash,
+                                 VoterRecord.has_voted.is_(False)).delete(synchronize_session=False)
+    VotingToken.query.filter(VotingToken.user_id == user.id).delete(synchronize_session=False)
+
+    name = user.name
+    student_id = user.student_id
+    db.session.delete(user)
+    _audit("STUDENT_DELETED", f"Deleted student registration of {name} ({student_id}).")
+    db.session.commit()
+    return jsonify({"deleted": student_id, "name": name}), 200
+
+
+@desk_bp.post("/registrations/bulk-delete")
+@desk_required
+def bulk_delete_registrations():
+    """Desk Officer or Election Officer: delete multiple student registrations by slip ID."""
+    payload = request.get_json(silent=True) or {}
+    slip_ids = payload.get("slip_ids")
+    if not slip_ids or not isinstance(slip_ids, list):
+        return jsonify({"error": "Select at least one student to delete."}), 400
+
+    slip_ids_clean = [str(s).strip().upper() for s in slip_ids if str(s).strip()][:500]
+    if not slip_ids_clean:
+        return jsonify({"error": "Select at least one student to delete."}), 400
+
+    election = Election.current()
+    users = _of_election(User.query.filter(User.role == "voter", func.upper(User.student_id).in_(slip_ids_clean)), election).all()
+    if not users:
+        return jsonify({"error": "No matching student registrations found."}), 404
+
+    status = _statuses(users, election)
+    deletable = [u for u in users if status.get(u.student_id) != "voted"]
+    voted = [u for u in users if status.get(u.student_id) == "voted"]
+
+    if not deletable:
+        return jsonify({"error": "The selected student(s) have already voted and cannot be deleted."}), 409
+
+    del_slips = [u.student_id for u in deletable]
+    del_hashes = [User.hash_student_id(s) for s in del_slips]
+    del_ids = [u.id for u in deletable]
+
+    if election:
+        for i in range(0, len(del_slips), 500):
+            VotingToken.query.filter(VotingToken.election_id == election.id,
+                                     VotingToken.student_id.in_(del_slips[i:i + 500])).delete(synchronize_session=False)
+            VoterRecord.query.filter(VoterRecord.election_id == election.id,
+                                     VoterRecord.voter_hash.in_(del_hashes[i:i + 500]),
+                                     VoterRecord.has_voted.is_(False)).delete(synchronize_session=False)
+    for i in range(0, len(del_ids), 500):
+        VotingToken.query.filter(VotingToken.user_id.in_(del_ids[i:i + 500])).delete(synchronize_session=False)
+
+    for u in deletable:
+        db.session.delete(u)
+
+    msg = f"Deleted {len(deletable)} student registration(s)."
+    if voted:
+        msg += f" {len(voted)} skipped because they have already voted."
+    _audit("STUDENTS_BULK_DELETED", msg)
+    db.session.commit()
+    return jsonify({"deleted": len(deletable), "skipped_voted": len(voted)}), 200
+

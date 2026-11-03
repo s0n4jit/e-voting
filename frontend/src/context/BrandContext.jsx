@@ -14,19 +14,38 @@ export const setFavicon = (logo) => {
 };
 
 const DEFAULT = { institution_name: '', system_name: 'Election Portal', logo: '', language: 'en' };
+
+const getCachedBrand = () => {
+  try {
+    const raw = localStorage.getItem('evote_branding');
+    return raw ? { ...DEFAULT, ...JSON.parse(raw) } : DEFAULT;
+  } catch {
+    return DEFAULT;
+  }
+};
+
 const BrandContext = createContext({ ready: false, installed: true, branding: DEFAULT, refresh: () => {} });
 
 /** Loads installation state and public branding once; every screen reads from here. */
 export const BrandProvider = ({ children }) => {
-  const [state, setState] = useState({ ready: false, installed: true, branding: DEFAULT, requiresToken: false });
+  const [state, setState] = useState(() => ({
+    ready: false,
+    installed: true,
+    branding: getCachedBrand(),
+    requiresToken: false,
+  }));
 
   const refresh = useCallback(async () => {
     try {
       const { data } = await apiClient.get('/setup/status');
+      const branding = { ...DEFAULT, ...(data.branding || {}) };
+      try {
+        localStorage.setItem('evote_branding', JSON.stringify(branding));
+      } catch {}
       setState({
         ready: true,
         installed: data.installed,
-        branding: { ...DEFAULT, ...(data.branding || {}) },
+        branding,
         requiresToken: Boolean(data.requires_token),
       });
     } catch {

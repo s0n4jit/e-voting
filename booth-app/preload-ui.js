@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('evoteUi', {
   resume: call('maint:resume'),
   openSetup: call('maint:setup'),
   openReceipts: call('maint:receipts'),
+  openMockReceipts: call('maint:mock-receipts'),
+  checkUpdates: call('updater:check'),
   quit: call('maint:quit'),
 });

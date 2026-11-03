@@ -1223,3 +1223,30 @@ def test_student_import_accepts_an_optional_roll_column(client, installed, desk_
     r = _csv_upload(client, H(desk_token), "name,programme,department,semester,roll_no\nAnita Das,Bachelor of Science,Physics,3,R-1\nRahul Borah,Bachelor of Arts,English,1,\n")
     assert r.status_code == 201 and r.get_json()["created"] == 2
     assert _csv_upload(client, H(desk_token), "name,programme,department,semester,roll_no\nMina Gogoi,Bachelor of Science,Physics,3,r-1\n").status_code == 400   # number already used
+
+
+def test_individual_and_bulk_delete_and_selected_pins(client, installed, desk_token):
+    _open_election(client, installed)
+    s1 = register(client, desk_token, name="Sonajit Rabha").get_json()
+    s2 = register(client, desk_token, name="Duplicate Sonajit", roll_no="DU-101").get_json()
+    s3 = register(client, desk_token, name="Third Student").get_json()
+
+    # Issue PIN only to selected students
+    res = client.post("/api/desk/registrations/issue-pins", headers=H(desk_token), json={"slip_ids": [s1["slip_id"], s2["slip_id"]]})
+    assert res.status_code == 200
+    issued_data = res.get_json()
+    assert issued_data["issued"] == 2
+    assert {s["slip_id"] for s in issued_data["students"]} == {s1["slip_id"], s2["slip_id"]}
+
+    # Individual delete (Desk and election officers)
+    del_res = client.delete(f"/api/desk/registrations/{s2['slip_id']}", headers=H(desk_token))
+    assert del_res.status_code == 200 and del_res.get_json()["deleted"] == s2["slip_id"]
+    assert client.get(f"/api/desk/registrations/{s2['slip_id']}", headers=H(desk_token)).status_code == 404
+
+    # Bulk delete
+    s4 = register(client, desk_token, name="Fourth Student").get_json()
+    bulk_res = client.post("/api/desk/registrations/bulk-delete", headers=H(desk_token), json={"slip_ids": [s3["slip_id"], s4["slip_id"]]})
+    assert bulk_res.status_code == 200 and bulk_res.get_json()["deleted"] == 2
+    assert client.get(f"/api/desk/registrations/{s3['slip_id']}", headers=H(desk_token)).status_code == 404
+    assert client.get(f"/api/desk/registrations/{s4['slip_id']}", headers=H(desk_token)).status_code == 404
+

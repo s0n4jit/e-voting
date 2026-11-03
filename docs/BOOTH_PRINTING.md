@@ -4,10 +4,12 @@ After a vote is recorded, the booth prints a **vote copy** (Voter Slip ID and th
 
 ## How it works
 
-Every booth machine runs a small **booth agent** (`evote-agent`, port 9631, this machine only). The booth page sends the receipt to it; the agent
+Every booth machine runs a small **booth agent** (`evote-agent`, port 9631, this machine only) or the desktop booth app (`booth-app`). The booth page sends the receipt to it; the agent:
 
 1. saves it to `/var/lib/evote/receipts/<date>/<time>-<slip>.txt` and appends a line to `receipts.jsonl` (folder is private to root),
 2. prints it to the printer through CUPS (`lp`), with no print dialog.
+
+When a **Mock Election** is conducted (`is_mock=True`), receipts are saved separately to `/var/lib/evote/mockelection/<date>/<time>-<slip>.txt` and `mock-receipts.jsonl`, with `*** MOCK ELECTION - NOT AN OFFICIAL VOTE ***` printed on the slip, safeguarding official election tallies and audit records.
 
 If the printer fails, the copy is still saved and the booth tells the voter to ask the desk. On a PC without the agent the browser's normal print dialog is used instead.
 
@@ -46,6 +48,11 @@ Then open `http://127.0.0.1:9631/setup` on that machine: set the portal address,
 
 ## Keeping the receipts
 
-* **Lab PC:** the installer keeps receipts in the administrator's private folder `~/.evote-receipts` (mode 700, owned by the account that ran the installer with `sudo`). The kiosk user cannot read it. Without a normal administrator account they go to `/var/lib/evote/receipts`.
+* **Desktop Booth App:**
+  - Official votes: `%APPDATA%\Campus E-Voting Booth\receipts` (Linux: `~/.config/Campus E-Voting Booth/receipts`)
+  - Practice votes: `%APPDATA%\Campus E-Voting Booth\mockelection` (Linux: `~/.config/Campus E-Voting Booth/mockelection`)
+* **Lab PC (Agent):**
+  - Official votes: `~/.evote-receipts` or `/var/lib/evote/receipts`
+  - Practice votes: `/var/lib/evote/mockelection`
 
 A receipt links a Voter Slip ID to the choices made. Keep the disk and the export under the same control as the ballot box.

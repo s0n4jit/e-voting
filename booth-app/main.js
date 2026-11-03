@@ -16,7 +16,34 @@ const EXIT_KEYS = 'CommandOrControl+Alt+Shift+Q';
 const MAINTENANCE_MINUTES = 15; // the booth returns to voting by itself after this long outside kiosk mode
 
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
-const spoolDir = () => path.join(app.getPath('userData'), 'receipts');
+const spoolDir = (isMock = false) =>
+  isMock
+    ? path.join(app.getPath('userData'), 'mockelection')
+    : path.join(app.getPath('userData'), 'receipts');
+
+let autoUpdater = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+} catch (e) {
+  // auto-updater unavailable in dev or test
+}
+
+function initAutoUpdater() {
+  if (!autoUpdater || process.env.EVOTE_NO_UPDATE || !app.isPackaged) return;
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version);
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version);
+  });
+  autoUpdater.on('error', (err) => {
+    console.warn('[AutoUpdater] Notice:', err?.message || err);
+  });
+  setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 6000);
+  setInterval(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 4 * 60 * 60 * 1000);
+}
 
 let cfg = config.DEFAULTS;
 let mainWin = null;
@@ -66,6 +93,8 @@ async function withPage(html, fn) {
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
   try {
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    // Brief pause to allow any base64 images and styles to paint into layout buffer
+    await new Promise((r) => setTimeout(r, 200));
     return await fn(win.webContents);
   } finally {
     win.destroy();
@@ -86,7 +115,7 @@ function defaultPrinterName() {
   });
 }
 
-const toPdf = (html) => withPage(html, (wc) => wc.printToPDF({ pageSize: 'A5', printBackground: false, margins: { top: 0, bottom: 0, left: 0, right: 0 } }));
+const toPdf = (html) => withPage(html, (wc) => wc.printToPDF({ pageSize: 'A4', printBackground: true, margins: { top: 0, bottom: 0, left: 0, right: 0 } }));
 
 /** Save the PDF next to the saved HTML copy of the same vote. */
 async function savePdf(htmlFile, html) {
@@ -104,7 +133,15 @@ async function printHtml(html, wanted, copies = 1) {
   if (FILE_PRINTER.test(target)) return 'pdf'; // the PDF copy is saved by the caller
   await withPage(html, (wc) => new Promise((resolve, reject) => {
     wc.print(
-      { silent: true, printBackground: false, deviceName: target, copies, margins: { marginType: 'none' } },
+      {
+        silent: true,
+        printBackground: true,
+        deviceName: target,
+        copies,
+        pageSize: 'A4',
+        color: true,
+        margins: { marginType: 'none' },
+      },
       (ok, reason) => (ok ? resolve() : reject(new Error(reason || 'the printer did not accept the job'))),
     );
   }));
@@ -217,7 +254,7 @@ ipcMain.handle('print-receipt', async (event, raw) => {
   const html = receipt.toHtml(r);
   let saved;
   try {
-    saved = receipt.archive(spoolDir(), r);
+    saved = receipt.archive(spoolDir(r.is_mock), r);
   } catch (e) {
     return { archived: false, printed: false, error: `could not save the copy: ${e.message}` };
   }
@@ -248,7 +285,25 @@ ui('cfg:save', (next) => {
   return { ok: true };
 });
 ui('print-test', async (printer) => {
-  const r = receipt.normalize({ institution: 'Printer test', election: 'Campus E-Voting Booth', slip: 'TEST-000000', booth: 'TEST', time: new Date().toLocaleString(), lines: [{ position: 'President', choice: 'Sample Candidate' }, { position: 'Secretary', choice: 'NOTA' }] });
+  let branding = {};
+  try {
+    const origin = config.originOf(cfg.url) || 'http://localhost:8080';
+    const res = await fetch(`${origin}/api/setup/status`);
+    const data = await res.json();
+    branding = data.branding || {};
+  } catch {}
+  const r = receipt.normalize({
+    institution: branding.institution_name || 'Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga',
+    election: "Students' Union Election 2026-27 (test)",
+    slip: 'TEST-000000',
+    booth: 'TEST-BOOTH',
+    time: new Date().toLocaleString(),
+    logo: branding.logo || '',
+    lines: [
+      { position: 'President', choice: 'Sample Candidate' },
+      { position: 'Secretary', choice: 'NOTA' },
+    ],
+  });
   const html = receipt.toHtml(r);
   try {
     const how = await printHtml(html, printer, 1);
@@ -274,12 +329,37 @@ ui('exit:verify', async (code) => {
 ui('exit:cancel', () => { if (promptWin) promptWin.destroy(); });
 ui('maint:resume', enterKiosk);
 ui('maint:setup', () => showUi('setup.html', { maintenance: '1' }));
-ui('maint:receipts', () => shell.openPath(spoolDir()));
+ui('maint:receipts', () => {
+  const dir = spoolDir(false);
+  fs.mkdirSync(dir, { recursive: true });
+  return shell.openPath(dir);
+});
+ui('maint:mock-receipts', () => {
+  const dir = spoolDir(true);
+  fs.mkdirSync(dir, { recursive: true });
+  return shell.openPath(dir);
+});
+ui('updater:check', async () => {
+  if (!autoUpdater || !app.isPackaged) {
+    return { ok: false, message: 'Auto-updater is active only in packaged builds.' };
+  }
+  try {
+    const res = await autoUpdater.checkForUpdates();
+    const ver = res?.updateInfo?.version;
+    if (ver && ver !== app.getVersion()) {
+      return { ok: true, version: ver };
+    }
+    return { ok: true, message: `Current version (v${app.getVersion()}) is up to date.` };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Error checking for updates.' };
+  }
+});
 ui('maint:quit', () => { allowQuit = true; app.quit(); });
 
 // ── start ──────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   cfg = config.load(cfgFile());
+  initAutoUpdater();
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   // Remember where the portal's API lives (it can be another host) so the exit code can be checked there.

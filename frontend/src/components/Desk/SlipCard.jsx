@@ -7,12 +7,13 @@ import { PrintSlip } from './SlipSheet';
 /** Printable voter slip. Only .print-area is visible when printing (see index.css). */
 export default function SlipCard({ slip, showPrint = true }) {
   const { branding } = useBrand();
+  const logo = slip.logo || branding.logo;
   const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '');
   return (
     <div className="space-y-4">
       <div className="no-flip card overflow-hidden max-w-md mx-auto bg-white text-slate-900 border-slate-300">
         <div className="px-6 py-4 border-b border-dashed border-slate-300 flex items-center gap-3">
-          {branding.logo && <img src={branding.logo} alt="" className="w-10 h-10 object-contain" />}
+          {logo && <img src={logo} alt="" className="w-10 h-10 object-contain" />}
           <div className="min-w-0">
             <p className="font-semibold truncate">{slip.institution_name || branding.institution_name}</p>
             <p className="text-xs text-slate-500 truncate">{slip.election_title || 'Voter slip'}</p>
@@ -29,26 +30,26 @@ export default function SlipCard({ slip, showPrint = true }) {
           </div>
         )}
         <dl className="px-6 pb-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          <div className="col-span-2">
-            <dt className="text-xs text-slate-500">Name</dt>
-            <dd className="font-medium text-slate-900">{slip.name}</dd>
+          <div className="col-span-2 flex items-baseline gap-1.5 flex-wrap">
+            <dt className="text-xs text-slate-500 font-normal shrink-0">Name:</dt>
+            <dd className="font-medium text-slate-900 break-words">{slip.name}</dd>
           </div>
           {slip.roll_no && (
-            <div className="col-span-2">
-              <dt className="text-xs text-slate-500">Roll or enrollment no.</dt>
+            <div className="col-span-2 flex items-baseline gap-1.5 flex-wrap">
+              <dt className="text-xs text-slate-500 font-normal shrink-0">Roll or enrollment no.:</dt>
               <dd className="font-medium text-slate-900">{slip.roll_no}</dd>
             </div>
           )}
-          <div>
-            <dt className="text-xs text-slate-500">Programme</dt>
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <dt className="text-xs text-slate-500 font-normal shrink-0">Programme:</dt>
             <dd className="font-medium text-slate-900">{[slip.programme, slip.department].filter(Boolean).join(' · ')}</dd>
           </div>
-          <div>
-            <dt className="text-xs text-slate-500">{slip.term_label}</dt>
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <dt className="text-xs text-slate-500 font-normal shrink-0">{slip.term_label}:</dt>
             <dd className="font-medium text-slate-900">{String(slip.term ?? slip.semester).replace(/^(Semester|Year)\s+/i, '')}</dd>
           </div>
-          <div className="col-span-2">
-            <dt className="text-xs text-slate-500">Registered</dt>
+          <div className="col-span-2 flex items-baseline gap-1.5 flex-wrap">
+            <dt className="text-xs text-slate-500 font-normal shrink-0">Registered:</dt>
             <dd className="text-slate-900">{fmt(slip.registered_at)}</dd>
           </div>
         </dl>
@@ -60,7 +61,7 @@ export default function SlipCard({ slip, showPrint = true }) {
       </div>
       <PrintPortal>
         <div className="print-page">
-          <PrintSlip slip={slip} institution={slip.institution_name || branding.institution_name} electionTitle={slip.election_title} />
+          <PrintSlip slip={{ ...slip, logo }} institution={slip.institution_name || branding.institution_name} electionTitle={slip.election_title} />
         </div>
       </PrintPortal>
       {showPrint && (

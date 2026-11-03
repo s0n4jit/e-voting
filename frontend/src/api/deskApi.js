@@ -7,7 +7,9 @@ export const deskApi = {
     return (await apiClient.post('/desk/registrations/import', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data;
   },
   removeAll: async () => (await apiClient.delete('/desk/registrations', { data: { confirm: 'DELETE' } })).data,
-  issueAllPins: async () => (await apiClient.post('/desk/registrations/issue-pins')).data,
+  deleteStudent: async (slip) => (await apiClient.delete(`/desk/registrations/${encodeURIComponent(slip)}`)).data,
+  bulkDelete: async (slipIds) => (await apiClient.post('/desk/registrations/bulk-delete', { slip_ids: slipIds })).data,
+  issueAllPins: async (slipIds) => (await apiClient.post('/desk/registrations/issue-pins', slipIds ? { slip_ids: slipIds } : {})).data,
   getPin: async (slip) => (await apiClient.get(`/desk/registrations/${encodeURIComponent(slip)}/pin`)).data.pin,
   state: async () => (await apiClient.get('/desk/state')).data,
   getProgrammes: async () => (await apiClient.get('/desk/programmes')).data,

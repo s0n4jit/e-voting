@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     paths: ['booth-app/**', '.github/workflows/booth-app.yml']
-    tags: ['booth-app-v*']
+    tags: ['booth-app-v*', 'v*']
 
 permissions:
   contents: write
@@ -42,9 +42,11 @@ jobs:
             booth-app/dist/*.exe
             booth-app/dist/*.AppImage
             booth-app/dist/*.deb
+            booth-app/dist/latest*.yml
+            booth-app/dist/*.blockmap
 
-  # Publish the files under a fixed release tag so the officer panel can link to stable download addresses:
-  # https://github.com/<owner>/<repo>/releases/download/booth-app-latest/<file>
+  # Publish the files under a fixed release tag so the officer panel can link to stable download addresses,
+  # and provide latest.yml / latest-linux.yml so electron-updater can automatically discover and download new versions.
   publish:
     needs: build
     runs-on: ubuntu-latest
@@ -61,4 +63,12 @@ jobs:
           gh release delete booth-app-latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release create booth-app-latest files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Booth app (latest build)" --prerelease --latest=false \
-            --notes "Windows installer, Ubuntu .deb and Linux AppImage of the Campus E-Voting Booth app. Built from $GITHUB_SHA."
+            --notes "Windows installer, Ubuntu .deb, Linux AppImage and auto-update manifests. Built from $GITHUB_SHA."
+      - name: Publish version tag release (if tagged)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG_NAME" files/* --repo "$GITHUB_REPOSITORY" \
+            --title "Booth App $TAG_NAME" --notes "Campus E-Voting Booth $TAG_NAME release built from $GITHUB_SHA." || true

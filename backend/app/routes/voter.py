@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.voter_record import VoterRecord
+from app.models.system_setting import SystemSetting
 from app.services.vote_service import VoteService, VotingError
 from flask_jwt_extended import get_jwt
 from app.routes.booth import require_booth
@@ -74,6 +75,9 @@ def get_election_ballot(election_id):
             "title": election.title,
             "election": election.to_dict(),
             "positions": positions_list,
+            "is_mock": bool(election.is_mock),
+            "institution_name": SystemSetting.get("institution_name", ""),
+            "logo": SystemSetting.get("logo", ""),
         }),
         200,
     )
