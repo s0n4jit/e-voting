@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
-import { deskApi, saveBlob, setupApi } from '../../api/deskApi';
+import { deskApi, saveBlob, setupApi, triggerPrintWithTitle } from '../../api/deskApi';
 import { errorMessage } from '../ui';
 import Modal from '../common/Modal';
 import SlipSheet, { slipsCsv } from './SlipSheet';
@@ -38,7 +38,7 @@ export default function ImportStudents({ onDone }) {
     }
   };
 
-  const downloadSlips = () => saveBlob(new Blob([slipsCsv(result.students)], { type: 'text/csv' }), 'voter-slips-with-pins.csv');
+  const downloadSlips = () => saveBlob(new Blob([slipsCsv(result.students)], { type: 'text/csv' }), `imported-voter-slips-${new Date().toISOString().slice(0, 10)}.csv`);
 
   return (
     <>
@@ -57,7 +57,7 @@ export default function ImportStudents({ onDone }) {
             </p>
             <div className="flex justify-end gap-2">
               {result.created > 0 && <button className="btn-secondary" onClick={downloadSlips}>Download (CSV)</button>}
-              {result.created > 0 && <button className="btn-secondary" onClick={() => window.print()}>Print slips</button>}
+              {result.created > 0 && <button className="btn-secondary" onClick={() => triggerPrintWithTitle(`imported-voter-slips-${new Date().toISOString().slice(0, 10)}`)}>Print slips</button>}
               <button className="btn-primary" onClick={close}>Done</button>
             </div>
           </div>

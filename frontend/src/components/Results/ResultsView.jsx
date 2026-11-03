@@ -5,6 +5,7 @@ import { photoSrc } from '../ui';
 import { useBrand } from '../../context/BrandContext';
 import PrintPortal from '../common/PrintPortal';
 import PrintableResults from './PrintableResults';
+import { safeFileName, triggerPrintWithTitle } from '../../api/deskApi';
 
 const Avatar = ({ candidate }) =>
   candidate.photo_url ? (
@@ -58,7 +59,15 @@ export default function ResultsView({ data, portal = true }) {
               </p>
             </div>
           </div>
-          <button type="button" className="btn-primary btn-lg shrink-0 no-print" onClick={() => window.print()}>
+          <button
+            type="button"
+            className="btn-primary btn-lg shrink-0 no-print"
+            onClick={() =>
+              triggerPrintWithTitle(
+                `election-results-${safeFileName(election?.title || 'election')}-${new Date().toISOString().slice(0, 10)}`
+              )
+            }
+          >
             <PrinterIcon className="w-5 h-5" /> Print result sheet
           </button>
         </div>

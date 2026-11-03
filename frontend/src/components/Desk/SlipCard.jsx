@@ -3,6 +3,7 @@ import { PrinterIcon } from '@heroicons/react/24/outline';
 import { useBrand } from '../../context/BrandContext';
 import PrintPortal from '../common/PrintPortal';
 import { PrintSlip } from './SlipSheet';
+import { safeFileName, triggerPrintWithTitle } from '../../api/deskApi';
 
 /** Printable voter slip. Only .print-area is visible when printing (see index.css). */
 export default function SlipCard({ slip, showPrint = true }) {
@@ -66,7 +67,14 @@ export default function SlipCard({ slip, showPrint = true }) {
       </PrintPortal>
       {showPrint && (
         <div className="no-print flex justify-center">
-          <button className="btn-secondary" onClick={() => window.print()}>
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              triggerPrintWithTitle(
+                `voter-slip-${slip.slip_id}-${safeFileName(slip.name)}`
+              )
+            }
+          >
             <PrinterIcon className="w-4 h-4" /> Print or save as PDF
           </button>
         </div>

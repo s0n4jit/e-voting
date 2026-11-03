@@ -482,7 +482,12 @@ export const KioskVoting = () => {
           }
         } catch {}
       }
-      setTimeout(() => window.print(), 350);
+      setTimeout(() => {
+        const origTitle = document.title;
+        document.title = `official-vote-receipt-${receipt.slip || 'ballot'}-${new Date().toISOString().slice(0, 10)}`;
+        window.print();
+        setTimeout(() => { document.title = origTitle; }, 3000);
+      }, 350);
     }
   }, [boothInfo, branding.institution_name, branding.logo, electionLogo, institutionName]);
 

@@ -11,6 +11,7 @@ import Modal from '../common/Modal';
 import PrintPortal from '../common/PrintPortal';
 import PrintableResults from './PrintableResults';
 import ResultsView from './ResultsView';
+import { safeFileName, triggerPrintWithTitle } from '../../api/deskApi';
 
 /** Results inside the officer workspace: live counts, and the public link once published. */
 export const ResultsPage = () => {
@@ -122,7 +123,14 @@ export const ResultsPage = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {!showAll && (
-                <button className="btn-primary btn-lg" onClick={() => window.print()}>
+                <button
+                  className="btn-primary btn-lg"
+                  onClick={() =>
+                    triggerPrintWithTitle(
+                      `election-results-${safeFileName(data.election?.title || 'election')}-${new Date().toISOString().slice(0, 10)}`
+                    )
+                  }
+                >
                   <PrinterIcon className="w-5 h-5" /> Print result sheet
                 </button>
               )}

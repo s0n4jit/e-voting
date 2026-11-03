@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TicketIcon, PrinterIcon, ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { deskApi, saveBlob } from '../../api/deskApi';
+import { deskApi, saveBlob, safeFileName, triggerPrintWithTitle } from '../../api/deskApi';
 import { errorMessage } from '../ui';
 import Modal from '../common/Modal';
 import SlipSheet, { slipsCsv } from './SlipSheet';
@@ -38,8 +38,10 @@ export default function IssuePins({ onDone, disabled }) {
   const handlePrint = () => {
     setPrinting(true);
     setTimeout(() => {
-      window.print();
-      setPrinting(false);
+      triggerPrintWithTitle(
+        `voter-slips-${safeFileName(result?.election_title || 'election')}-${new Date().toISOString().slice(0, 10)}`,
+        () => setPrinting(false)
+      );
     }, 250);
   };
 
@@ -109,7 +111,7 @@ export default function IssuePins({ onDone, disabled }) {
             <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-line">
               <button
                 className="btn-secondary"
-                onClick={() => saveBlob(new Blob([slipsCsv(result.students)], { type: 'text/csv' }), 'voter-slips-with-pins.csv')}
+                onClick={() => saveBlob(new Blob([slipsCsv(result.students)], { type: 'text/csv' }), `voter-slips-${safeFileName(result.election_title || 'election')}-${new Date().toISOString().slice(0, 10)}.csv`)}
               >
                 <ArrowDownTrayIcon className="w-4 h-4" /> Download CSV
               </button>

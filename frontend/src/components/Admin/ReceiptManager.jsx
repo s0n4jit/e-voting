@@ -121,7 +121,7 @@ const ReceiptManager = () => {
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${slipId}.pdf`;
+      a.download = `voter-receipt-${slipId}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -138,7 +138,7 @@ const ReceiptManager = () => {
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/zip' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = tab === 'mock' ? 'mock_election_receipts.zip' : 'official_election_receipts.zip';
+      a.download = `voter-receipts-${tab === 'mock' ? 'mock' : 'official'}-${new Date().toISOString().slice(0, 10)}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

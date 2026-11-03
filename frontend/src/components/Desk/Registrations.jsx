@@ -10,7 +10,7 @@ import {
   TrashIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
-import { deskApi, saveBlob } from '../../api/deskApi';
+import { deskApi, saveBlob, safeFileName, triggerPrintWithTitle } from '../../api/deskApi';
 import { EmptyState, PageHeader, TableSkeleton, errorMessage } from '../ui';
 import { toast } from 'react-hot-toast';
 import Modal from '../common/Modal';
@@ -100,7 +100,10 @@ export default function Registrations() {
 
   const exportCsv = async () => {
     try {
-      saveBlob(await deskApi.exportCsv(), 'registrations.csv');
+      saveBlob(
+        await deskApi.exportCsv(),
+        `voter-registrations-${safeFileName(election?.title || 'election')}-${new Date().toISOString().slice(0, 10)}.csv`
+      );
     } catch (err) {
       toast.error(errorMessage(err));
     }
@@ -475,13 +478,21 @@ export default function Registrations() {
                 onClick={() =>
                   saveBlob(
                     new Blob([slipsCsv(bulkPrintResult.students)], { type: 'text/csv' }),
-                    'selected-voter-slips.csv'
+                    `selected-voter-slips-${safeFileName(bulkPrintResult.election_title || election?.title || 'election')}-${new Date().toISOString().slice(0, 10)}.csv`
                   )
                 }
               >
                 Download (CSV)
               </button>
-              <button className="btn-primary" onClick={() => window.print()} disabled={!bulkPrintResult.students.length}>
+              <button
+                className="btn-primary"
+                onClick={() =>
+                  triggerPrintWithTitle(
+                    `voter-slips-${safeFileName(bulkPrintResult.election_title || election?.title || 'election')}-${new Date().toISOString().slice(0, 10)}`
+                  )
+                }
+                disabled={!bulkPrintResult.students.length}
+              >
                 <PrinterIcon className="w-4 h-4" /> Print slips
               </button>
             </div>

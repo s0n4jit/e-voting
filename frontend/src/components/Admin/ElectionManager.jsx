@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ArrowDownTrayIcon, PlusIcon, RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
-import { saveBlob } from '../../api/deskApi';
+import { saveBlob, safeFileName } from '../../api/deskApi';
 import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
@@ -148,7 +148,7 @@ export const ElectionManager = () => {
 
   const report = async (election) => {
     try {
-      saveBlob(await adminApi.downloadReport(election.id), `election-${election.id}-report.csv`);
+      saveBlob(await adminApi.downloadReport(election.id), `election-report-${safeFileName(election.title || election.id)}-${new Date().toISOString().slice(0, 10)}.csv`);
     } catch (err) {
       toast.error(errorMessage(err));
     }
