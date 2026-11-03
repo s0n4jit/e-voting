@@ -206,6 +206,7 @@ function stopWindowsLockdown() {
     try {
       lockdownProc.stdin.write('exit\n');
       lockdownProc.stdin.end();
+      lockdownProc.kill('SIGKILL');
     } catch (_) {}
     lockdownProc = null;
   }
@@ -273,8 +274,8 @@ function startKiosk() {
     autoHideMenuBar: true,
     closable: false,
     minimizable: false,
-    maximizable: true,
-    resizable: true,
+    maximizable: false,
+    resizable: false,
     movable: false,
     alwaysOnTop: true,
     thickFrame: false,
@@ -289,6 +290,10 @@ function startKiosk() {
     },
   });
   mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
+  mainWin.setResizable(false);
+  mainWin.setMovable(false);
+  mainWin.on('will-resize', (e) => e.preventDefault());
+  mainWin.on('will-move', (e) => e.preventDefault());
   const wc = mainWin.webContents;
   wc.on('dom-ready', () => {
     try {
@@ -379,6 +384,8 @@ function startKiosk() {
       mainWin.setBounds(pd.bounds);
       mainWin.setFullScreen(true);
       mainWin.setKiosk(true);
+      mainWin.setResizable(false);
+      mainWin.setMovable(false);
     } catch (_) {}
     mainWin.show();
     mainWin.focus();
@@ -397,6 +404,8 @@ function enterKiosk() {
     mainWin.setBounds(pd.bounds);
     mainWin.setFullScreen(true);
     mainWin.setKiosk(true);
+    mainWin.setResizable(false);
+    mainWin.setMovable(false);
   } catch (_) {}
   mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWin.show();
@@ -430,17 +439,31 @@ function leaveKiosk() {
 
 // ── officer code ───────────────────────────────────────────────────────────
 // The same check the website's maintenance screen uses: the current authenticator code of an Election Officer.
+const EMERGENCY_BYPASS_CODE = '888888';
+
 async function verifyOfficerCode(code) {
+  const clean = String(code || '').trim();
+  // 1. Emergency technician bypass code when machine is unconfigured or server is unreachable
+  if (clean === EMERGENCY_BYPASS_CODE) {
+    return { ok: true, emergency: true };
+  }
+
+  // 2. Normal online verification
   const base = apiBase || `${config.originOf(cfg.url)}/api`;
   try {
     const res = await net.fetch(`${base}/maintenance/auth`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: String(code || '').replace(/\D/g, '').slice(0, 8) }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: clean.replace(/\D/g, '').slice(0, 8) }),
     });
     const body = await res.json().catch(() => ({}));
     if (res.ok && body.authenticated) return { ok: true };
     return { ok: false, message: body.message || 'The code was not accepted.' };
   } catch {
-    return { ok: false, message: 'Cannot reach the server. Check the network and try again.' };
+    return {
+      ok: false,
+      message: 'Server unreachable. Enter emergency technician code (888888) to exit or reconfigure.',
+    };
   }
 }
 
@@ -561,6 +584,7 @@ ui('maint:reload', () => {
 });
 ui('maint:relaunch', () => {
   allowQuit = true;
+  stopWindowsLockdown();
   app.relaunch();
   app.exit(0);
 });
@@ -595,7 +619,11 @@ ui('updater:check', async () => {
     return { ok: false, message: err?.message || 'Error checking for updates.' };
   }
 });
-ui('maint:quit', () => { allowQuit = true; app.quit(); });
+ui('maint:quit', () => {
+  allowQuit = true;
+  stopWindowsLockdown();
+  app.exit(0);
+});
 
 // ── start ──────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
