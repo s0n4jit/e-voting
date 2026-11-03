@@ -40,9 +40,6 @@ const VoteReceipt = ({ receipt }) => {
     'ELECTION COMMISSION';
 
   const lines = Array.isArray(receipt.lines) ? receipt.lines : [];
-  const mid = Math.ceil(lines.length / 2);
-  const col1 = lines.slice(0, mid);
-  const col2 = lines.slice(mid);
   const isMock = Boolean(receipt.is_mock);
 
   return (
@@ -53,7 +50,7 @@ const VoteReceipt = ({ receipt }) => {
           width: '100%',
           maxWidth: '100%',
           margin: '0 auto',
-          padding: '12mm 0 0 0',
+          padding: '6mm 0 0 0',
           display: 'block',
           textAlign: 'center',
           boxSizing: 'border-box',
@@ -62,8 +59,8 @@ const VoteReceipt = ({ receipt }) => {
         <div
           className="print-receipt-card"
           style={{
-            width: '184mm',
-            maxWidth: '184mm',
+            width: '125mm',
+            maxWidth: '125mm',
             marginLeft: 'auto',
             marginRight: 'auto',
             marginTop: 0,
@@ -82,7 +79,7 @@ const VoteReceipt = ({ receipt }) => {
           <div
             className="print-receipt-header"
             style={{
-              padding: '3mm 4mm 2.5mm',
+              padding: '2.5mm 4mm 2mm',
               textAlign: 'center',
               borderBottom: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
               background: isMock ? '#fffbeb' : '#fafafa',
@@ -97,7 +94,7 @@ const VoteReceipt = ({ receipt }) => {
                 loading="eager"
                 style={{
                   height: '12mm',
-                  maxWidth: '14mm',
+                  maxWidth: '15mm',
                   maxHeight: '12mm',
                   objectFit: 'contain',
                   margin: '0 auto 1.5mm',
@@ -108,11 +105,11 @@ const VoteReceipt = ({ receipt }) => {
             <h2
               className="receipt-inst-name"
               style={{
-                fontSize: '8.5pt',
+                fontSize: '9pt',
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 letterSpacing: '0.02em',
-                lineHeight: 1.15,
+                lineHeight: 1.2,
                 margin: 0,
                 color: isMock ? '#92400e' : '#0f172a',
                 textAlign: 'center',
@@ -123,21 +120,21 @@ const VoteReceipt = ({ receipt }) => {
             <p
               className="receipt-election-name"
               style={{
-                fontSize: '7pt',
+                fontSize: '7.5pt',
                 color: isMock ? '#b45309' : '#334155',
-                margin: '0.5mm 0',
+                margin: '0.6mm 0',
                 fontWeight: 500,
                 textAlign: 'center',
               }}
             >
               {receipt.election}
             </p>
-            <div style={{ textAlign: 'center', marginTop: '0.5mm' }}>
+            <div style={{ textAlign: 'center', marginTop: '0.4mm' }}>
               <span
                 className="receipt-badge"
                 style={{
                   display: 'inline-block',
-                  fontSize: '5.5pt',
+                  fontSize: '6pt',
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
@@ -145,7 +142,7 @@ const VoteReceipt = ({ receipt }) => {
                   background: isMock ? '#fef3c7' : '#ffffff',
                   border: isMock ? '0.8px solid #d97706' : '0.8px solid #0f172a',
                   borderRadius: '1mm',
-                  padding: '0.2mm 2mm',
+                  padding: '0.2mm 2.5mm',
                 }}
               >
                 {isMock ? 'MOCK ELECTION · PRACTICE SLIP' : 'Official Vote Receipt · VVPAT'}
@@ -163,7 +160,7 @@ const VoteReceipt = ({ receipt }) => {
               padding: '1.5mm 4mm',
               borderBottom: isMock ? '1px dashed #f59e0b' : '1px dashed #94a3b8',
               background: '#ffffff',
-              fontSize: '6.5pt',
+              fontSize: '7pt',
             }}
           >
             <div style={{ color: '#475569', fontWeight: 500 }}>
@@ -172,7 +169,7 @@ const VoteReceipt = ({ receipt }) => {
             <div style={{ textAlign: 'center' }}>
               <span
                 style={{
-                  fontSize: '5pt',
+                  fontSize: '5.5pt',
                   textTransform: 'uppercase',
                   letterSpacing: '0.12em',
                   color: '#64748b',
@@ -186,7 +183,7 @@ const VoteReceipt = ({ receipt }) => {
                 className="receipt-slip-id"
                 style={{
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                  fontSize: '10.5pt',
+                  fontSize: '11pt',
                   fontWeight: 800,
                   letterSpacing: '0.08em',
                   color: '#0f172a',
@@ -200,18 +197,18 @@ const VoteReceipt = ({ receipt }) => {
             </div>
           </div>
 
-          {/* Ballot Choices Grid (2-column layout for <= 140mm height) */}
-          {lines.length <= 4 ? (
+          {/* Single-Column Ballot Choices Table */}
+          <div className="receipt-table-wrap" style={{ width: '100%', background: '#ffffff' }}>
             <table
               className="receipt-table"
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt' }}
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.8pt' }}
             >
               <thead>
-                <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                  <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
+                <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: isMock ? '1px solid #fde68a' : '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: isMock ? '#92400e' : '#475569', textAlign: 'left' }}>
                     Contested Position
                   </th>
-                  <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
+                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: isMock ? '#92400e' : '#475569', textAlign: 'right' }}>
                     Selected Choice
                   </th>
                 </tr>
@@ -219,71 +216,19 @@ const VoteReceipt = ({ receipt }) => {
               <tbody>
                 {lines.map((l) => (
                   <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
-                    <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
+                    <td style={{ padding: '1.1mm 4mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
+                    <td style={{ padding: '1.1mm 4mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          ) : (
-            <div
-              className="receipt-grid"
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: '#ffffff' }}
-            >
-              <table
-                className="receipt-table"
-                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt', borderRight: '1px solid #cbd5e1' }}
-              >
-                <thead>
-                  <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
-                      Contested Position
-                    </th>
-                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
-                      Selected Choice
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {col1.map((l) => (
-                    <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
-                      <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <table
-                className="receipt-table"
-                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.2pt' }}
-              >
-                <thead>
-                  <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
-                      Contested Position
-                    </th>
-                    <th style={{ padding: '1.2mm 3mm', fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
-                      Selected Choice
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {col2.map((l) => (
-                    <tr key={l.position} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '1.2mm 3mm', color: '#334155', fontWeight: 500 }}>{l.position}</td>
-                      <td style={{ padding: '1.2mm 3mm', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{l.choice}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          </div>
 
           {/* Footer with Verification Note */}
           <div
             className="receipt-footer"
             style={{
-              padding: '1.5mm 3mm',
+              padding: '1.5mm 4mm',
               borderTop: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
               background: isMock ? '#fffbeb' : '#fafafa',
               textAlign: 'center',
@@ -294,7 +239,7 @@ const VoteReceipt = ({ receipt }) => {
               style={{
                 fontSize: '5.5pt',
                 color: isMock ? '#b45309' : '#64748b',
-                lineHeight: 1.2,
+                lineHeight: 1.25,
                 margin: 0,
                 textAlign: 'center',
               }}

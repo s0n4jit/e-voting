@@ -1,7 +1,7 @@
 'use strict';
 // The vote copy: validation, HTML for the printer, and the copy kept on this computer's disk.
-// Formatted to fit strictly in the top half of an A4 page (height < 120mm) so one A4 sheet
-// can be torn/cut in half to yield two receipts without clipping or overflowing.
+// Single-column ballot layout formatted to fit strictly in the top half of an A4 page (height <= 135mm)
+// so that one A4 sheet can be torn/split into 2 parts horizontally.
 const fs = require('fs');
 const path = require('path');
 
@@ -28,32 +28,11 @@ function normalize(r = {}) {
 
 function toHtml(r) {
   const lines = Array.isArray(r.lines) ? r.lines : [];
-  const mid = Math.ceil(lines.length / 2);
-  const col1 = lines.slice(0, mid);
-  const col2 = lines.slice(mid);
-
   const rowHtml = (l) => `<tr><td class="p">${esc(l.position)}</td><td class="c">${esc(l.choice)}</td></tr>`;
-  const col1Rows = col1.map(rowHtml).join('');
-  const col2Rows = col2.map(rowHtml).join('');
+  const tableRows = lines.map(rowHtml).join('');
 
   const logoHtml = r.logo ? `<img class="logo" src="${esc(r.logo)}" alt="Logo" />` : '';
   const isMock = Boolean(r.is_mock);
-
-  const gridHtml = lines.length <= 4
-    ? `<table class="col-table full-table">
-        <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
-        <tbody>${lines.map(rowHtml).join('')}</tbody>
-      </table>`
-    : `<div class="grid">
-        <table class="col-table">
-          <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
-          <tbody>${col1Rows}</tbody>
-        </table>
-        <table class="col-table">
-          <thead><tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr></thead>
-          <tbody>${col2Rows}</tbody>
-        </table>
-      </div>`;
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Vote copy ${esc(r.slip)}</title><style>
     @page { size: A4 portrait; margin: 0; }
@@ -70,13 +49,13 @@ function toHtml(r) {
     .page-wrap {
       width: 100%;
       margin: 0 auto;
-      padding: 12mm 0 0 0;
+      padding: 6mm 0 0 0;
       box-sizing: border-box;
       text-align: center;
     }
     .card {
-      width: 184mm;
-      max-width: 184mm;
+      width: 125mm;
+      max-width: 125mm;
       margin-left: auto;
       margin-right: auto;
       margin-top: 0;
@@ -90,39 +69,39 @@ function toHtml(r) {
       box-sizing: border-box;
     }
     .hdr {
-      padding: 3mm 4mm 2.5mm;
+      padding: 2.5mm 4mm 2mm;
       text-align: center;
       border-bottom: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
       background: ${isMock ? '#fffbeb' : '#fafafa'};
     }
     .logo {
       height: 12mm;
-      max-width: 14mm;
+      max-width: 15mm;
       max-height: 12mm;
       object-fit: contain;
       margin: 0 auto 1.5mm;
       display: block;
     }
     h1 {
-      font-size: 8.5pt;
+      font-size: 9pt;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: .02em;
       margin: 0;
-      line-height: 1.15;
+      line-height: 1.2;
       text-align: center;
       color: ${isMock ? '#92400e' : '#0f172a'};
     }
     .sub {
-      font-size: 7pt;
+      font-size: 7.5pt;
       color: ${isMock ? '#b45309' : '#334155'};
-      margin: 0.5mm 0;
+      margin: 0.6mm 0;
       text-align: center;
       font-weight: 500;
     }
     .badge {
       display: inline-block;
-      font-size: 5.5pt;
+      font-size: 6pt;
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
@@ -130,8 +109,8 @@ function toHtml(r) {
       border: .8px solid ${isMock ? '#d97706' : '#0f172a'};
       background: ${isMock ? '#fef3c7' : '#ffffff'};
       border-radius: 1mm;
-      padding: .2mm 2mm;
-      margin-top: .5mm;
+      padding: .2mm 2.5mm;
+      margin-top: .4mm;
       text-align: center;
     }
     .banner {
@@ -141,7 +120,7 @@ function toHtml(r) {
       padding: 1.5mm 4mm;
       border-bottom: 1px dashed ${isMock ? '#f59e0b' : '#94a3b8'};
       background: #ffffff;
-      font-size: 6.5pt;
+      font-size: 7pt;
     }
     .banner .side {
       color: #475569;
@@ -151,7 +130,7 @@ function toHtml(r) {
       text-align: center;
     }
     .banner .slip-lbl {
-      font-size: 5pt;
+      font-size: 5.5pt;
       text-transform: uppercase;
       letter-spacing: .12em;
       color: #64748b;
@@ -160,47 +139,42 @@ function toHtml(r) {
     }
     .banner .slip-id {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 10.5pt;
+      font-size: 11pt;
       font-weight: 800;
       letter-spacing: .08em;
       color: #0f172a;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
+    .table-wrap {
+      width: 100%;
       background: #ffffff;
     }
-    .col-table {
+    table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 7.2pt;
-    }
-    .grid .col-table:first-child {
-      border-right: 1px solid #cbd5e1;
+      font-size: 7.8pt;
     }
     th {
       background: ${isMock ? '#fef3c7' : '#f1f5f9'};
-      padding: 1.2mm 3mm;
-      font-size: 6pt;
+      padding: 1mm 4mm;
+      font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: .05em;
-      color: #475569;
-      border-bottom: 1px solid #cbd5e1;
+      color: ${isMock ? '#92400e' : '#475569'};
+      border-bottom: 1px solid ${isMock ? '#fde68a' : '#cbd5e1'};
     }
     th.p { text-align: left; }
     th.c { text-align: right; }
     td {
-      padding: 1.2mm 3mm;
+      padding: 1.1mm 4mm;
       border-bottom: 1px solid #f1f5f9;
       vertical-align: middle;
-      line-height: 1.15;
+      line-height: 1.2;
     }
     tr:last-child td { border-bottom: 0; }
     .p { color: #334155; font-weight: 500; }
     .c { text-align: right; font-weight: 700; color: #0f172a; }
     .ftr {
-      padding: 1.5mm 3mm;
+      padding: 1.5mm 4mm;
       border-top: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
       background: ${isMock ? '#fffbeb' : '#fafafa'};
       text-align: center;
@@ -210,13 +184,13 @@ function toHtml(r) {
       color: ${isMock ? '#b45309' : '#64748b'};
       margin: 0;
       text-align: center;
-      line-height: 1.2;
+      line-height: 1.25;
     }
     .mock-warning {
       font-weight: 800;
       letter-spacing: .05em;
       display: block;
-      margin-bottom: .5mm;
+      margin-bottom: .3mm;
     }
     .tear-guide {
       width: 184mm;
@@ -250,7 +224,14 @@ function toHtml(r) {
           </div>
           <div class="side">Time: ${esc(r.time)}</div>
         </div>
-        ${gridHtml}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th class="p">Contested Position</th><th class="c">Selected Choice</th></tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
         <div class="ftr">
           ${
             isMock
