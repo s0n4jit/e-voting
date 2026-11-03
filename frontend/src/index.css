@@ -75,6 +75,37 @@
   * { @apply box-border; }
   :focus-visible { @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg; }
   ::selection { background: rgb(var(--brand) / 0.25); }
+
+  /* Kiosk-specific anti-drag, anti-select, anti-copy and anti-highlight */
+  .kiosk-screen,
+  .kiosk-screen *,
+  [data-kiosk="true"],
+  [data-kiosk="true"] * {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-user-drag: none !important;
+    -webkit-touch-callout: none !important;
+  }
+  .kiosk-screen ::selection,
+  .kiosk-screen *::selection,
+  [data-kiosk="true"] ::selection,
+  [data-kiosk="true"] *::selection {
+    background: transparent !important;
+    color: inherit !important;
+  }
+  .kiosk-screen ::-moz-selection,
+  .kiosk-screen *::-moz-selection,
+  [data-kiosk="true"] ::-moz-selection,
+  [data-kiosk="true"] *::-moz-selection {
+    background: transparent !important;
+    color: inherit !important;
+  }
+  .kiosk-screen img,
+  [data-kiosk="true"] img {
+    -webkit-user-drag: none !important;
+    user-drag: none !important;
+    pointer-events: auto;
+  }
 }
 
 @layer components {

@@ -70,7 +70,12 @@ export const KioskLogin = () => {
   if (booth === 'checking') return <LoadingSpinner size="lg" />;
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
+    <div
+      className="min-h-screen bg-bg flex flex-col select-none kiosk-screen"
+      data-kiosk="true"
+      onDragStart={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <header className="flex items-center justify-between px-6 py-4">
         <BrandMark />
         <div className="flex items-center gap-3">

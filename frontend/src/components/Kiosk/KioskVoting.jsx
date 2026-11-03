@@ -261,9 +261,20 @@ const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('')
 const Avatar = ({ candidate, size = 'w-16 h-16', text = '', rounded = 'rounded-xl' }) => {
   const [failed, setFailed] = useState(false);
   return candidate.photo_url && !failed ? (
-    <img src={photoSrc(candidate.photo_url)} alt="" className={`${size} ${rounded} object-cover bg-recessed shrink-0`} onError={() => setFailed(true)} />
+    <img
+      src={photoSrc(candidate.photo_url)}
+      alt=""
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      className={`${size} ${rounded} object-cover bg-recessed shrink-0 select-none pointer-events-none`}
+      onError={() => setFailed(true)}
+    />
   ) : (
-    <div className={`${size} ${rounded} bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0 ${text}`}>
+    <div
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      className={`${size} ${rounded} bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0 select-none ${text}`}
+    >
       {initials(candidate.name)}
     </div>
   );
@@ -565,9 +576,14 @@ export const KioskVoting = () => {
   };
 
   const chrome = (children, { progress = true } = {}) => (
-    <div className="min-h-screen bg-bg flex flex-col select-none">
+    <div
+      className="min-h-screen bg-bg flex flex-col select-none kiosk-screen"
+      data-kiosk="true"
+      onDragStart={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <header className="sticky top-0 z-20 bg-bg/90 backdrop-blur border-b border-line">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 h-12 sm:h-14 flex items-center justify-between gap-4">
           <BrandMark />
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 shadow-2xs">
@@ -584,7 +600,7 @@ export const KioskVoting = () => {
           </div>
         )}
       </header>
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-3 sm:py-4">{children}</main>
       <NetworkOfflineOverlay />
     </div>
   );
@@ -700,10 +716,20 @@ export const KioskVoting = () => {
                 ))}
               </span>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight mt-2">{current.position}</h1>
-            <p className="text-muted mt-1 text-sm">Choose one candidate.</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">{current.position}</h1>
+            <p className="text-muted mt-0.5 text-xs">Choose one candidate.</p>
 
-            <div role="radiogroup" aria-label={current.position} className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 mt-6">
+            <div
+              role="radiogroup"
+              aria-label={current.position}
+              className={`grid gap-3 sm:gap-4 mt-3 sm:mt-4 ${
+                (current.candidates.length + 1) <= 3
+                  ? 'grid-cols-2 sm:grid-cols-3'
+                  : (current.candidates.length + 1) <= 6
+                  ? 'grid-cols-3'
+                  : 'grid-cols-3 md:grid-cols-4'
+              }`}
+            >
               {current.candidates.map((c) => {
                 const on = choices[current.position]?.id === c.id;
                 return (
@@ -713,24 +739,26 @@ export const KioskVoting = () => {
                     aria-checked={on}
                     aria-label={c.name}
                     tabIndex={0}
+                    draggable={false}
+                    onDragStart={(e) => e.preventDefault()}
                     onClick={() => select(c)}
                     onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && on ? next() : select(c))}
-                    className={`relative flex flex-col rounded-2xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 active:scale-[0.98] ${
-                      on ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
+                    className={`relative flex flex-col rounded-xl border-2 cursor-pointer bg-surface overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
+                      on ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
                   >
-                    <Avatar candidate={c} size="w-full aspect-square" rounded="rounded-none" text="text-7xl sm:text-8xl" />
+                    <Avatar candidate={c} size="w-full h-24 sm:h-28 md:h-32" rounded="rounded-none" text="text-4xl sm:text-5xl" />
                     <span
-                      className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                      className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
                         on ? 'bg-brand border-brand scale-100' : 'bg-surface/90 border-line'
                       }`}
                     >
-                      {on && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
+                      {on && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
                     </span>
-                    <div className={`px-4 py-4 text-center flex-1 ${on ? 'bg-brand-soft/60' : ''}`}>
-                      <p className="text-xl sm:text-2xl font-bold leading-tight break-words">{c.name}</p>
-                      <p className="text-sm font-bold mt-1 min-h-[2.5rem]">
-                        {c.department ? `Student of Department of ${c.department}` : ''}{c.semester ? `, ${c.semester}` : ''}
+                    <div className={`px-2.5 py-2 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-sm sm:text-base font-bold leading-tight break-words line-clamp-1">{c.name}</p>
+                      <p className="text-xs text-muted font-medium mt-0.5 line-clamp-1 min-h-[1.1rem]">
+                        {c.department ? `${c.department}` : ''}{c.semester ? `, ${c.semester}` : ''}
                       </p>
                     </div>
                   </div>
@@ -741,28 +769,30 @@ export const KioskVoting = () => {
                 role="radio"
                 aria-checked={choices[current.position] === 'NOTA'}
                 tabIndex={0}
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
                 onClick={() => select('NOTA')}
                 onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), e.key === 'Enter' && choices[current.position] === 'NOTA' ? next() : select('NOTA'))}
-                className={`relative flex flex-col rounded-2xl border-2 cursor-pointer overflow-hidden transition-all duration-200 active:scale-[0.98] ${
-                  choices[current.position] === 'NOTA' ? 'border-brand ring-4 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
+                className={`relative flex flex-col rounded-xl border-2 cursor-pointer overflow-hidden transition-all duration-200 select-none active:scale-[0.98] ${
+                  choices[current.position] === 'NOTA' ? 'border-brand ring-3 ring-brand/25 shadow-card-hover -translate-y-0.5' : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
               >
-                <div className="w-full aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-700">
-                  <NoSymbolIcon className="w-1/2 h-1/2 text-slate-600 dark:text-slate-200" strokeWidth={1.5} />
+                <div className="w-full h-24 sm:h-28 md:h-32 flex items-center justify-center bg-slate-200 dark:bg-slate-700">
+                  <NoSymbolIcon className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 dark:text-slate-200" strokeWidth={1.5} />
                 </div>
-                <span className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
-                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
+                <span className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
+                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <div className={`px-4 py-4 text-center flex-1 ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-xl sm:text-2xl font-bold leading-tight">NOTA</p>
-                  <p className="text-sm text-muted mt-1">I do not choose anyone</p>
+                <div className={`px-2.5 py-2 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-sm sm:text-base font-bold leading-tight">NOTA</p>
+                  <p className="text-xs text-muted mt-0.5 line-clamp-1 min-h-[1.1rem]">I do not choose anyone</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-8">
-              <button className="btn-secondary" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button className="btn-primary btn-lg" onClick={() => next()} disabled={!choices[current.position]}>
+            <div className="flex items-center justify-between mt-4 sm:mt-6">
+              <button className="btn-secondary py-2 px-4" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
+              <button className="btn-primary btn-lg py-2.5 px-6" onClick={() => next()} disabled={!choices[current.position]}>
                 {fromReview || step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
               </button>
             </div>
