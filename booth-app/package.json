@@ -27,6 +27,7 @@
       "preload-ui.js",
       "lib/**",
       "ui/**",
+      "bin/**",
       "package.json"
     ],
     "directories": {

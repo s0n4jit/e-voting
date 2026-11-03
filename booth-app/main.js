@@ -174,6 +174,36 @@ function showUi(page, query = {}, opts = {}) {
   uiWin.on('closed', () => { uiWin = null; });
 }
 
+let lockdownProc = null;
+
+function startWindowsLockdown() {
+  if (process.platform !== 'win32') return;
+  stopWindowsLockdown();
+  try {
+    const binPath = path.join(__dirname, 'bin', 'win-lockdown.exe');
+    if (fs.existsSync(binPath)) {
+      const { spawn } = require('child_process');
+      lockdownProc = spawn(binPath, [], {
+        stdio: ['pipe', 'ignore', 'ignore'],
+        windowsHide: true,
+      });
+      lockdownProc.on('error', (e) => console.warn('Lockdown hook notice:', e?.message));
+    }
+  } catch (e) {
+    console.warn('Could not launch Windows lockdown hook:', e?.message);
+  }
+}
+
+function stopWindowsLockdown() {
+  if (lockdownProc) {
+    try {
+      lockdownProc.stdin.write('exit\n');
+      lockdownProc.stdin.end();
+    } catch (_) {}
+    lockdownProc = null;
+  }
+}
+
 const SWALLOWED_SHORTCUTS = [
   'Alt+Tab',
   'Alt+F4',
@@ -229,7 +259,6 @@ function startKiosk() {
     maximizable: true,
     resizable: true,
     movable: false,
-    skipTaskbar: true,
     alwaysOnTop: true,
     thickFrame: false,
     webPreferences: {
@@ -314,8 +343,9 @@ function startKiosk() {
     if (!promptWin && !uiWin && mainWin && !mainWin.isDestroyed()) {
       setImmediate(() => {
         try {
-          mainWin.focus();
           mainWin.setAlwaysOnTop(true, 'screen-saver', 1);
+          mainWin.moveTop();
+          mainWin.focus();
         } catch (_) {}
       });
     }
@@ -338,6 +368,7 @@ function startKiosk() {
   });
   mainWin.loadURL(cfg.url);
   registerLockdownShortcuts();
+  startWindowsLockdown();
 }
 
 function enterKiosk() {
@@ -354,6 +385,7 @@ function enterKiosk() {
   mainWin.show();
   mainWin.focus();
   registerLockdownShortcuts();
+  startWindowsLockdown();
 }
 
 function openExitPrompt() {
@@ -369,6 +401,7 @@ function openExitPrompt() {
 }
 
 function leaveKiosk() {
+  stopWindowsLockdown();
   unregisterLockdownShortcuts();
   mainWin.setKiosk(false);
   mainWin.setAlwaysOnTop(false);
@@ -569,6 +602,6 @@ app.whenReady().then(() => {
   }
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { stopWindowsLockdown(); globalShortcut.unregisterAll(); });
 app.on('second-instance', () => { if (mainWin) mainWin.focus(); });
 app.on('window-all-closed', () => { if (allowQuit || !cfg.url) app.quit(); }); // closing the very first setup window ends the app
