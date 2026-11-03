@@ -371,7 +371,14 @@ def put_settings():
         return jsonify({"error": "Please correct the highlighted fields.", "errors": errors}), 400
     merged["slip_code"] = (merged.get("slip_code") or "SUE").upper()
     for k, v in merged.items():
-        SystemSetting.put(k, sanitize_input(clean_name(v)) if k in ("institution_name", "system_name") else v or "")
+        if k in ("institution_name", "system_name"):
+            val = sanitize_input(clean_name(v))
+        elif k == "enable_theme_toggle":
+            # Store as explicit "true"/"false" to avoid bool-or-empty coercion bug
+            val = "true" if str(v).strip().lower() in ("true", "1", "yes", "on") else "false"
+        else:
+            val = v or ""
+        SystemSetting.put(k, val)
     _audit("SETTINGS_UPDATED", "Updated the institution settings.")
     db.session.commit()
     return jsonify(SystemSetting.branding()), 200

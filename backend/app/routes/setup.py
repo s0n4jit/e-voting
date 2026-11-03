@@ -158,7 +158,7 @@ def status():
     body = {"installed": installed}
     if installed:
         b = SystemSetting.branding()
-        body["branding"] = {k: b[k] for k in ("institution_name", "system_name", "logo", "language")}
+        body["branding"] = {k: b[k] for k in ("institution_name", "system_name", "logo", "language", "slip_code", "enable_theme_toggle")}
     else:
         body["requires_token"] = bool(os.environ.get("SETUP_TOKEN"))
     return jsonify(body), 200

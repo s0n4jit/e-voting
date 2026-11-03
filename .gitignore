@@ -95,3 +95,10 @@ docs/PHASES.md
 docs/*.pdf
 booth-app/node_modules/
 booth-app/dist/
+
+# Nested pytest caches (e.g. inside frontend/src or test subdirs)
+**/.pytest_cache/
+
+# Local scratch / temporary work directories
+scratch/
+**/scratch/
