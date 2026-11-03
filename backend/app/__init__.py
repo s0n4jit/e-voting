@@ -138,6 +138,7 @@ def create_app(config_object=None) -> Flask:
             candidate_photo,
             booth_create_token,
             revoked_token,
+            vote_receipt,
         )
         from app.migrations import run_migrations
 
@@ -248,6 +249,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.routes.photos import photos_bp
     from app.routes.booth import booth_bp
     from app.routes.system import system_bp
+    from app.routes.receipts import receipts_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
@@ -260,6 +262,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(photos_bp, url_prefix="/api/photos")
     app.register_blueprint(booth_bp, url_prefix="/api/booth")
     app.register_blueprint(system_bp, url_prefix="/api/admin/system")
+    app.register_blueprint(receipts_bp)
 
 
 def _register_error_handlers(app: Flask) -> None:

@@ -67,6 +67,18 @@ export const adminApi = {
       election_id: electionId,
       name,
       department,
+
+  // Central Server Receipts & Audit
+  getReceipts: async (params = {}) => (await apiClient.get('/officer/receipts', { params })).data,
+  downloadReceiptPdf: async (slipId) => {
+    const res = await apiClient.get(`/officer/receipts/${encodeURIComponent(slipId)}/pdf`, { responseType: 'blob' });
+    return res.data;
+  },
+  downloadReceiptsZip: async (params = {}) => {
+    const res = await apiClient.get('/officer/receipts/export-zip', { params, responseType: 'blob' });
+    return res.data;
+  },
+  clearMockReceipts: async (params = {}) => (await apiClient.delete('/officer/receipts/mock', { params })).data,
     };
     const response = await apiClient.post('/admin/desk/issue-pin', payload);
     return response.data;
@@ -157,6 +169,18 @@ export const adminApi = {
     const response = await apiClient.delete(`/admin/officers/${id}`);
     return response.data;
   },
+
+  // Central Server Receipts & Audit
+  getReceipts: async (params = {}) => (await apiClient.get('/officer/receipts', { params })).data,
+  downloadReceiptPdf: async (slipId) => {
+    const res = await apiClient.get(`/officer/receipts/${encodeURIComponent(slipId)}/pdf`, { responseType: 'blob' });
+    return res.data;
+  },
+  downloadReceiptsZip: async (params = {}) => {
+    const res = await apiClient.get('/officer/receipts/export-zip', { params, responseType: 'blob' });
+    return res.data;
+  },
+  clearMockReceipts: async (params = {}) => (await apiClient.delete('/officer/receipts/mock', { params })).data,
 };
 
 export default adminApi;

@@ -41,6 +41,7 @@ const navFor = (role) => {
       { label: 'Programmes', to: '/admin/programmes', icon: AcademicCapIcon },
       { label: 'Voting booths', to: '/admin/kiosks', icon: ComputerDesktopIcon },
       { label: 'Results', to: '/admin/results', icon: PresentationChartBarIcon },
+      { label: 'Vote receipts', to: '/admin/receipts', icon: CheckBadgeIcon },
       { label: 'Audit log', to: '/admin/audit', icon: DocumentTextIcon },
       { label: 'Settings', to: '/admin/settings', icon: Cog6ToothIcon },
       { label: 'Backup and reset', to: '/admin/system', icon: ArchiveBoxArrowDownIcon },

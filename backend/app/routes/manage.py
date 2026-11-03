@@ -205,6 +205,11 @@ def end_mock(election_id):
     ballots = BallotEntry.query.filter_by(election_id=election.id).delete(synchronize_session=False)
     voted = VoterRecord.query.filter_by(election_id=election.id).update({"has_voted": False, "voted_at": None})
     pins = VotingToken.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+    try:
+        from app.services.receipt_service import ReceiptService
+        ReceiptService.clear_mock_receipts(election_id=election.id)
+    except Exception as e:
+        logger.warn(f"Failed to clear mock receipts during end_mock: {e}")
     logs = AuditLog.query.filter(AuditLog.created_at >= election.mock_started_at).delete(synchronize_session=False)
     election.set_status("ready")
     election.is_mock = False

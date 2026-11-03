@@ -251,27 +251,6 @@ const VoteReceipt = ({ receipt }) => {
           </div>
         </div>
 
-        {/* Tear or Cut Guide Line (Half A4 Mark) */}
-        <div
-          className="receipt-tear-guide"
-          style={{
-            width: '184mm',
-            margin: '5mm auto 0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '2mm',
-            color: '#94a3b8',
-            fontSize: '6pt',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}
-        >
-          <span>✂</span>
-          <div style={{ flex: 1, borderTop: '1px dashed #94a3b8' }} />
-          <span>TEAR OR CUT HERE (HALF A4 · 148.5 MM)</span>
-          <div style={{ flex: 1, borderTop: '1px dashed #94a3b8' }} />
-          <span>✂</span>
-        </div>
       </div>
     </PrintPortal>
   );

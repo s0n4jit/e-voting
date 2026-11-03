@@ -26,6 +26,7 @@ try {
   autoUpdater = require('electron-updater').autoUpdater;
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = true;
 } catch (e) {
   // auto-updater unavailable in dev or test
 }
@@ -259,23 +260,21 @@ ipcMain.handle('print-receipt', async (event, raw) => {
   if (!fromPortal(event)) return { archived: false, printed: false, error: 'not allowed' };
   const r = receipt.normalize(raw);
   const html = receipt.toHtml(r);
-  let saved;
-  try {
-    saved = receipt.archive(spoolDir(r.is_mock), r);
-  } catch (e) {
-    return { archived: false, printed: false, error: `could not save the copy: ${e.message}` };
-  }
+  let saved = '';
   let pdf = '';
-  try {
-    pdf = await savePdf(saved, html); // a PDF of every vote copy, kept with the others
-  } catch (e) {
-    console.error('PDF copy failed:', e.message); // the HTML copy is already safe; printing still goes ahead
+  if (cfg.keepLocalReceipts) {
+    try {
+      saved = receipt.archive(spoolDir(r.is_mock), r);
+      pdf = await savePdf(saved, html);
+    } catch (e) {
+      console.warn('Local receipt archive skipped:', e.message);
+    }
   }
   try {
     await printHtml(html, r.printer || cfg.printer, r.copies);
-    return { archived: true, printed: true, pdf };
+    return { archived: Boolean(saved), printed: true, pdf };
   } catch (e) {
-    return { archived: true, printed: false, error: e.message, pdf };
+    return { archived: Boolean(saved), printed: false, error: e.message, pdf };
   }
 });
 
@@ -351,6 +350,7 @@ ui('updater:check', async () => {
     return { ok: false, message: 'Auto-updater is active only in packaged builds.' };
   }
   try {
+    autoUpdater.allowPrerelease = true;
     const res = await autoUpdater.checkForUpdates();
     const ver = res?.updateInfo?.version;
     if (ver && ver !== app.getVersion()) {

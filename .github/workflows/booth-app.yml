@@ -62,7 +62,7 @@ jobs:
           ls -la files
           gh release delete booth-app-latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release create booth-app-latest files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Booth app (latest build)" --prerelease --latest=false \
+            --title "Booth app (latest build)" --latest=true \
             --notes "Windows installer, Ubuntu .deb, Linux AppImage and auto-update manifests. Built from $GITHUB_SHA."
       - name: Publish version tag release (if tagged)
         if: startsWith(github.ref, 'refs/tags/')

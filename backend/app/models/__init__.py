@@ -15,6 +15,7 @@ from app.models.programme import Programme
 from app.models.candidate_photo import CandidatePhoto
 from app.models.booth_create_token import BoothCreateToken
 from app.models.election_position import ElectionPosition
+from app.models.vote_receipt import VoteReceipt
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "CandidatePhoto",
     "BoothCreateToken",
     "ElectionPosition",
+    "VoteReceipt",
 ]

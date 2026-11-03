@@ -21,6 +21,7 @@ import OfficerManager from './components/Admin/OfficerManager';
 import ProgrammeManager from './components/Admin/ProgrammeManager';
 import SettingsPage from './components/Admin/SettingsPage';
 import SystemPage from './components/Admin/SystemPage';
+import ReceiptManager from './components/Admin/ReceiptManager';
 import RegisterStudent from './components/Desk/RegisterStudent';
 import Registrations from './components/Desk/Registrations';
 import CheckIn from './components/Desk/CheckIn';
@@ -100,6 +101,7 @@ function AppRoutes() {
       <Route path="/admin/officers" element={page(ADMIN, <OfficerManager />)} />
       <Route path="/admin/programmes" element={page(ADMIN, <ProgrammeManager />)} />
       <Route path="/admin/kiosks" element={page(ADMIN, <KioskManager />)} />
+      <Route path="/admin/receipts" element={page(ADMIN, <ReceiptManager />)} />
       <Route path="/admin/audit" element={page(ADMIN, <AuditLog />)} />
       <Route path="/admin/settings" element={page(ADMIN, <SettingsPage />)} />
       <Route path="/admin/system" element={page(ADMIN, <SystemPage />)} />

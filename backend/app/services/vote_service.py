@@ -241,6 +241,31 @@ class VoteService:
         )
         session.add(audit_entry)
 
+        # Record server-side receipt for central officer archiving and auditing
+        try:
+            from app.services.receipt_service import ReceiptService
+            from app.models.system_setting import SystemSetting
+            branding = SystemSetting.branding()
+            choices_list = [
+                {
+                    "position": entry["position"],
+                    "choice": "NOTA" if entry["is_nota"] else (cands_by_id[entry["candidate_id"]].name if entry["candidate_id"] in cands_by_id else "NOTA")
+                }
+                for entry in validated_entries
+            ]
+            booth_name = getattr(booth, "name", None) or "BOOTH-01"
+            ReceiptService.record_receipt(
+                election_id=election.id,
+                slip_id=voter_user.student_id,
+                choices=choices_list,
+                booth_name=booth_name,
+                is_mock=bool(election.is_mock),
+                institution_name=branding.get("institution_name"),
+                election_title=election.title,
+            )
+        except Exception as e:
+            logger.error(f"Failed to record server-side receipt: {e}", exc_info=True)
+
         session.flush()
         session.commit()
 

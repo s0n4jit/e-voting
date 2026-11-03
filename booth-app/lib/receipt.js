@@ -192,21 +192,6 @@ function toHtml(r) {
       display: block;
       margin-bottom: .3mm;
     }
-    .tear-guide {
-      width: 184mm;
-      margin: 5mm auto 0;
-      display: flex;
-      align-items: center;
-      gap: 2mm;
-      color: #94a3b8;
-      font-size: 6pt;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .tear-line {
-      flex: 1;
-      border-top: 1px dashed #94a3b8;
-    }
   </style></head><body>
     <div class="page-wrap">
       <div class="card">
@@ -239,13 +224,6 @@ function toHtml(r) {
               : '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
           }
         </div>
-      </div>
-      <div class="tear-guide">
-        <span>✂</span>
-        <div class="tear-line"></div>
-        <span>TEAR OR CUT HERE (HALF A4 · 148.5 MM)</span>
-        <div class="tear-line"></div>
-        <span>✂</span>
       </div>
     </div>
   </body></html>`;
