@@ -1,3 +1,15 @@
+const parseSlipNumber = (id) => {
+  if (!id) return NaN;
+  const match = String(id).match(/(\d+)$/);
+  return match ? parseInt(match[1], 10) : NaN;
+};
+
+const getSlipPrefix = (id) => {
+  if (!id) return '';
+  const match = String(id).match(/^(.*?)(\d+)$/);
+  return match ? match[1] : '';
+};
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -110,10 +122,12 @@ export const KioskManager = () => {
     if (val === '') return;
     const count = parseInt(val, 10);
     if (!isNaN(count) && count > 0) {
-      const startNum = parseInt(fromSlipId, 10);
+      const startNum = parseSlipNumber(fromSlipId);
       if (!isNaN(startNum)) {
+        const p = getSlipPrefix(fromSlipId);
+        const d = String(fromSlipId).match(/\d+$/)?.[0]?.length || 4;
         const endNum = startNum + count - 1;
-        setToSlipId(String(endNum).padStart(fromSlipId.length, '0'));
+        setToSlipId(p + String(endNum).padStart(d, '0'));
       }
     }
   };
@@ -121,32 +135,36 @@ export const KioskManager = () => {
   const handleSlipsCountBlur = () => {
     const count = Math.max(1, parseInt(slipsCount, 10) || 1);
     setSlipsCount(count);
-    const startNum = parseInt(fromSlipId, 10);
+    const startNum = parseSlipNumber(fromSlipId);
     if (!isNaN(startNum)) {
+      const p = getSlipPrefix(fromSlipId);
+      const d = String(fromSlipId).match(/\d+$/)?.[0]?.length || 4;
       const endNum = startNum + count - 1;
-      setToSlipId(String(endNum).padStart(fromSlipId.length, '0'));
+      setToSlipId(p + String(endNum).padStart(d, '0'));
     }
   };
 
   // When fromSlipId changes: update fromSlipId, and automatch toSlipId or slipsCount
   const handleFromSlipIdChange = (val) => {
     setFromSlipId(val);
-    const fromNum = parseInt(val, 10);
-    const toNum = parseInt(toSlipId, 10);
+    const fromNum = parseSlipNumber(val);
+    const toNum = parseSlipNumber(toSlipId);
     if (!isNaN(fromNum) && val.trim().length >= 3) {
       if (!isNaN(toNum) && toNum >= fromNum) {
         const newCount = toNum - fromNum + 1;
         setSlipsCount(newCount);
       } else {
+        const p = getSlipPrefix(val);
+        const d = String(val).match(/\d+$/)?.[0]?.length || 4;
         const count = parseInt(slipsCount, 10) || 1;
-        setToSlipId(String(fromNum + count - 1).padStart(val.length, '0'));
+        setToSlipId(p + String(fromNum + count - 1).padStart(d, '0'));
       }
     }
   };
 
   const handleFromSlipIdBlur = () => {
-    const fromNum = parseInt(fromSlipId, 10);
-    const toNum = parseInt(toSlipId, 10);
+    const fromNum = parseSlipNumber(fromSlipId);
+    const toNum = parseSlipNumber(toSlipId);
     if (isNaN(fromNum)) {
       const fallbackFrom = `${selectedBooth}001`;
       setFromSlipId(fallbackFrom);
@@ -155,16 +173,18 @@ export const KioskManager = () => {
     } else if (!isNaN(toNum) && toNum >= fromNum) {
       setSlipsCount(toNum - fromNum + 1);
     } else {
+      const p = getSlipPrefix(fromSlipId);
+      const d = String(fromSlipId).match(/\d+$/)?.[0]?.length || 4;
       const count = Math.max(1, parseInt(slipsCount, 10) || 1);
-      setToSlipId(String(fromNum + count - 1).padStart(fromSlipId.length, '0'));
+      setToSlipId(p + String(fromNum + count - 1).padStart(d, '0'));
     }
   };
 
   // When toSlipId changes: update toSlipId, and automatch slipsCount
   const handleToSlipIdChange = (val) => {
     setToSlipId(val);
-    const toNum = parseInt(val, 10);
-    const fromNum = parseInt(fromSlipId, 10);
+    const toNum = parseSlipNumber(val);
+    const fromNum = parseSlipNumber(fromSlipId);
     if (!isNaN(toNum) && !isNaN(fromNum) && toNum >= fromNum) {
       const newCount = toNum - fromNum + 1;
       setSlipsCount(newCount);
@@ -172,13 +192,15 @@ export const KioskManager = () => {
   };
 
   const handleToSlipIdBlur = () => {
-    const toNum = parseInt(toSlipId, 10);
-    const fromNum = parseInt(fromSlipId, 10);
+    const toNum = parseSlipNumber(toSlipId);
+    const fromNum = parseSlipNumber(fromSlipId);
     if (isNaN(toNum) || isNaN(fromNum) || toNum < fromNum) {
       const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${selectedBooth}001`, 10);
       const count = Math.max(1, parseInt(slipsCount, 10) || 1);
       const endNum = startNum + count - 1;
-      setToSlipId(String(endNum).padStart(fromSlipId?.length || 4, '0'));
+      const p = getSlipPrefix(fromSlipId);
+      const d = String(fromSlipId).match(/\d+$/)?.[0]?.length || 4;
+      setToSlipId(p + String(endNum).padStart(d, '0'));
     } else {
       setSlipsCount(toNum - fromNum + 1);
     }
@@ -223,13 +245,36 @@ export const KioskManager = () => {
   };
 
   // Open Manage Slips Modal for an existing booth
-  const openManageSlipsModal = (booth) => {
+  const openManageSlipsModal = async (booth) => {
     setManageSlipsBooth(booth);
     const count = booth.allotted_count || 50;
     setManageSlipsCount(count);
-    const bNum = booth.booth_number || booth.number || (booth.booth_id ? parseInt(booth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
-    setManageFromSlipId(booth.from_slip_id || `${bNum}001`);
-    setManageToSlipId(booth.to_slip_id || `${bNum}${String(count).padStart(3, '0')}`);
+    const bNum = booth.booth_number || booth.number || (booth.booth_id ? parseInt(String(booth.booth_id).replace(/\\D/g, ''), 10) : 1) || 1;
+
+    if (booth.from_slip_id && booth.to_slip_id) {
+      setManageFromSlipId(booth.from_slip_id);
+      setManageToSlipId(booth.to_slip_id);
+      return;
+    }
+
+    try {
+      const opts = await adminApi.getNextAvailableBooth();
+      const summary = (opts?.available_slips_by_booth || []).find((s) => s.booth_number === bNum);
+      if (summary && summary.first_unallotted_id) {
+        setManageFromSlipId(summary.first_unallotted_id);
+        const uCount = summary.unallotted_count || count;
+        setManageSlipsCount(uCount);
+        setManageToSlipId(summary.last_unallotted_id || summary.first_unallotted_id);
+      } else {
+        const anySlip = (opts?.available_slips_by_booth || []).find((s) => s.first_unallotted_id)?.first_unallotted_id;
+        const p = getSlipPrefix(anySlip) || '';
+        setManageFromSlipId(`${p}${bNum}001`);
+        setManageToSlipId(`${p}${bNum}${String(count).padStart(3, '0')}`);
+      }
+    } catch {
+      setManageFromSlipId(`${bNum}001`);
+      setManageToSlipId(`${bNum}${String(count).padStart(3, '0')}`);
+    }
   };
 
   const handleManageSlipsCountChange = (val) => {
@@ -237,10 +282,12 @@ export const KioskManager = () => {
     if (val === '') return;
     const count = parseInt(val, 10);
     if (!isNaN(count) && count > 0) {
-      const startNum = parseInt(manageFromSlipId, 10);
+      const startNum = parseSlipNumber(manageFromSlipId);
       if (!isNaN(startNum)) {
+        const p = getSlipPrefix(manageFromSlipId);
+        const d = String(manageFromSlipId).match(/\d+$/)?.[0]?.length || 4;
         const endNum = startNum + count - 1;
-        setManageToSlipId(String(endNum).padStart(manageFromSlipId.length, '0'));
+        setManageToSlipId(p + String(endNum).padStart(d, '0'));
       }
     }
   };
@@ -248,32 +295,36 @@ export const KioskManager = () => {
   const handleManageSlipsCountBlur = () => {
     const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
     setManageSlipsCount(count);
-    const startNum = parseInt(manageFromSlipId, 10);
+    const startNum = parseSlipNumber(manageFromSlipId);
     if (!isNaN(startNum)) {
+      const p = getSlipPrefix(manageFromSlipId);
+      const d = String(manageFromSlipId).match(/\d+$/)?.[0]?.length || 4;
       const endNum = startNum + count - 1;
-      setManageToSlipId(String(endNum).padStart(manageFromSlipId.length, '0'));
+      setManageToSlipId(p + String(endNum).padStart(d, '0'));
     }
   };
 
   const handleManageFromSlipIdChange = (val) => {
     setManageFromSlipId(val);
-    const fromNum = parseInt(val, 10);
-    const toNum = parseInt(manageToSlipId, 10);
+    const fromNum = parseSlipNumber(val);
+    const toNum = parseSlipNumber(manageToSlipId);
     if (!isNaN(fromNum) && val.trim().length >= 3) {
       if (!isNaN(toNum) && toNum >= fromNum) {
         setManageSlipsCount(toNum - fromNum + 1);
       } else {
+        const p = getSlipPrefix(val);
+        const d = String(val).match(/\d+$/)?.[0]?.length || 4;
         const count = parseInt(manageSlipsCount, 10) || 1;
-        setManageToSlipId(String(fromNum + count - 1).padStart(val.length, '0'));
+        setManageToSlipId(p + String(fromNum + count - 1).padStart(d, '0'));
       }
     }
   };
 
   const handleManageFromSlipIdBlur = () => {
-    const fromNum = parseInt(manageFromSlipId, 10);
-    const toNum = parseInt(manageToSlipId, 10);
+    const fromNum = parseSlipNumber(manageFromSlipId);
+    const toNum = parseSlipNumber(manageToSlipId);
     if (isNaN(fromNum)) {
-      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(manageSlipsBooth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
+      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(String(manageSlipsBooth.booth_id).replace(/\D/g, ''), 10) : 1) || 1;
       const fallback = `${bNum}001`;
       setManageFromSlipId(fallback);
       const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
@@ -281,28 +332,32 @@ export const KioskManager = () => {
     } else if (!isNaN(toNum) && toNum >= fromNum) {
       setManageSlipsCount(toNum - fromNum + 1);
     } else {
+      const p = getSlipPrefix(manageFromSlipId);
+      const d = String(manageFromSlipId).match(/\d+$/)?.[0]?.length || 4;
       const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
-      setManageToSlipId(String(fromNum + count - 1).padStart(manageFromSlipId.length, '0'));
+      setManageToSlipId(p + String(fromNum + count - 1).padStart(d, '0'));
     }
   };
 
   const handleManageToSlipIdChange = (val) => {
     setManageToSlipId(val);
-    const toNum = parseInt(val, 10);
-    const fromNum = parseInt(manageFromSlipId, 10);
+    const toNum = parseSlipNumber(val);
+    const fromNum = parseSlipNumber(manageFromSlipId);
     if (!isNaN(toNum) && !isNaN(fromNum) && toNum >= fromNum) {
       setManageSlipsCount(toNum - fromNum + 1);
     }
   };
 
   const handleManageToSlipIdBlur = () => {
-    const toNum = parseInt(manageToSlipId, 10);
-    const fromNum = parseInt(manageFromSlipId, 10);
+    const toNum = parseSlipNumber(manageToSlipId);
+    const fromNum = parseSlipNumber(manageFromSlipId);
     if (isNaN(toNum) || isNaN(fromNum) || toNum < fromNum) {
-      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(manageSlipsBooth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
+      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(String(manageSlipsBooth.booth_id).replace(/\D/g, ''), 10) : 1) || 1;
       const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${bNum}001`, 10);
       const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
-      setManageToSlipId(String(startNum + count - 1).padStart(manageFromSlipId?.length || 4, '0'));
+      const p = getSlipPrefix(manageFromSlipId);
+      const d = String(manageFromSlipId).match(/\d+$/)?.[0]?.length || 4;
+      setManageToSlipId(p + String(startNum + count - 1).padStart(d, '0'));
     } else {
       setManageSlipsCount(toNum - fromNum + 1);
     }

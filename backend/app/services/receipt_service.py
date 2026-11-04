@@ -585,6 +585,41 @@ class ReceiptService:
         return receipt
 
     @classmethod
+    def create_receipt(
+        cls,
+        slip_id: str,
+        booth_name: str,
+        election_id: int,
+        election_title: str,
+        institution_name: str,
+        choices: List[Dict[str, Any]],
+        is_mock: bool = False,
+        logo_b64: Optional[str] = None,
+        db_session: Any = None,
+    ) -> VoteReceipt:
+        """Compatibility wrapper that standardizes choice fields and delegates to record_receipt."""
+        clean_choices = []
+        for c in choices:
+            choice_text = c.get("choice") or c.get("candidate_name")
+            if not choice_text:
+                choice_text = "None of the Above (NOTA)" if c.get("is_nota") else "Candidate"
+            clean_choices.append({
+                "position": c.get("position", ""),
+                "choice": choice_text,
+                "is_nota": bool(c.get("is_nota")),
+            })
+        return cls.record_receipt(
+            election_id=election_id,
+            slip_id=slip_id,
+            choices=clean_choices,
+            booth_name=booth_name,
+            is_mock=is_mock,
+            institution_name=institution_name,
+            logo_b64=logo_b64,
+            election_title=election_title,
+        )
+
+    @classmethod
     def get_receipt_pdf_bytes(cls, receipt: VoteReceipt) -> bytes:
         """Always generate fresh vector PDF matching the preview layout."""
         # Regenerate in memory to guarantee the exact current layout

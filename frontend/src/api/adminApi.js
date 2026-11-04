@@ -194,6 +194,11 @@ export const adminApi = {
     return res.data;
   },
 
+  downloadSingleSlipPdf: async (slipId) => {
+    const res = await apiClient.get(`/admin/slips/${slipId}/pdf`, { responseType: 'blob' });
+    return res.data;
+  },
+
   downloadAllSlipsPdf: async (electionId = null) => {
     const params = electionId ? { election_id: electionId } : {};
     const res = await apiClient.get('/admin/booths/all-slips-pdf', { params, responseType: 'blob' });

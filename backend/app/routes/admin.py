@@ -834,11 +834,23 @@ def create_booth_token():
 
     # Select slips to allot to this kiosk machine
     slips_to_allot = []
+    def _extract_num(vid):
+        digits = "".join(filter(str.isdigit, str(vid).split("-")[-1]))
+        return int(digits) if digits else 0
+
     if from_slip_id and to_slip_id:
-        slips_to_allot = [
-            s for s in available_candidates
-            if from_slip_id <= s.voting_id <= to_slip_id
-        ]
+        f_num = _extract_num(from_slip_id)
+        t_num = _extract_num(to_slip_id)
+        if f_num and t_num and t_num >= f_num:
+            slips_to_allot = [
+                s for s in available_candidates
+                if f_num <= _extract_num(s.voting_id) <= t_num
+            ]
+        else:
+            slips_to_allot = [
+                s for s in available_candidates
+                if from_slip_id <= s.voting_id <= to_slip_id
+            ]
     elif slips_count > 0:
         slips_to_allot = available_candidates[:slips_count]
     else:
@@ -1066,11 +1078,23 @@ def manage_kiosk_slips(kiosk_id):
     ).order_by(BoothSlip.sequence_number.asc()).all()
 
     slips_to_allot = []
+    def _extract_num(vid):
+        digits = "".join(filter(str.isdigit, str(vid).split("-")[-1]))
+        return int(digits) if digits else 0
+
     if from_slip_id and to_slip_id:
-        slips_to_allot = [
-            s for s in candidates
-            if from_slip_id <= s.voting_id <= to_slip_id
-        ]
+        f_num = _extract_num(from_slip_id)
+        t_num = _extract_num(to_slip_id)
+        if f_num and t_num and t_num >= f_num:
+            slips_to_allot = [
+                s for s in candidates
+                if f_num <= _extract_num(s.voting_id) <= t_num
+            ]
+        else:
+            slips_to_allot = [
+                s for s in candidates
+                if from_slip_id <= s.voting_id <= to_slip_id
+            ]
     elif slips_count > 0:
         slips_to_allot = candidates[:slips_count]
     else:
@@ -1552,6 +1576,33 @@ def download_booth_slips_pdf(booth_number):
     pdf_bytes = SlipPdfService.generate_slips_pdf(slips=slips, election=election)
     filename = f"voting-slips-booth-{booth_number:02d}-{election.id}.pdf"
 
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_bp.get("/slips/<int:slip_id>/pdf")
+@admin_required
+def download_single_slip_pdf(slip_id):
+    """
+    Downloads an individual voter slip PDF for printing.
+    """
+    slip = db.session.get(BoothSlip, slip_id)
+    if not slip:
+        return jsonify({"error": "Voter slip not found."}), 404
+
+    election = slip.election or Election.current()
+    from app.models.system_setting import SystemSetting
+    branding = SystemSetting.branding()
+    pdf_bytes = SlipPdfService.generate_single_slip_pdf(
+        slip=slip,
+        election=election,
+        institution_name=branding.get("institution_name"),
+        logo_b64=branding.get("logo"),
+    )
+    filename = f"voting-slip-{slip.voting_id}.pdf"
     return Response(
         pdf_bytes,
         mimetype="application/pdf",

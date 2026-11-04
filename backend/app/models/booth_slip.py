@@ -43,7 +43,7 @@ class BoothSlip(db.Model):
     )
     booth_number = db.Column(db.Integer, nullable=True, index=True)
     sequence_number = db.Column(db.Integer, nullable=False)
-    voting_id = db.Column(db.String(30), nullable=False, index=True)
+    voting_id = db.Column(db.String(40), nullable=False, index=True)
     pin_hash = db.Column(db.String(255), nullable=False)
     pin_enc = db.Column(db.Text, nullable=True)  # Fernet encrypted for PDF export
     is_used = db.Column(db.Boolean, default=False, nullable=False, index=True)
@@ -115,12 +115,14 @@ class BoothSlip(db.Model):
     def generate_batch(cls, election_id: int, booth_number: int = None, count: int = 50, booth_id: int = None):
         """
         Generates 'count' sequential slips for the given election.
-        booth_number is OPTIONAL:
-          - If provided (e.g. 1): IDs are {booth_number}{seq:03d} (1001, 1002...).
-          - If None: IDs are sequential across the election pool starting from max existing ID + 1 (or 1001).
+        IDs are formatted with the election slip prefix: e.g. SUE26-E1-1001.
         """
         if count <= 0:
             return []
+
+        from app.models.election import Election
+        election = db.session.get(Election, election_id)
+        prefix = election.ensure_slip_prefix() if election else f"SUE{datetime.now(timezone.utc).year % 100:02d}-E{election_id}-"
 
         if booth_number is not None:
             max_seq = (
@@ -137,19 +139,22 @@ class BoothSlip(db.Model):
                 or 0
             )
 
-        existing_numeric_ids = [
-            int(r[0]) for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all()
-            if r[0] and r[0].isdigit()
-        ]
-        base_id = max(existing_numeric_ids) if existing_numeric_ids else 1000
+        existing_nums = []
+        for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all():
+            if r[0]:
+                digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
+                if digits:
+                    existing_nums.append(int(digits))
+        base_id = max(existing_nums) if existing_nums else 1000
 
         created = []
         for i in range(1, count + 1):
             seq = max_seq + i
             if booth_number is not None:
-                voting_id = f"{booth_number}{seq:03d}"
+                numeric_part = f"{booth_number}{seq:03d}"
             else:
-                voting_id = str(base_id + i)
+                numeric_part = str(base_id + i)
+            voting_id = f"{prefix}{numeric_part}"
 
             raw_pin = cls.generate_random_4digit_pin()
             pin_hash = cls.hash_pin(raw_pin)

@@ -114,6 +114,26 @@ export const VoterSlipsManager = () => {
     }
   };
 
+  const handleDownloadSinglePdf = async (slip) => {
+    setDownloadingPdf(true);
+    try {
+      const blob = await adminApi.downloadSingleSlipPdf(slip.id);
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voting-slip-${slip.voting_id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success(`Downloaded Slip ${slip.voting_id} PDF`);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to download slip PDF'));
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   const handleDownloadBoothPdf = async (boothNumber) => {
     setDownloadingPdf(true);
     try {
@@ -186,19 +206,19 @@ export const VoterSlipsManager = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Total Slips Generated</p>
-          <p className="text-2xl font-black text-fg mt-1">{metrics?.total_generated ?? '—'}</p>
+          <p className="text-2xl font-black text-fg mt-1">{metrics?.total_generated ?? total ?? 0}</p>
           <p className="text-[11px] text-muted mt-1">{metrics?.total_booths || 0} active booths</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
           <p className="text-[11px] font-bold uppercase tracking-wider text-ok">Used Slips (Votes Cast)</p>
-          <p className="text-2xl font-black text-ok mt-1">{metrics?.total_used ?? '—'}</p>
+          <p className="text-2xl font-black text-ok mt-1">{metrics?.total_used ?? 0}</p>
           <p className="text-[11px] text-muted mt-1">{metrics?.completion_rate ?? 0}% completed</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
           <p className="text-[11px] font-bold uppercase tracking-wider text-brand">Unused Slips Remaining</p>
-          <p className="text-2xl font-black text-brand mt-1">{metrics?.total_unused ?? '—'}</p>
+          <p className="text-2xl font-black text-brand mt-1">{metrics?.total_unused ?? (total || 0)}</p>
           <p className="text-[11px] text-muted mt-1">Available for voters</p>
         </div>
 
@@ -354,27 +374,27 @@ export const VoterSlipsManager = () => {
                       {s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
                     </td>
                     <td className="text-right">
-                      {s.booth_number ? (
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleDownloadBoothPdf(s.booth_number)}
-                          className="btn-ghost btn-sm text-brand"
-                          title={`Download printable PDF for Booth ${s.booth_number}`}
+                          onClick={() => handleDownloadSinglePdf(s)}
+                          className="btn-ghost btn-sm text-brand flex items-center gap-1"
+                          title={`Download individual printable PDF for slip ${s.voting_id}`}
                         >
                           <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                          <span>Booth PDF</span>
+                          <span>Slip PDF</span>
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleDownloadAllPdf}
-                          className="btn-ghost btn-sm text-muted hover:text-brand"
-                          title="Download printable PDF for all slips"
-                        >
-                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                          <span>All Slips PDF</span>
-                        </button>
-                      )}
+                        {s.booth_number ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadBoothPdf(s.booth_number)}
+                            className="btn-ghost btn-sm text-muted hover:text-fg flex items-center gap-1"
+                            title={`Download printable PDF for Booth ${s.booth_number}`}
+                          >
+                            <span>Booth PDF</span>
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

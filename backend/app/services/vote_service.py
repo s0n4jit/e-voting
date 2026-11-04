@@ -731,7 +731,7 @@ class VoteService:
         session.add(audit_entry)
 
         # 8. Server-side receipt
-        slip_record_id = f"SLIP-{booth_slip.voting_id}"
+        slip_record_id = str(booth_slip.voting_id)
         try:
             from app.services.receipt_service import ReceiptService
             from app.models.system_setting import SystemSetting

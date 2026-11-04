@@ -240,6 +240,20 @@ def _m010_short_year_slip_format():
                 row.details = row.details.replace(was, now)
 
 
+def _m011_prefix_booth_slips():
+    """Ensure all booth_slips have the election slip_prefix (e.g. SUE26-E1-1001)."""
+    from app.models.election import Election
+    from app.models.booth_slip import BoothSlip
+    elections = Election.query.all()
+    for el in elections:
+        prefix = el.ensure_slip_prefix()
+        slips = BoothSlip.query.filter_by(election_id=el.id).all()
+        for s in slips:
+            if s.voting_id and not s.voting_id.startswith(prefix):
+                s.voting_id = f"{prefix}{s.voting_id}"
+    db.session.commit()
+
+
 _STEPS = [
     ("001_election_status", _m001_election_status),
     ("002_mark_installed", _m002_mark_installed),
@@ -251,6 +265,7 @@ _STEPS = [
     ("008_slip_prefix", _m008_slip_prefix),
     ("009_new_slip_format", _m009_new_slip_format),
     ("010_short_year_slip_format", _m010_short_year_slip_format),
+    ("011_prefix_booth_slips", _m011_prefix_booth_slips),
 ]
 
 
