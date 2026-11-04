@@ -1303,22 +1303,25 @@ def get_booths_slips_metrics():
     # Get all active kiosks/booths for this election
     kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
     if not kiosks:
-        # Fallback to distinct booth numbers in booth_slips
+        # Fallback to distinct booth numbers in booth_slips (ignore None which represents unassigned pool)
         distinct_nums = [
             r[0] for r in db.session.query(BoothSlip.booth_number)
             .filter_by(election_id=election.id)
             .distinct()
             .order_by(BoothSlip.booth_number.asc())
             .all()
+            if r[0] is not None
         ]
     else:
-        distinct_nums = sorted(list({k.number for k in kiosks}))
+        distinct_nums = sorted(list({k.number for k in kiosks if k.number is not None}))
 
     booth_stats = []
     total_gen = 0
     total_used = 0
 
     for b_num in distinct_nums:
+        if b_num is None:
+            continue
         slips_query = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num)
         total_for_booth = slips_query.count()
         used_for_booth = slips_query.filter_by(is_used=True).count()

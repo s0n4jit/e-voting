@@ -135,6 +135,7 @@ class KioskDevice(db.Model):
             "id": self.id,
             "booth_id": self.device_name,
             "booth_number": self.number,
+            "number": self.number,
             "election_id": self.election_id,
             "election_title": self.election.title if self.election else None,
             "device_name": self.device_name,

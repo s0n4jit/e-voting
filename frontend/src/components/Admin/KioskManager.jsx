@@ -227,8 +227,9 @@ export const KioskManager = () => {
     setManageSlipsBooth(booth);
     const count = booth.allotted_count || 50;
     setManageSlipsCount(count);
-    setManageFromSlipId(booth.from_slip_id || `${booth.number}001`);
-    setManageToSlipId(booth.to_slip_id || `${booth.number}${String(count).padStart(3, '0')}`);
+    const bNum = booth.booth_number || booth.number || (booth.booth_id ? parseInt(booth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
+    setManageFromSlipId(booth.from_slip_id || `${bNum}001`);
+    setManageToSlipId(booth.to_slip_id || `${bNum}${String(count).padStart(3, '0')}`);
   };
 
   const handleManageSlipsCountChange = (val) => {
@@ -272,7 +273,8 @@ export const KioskManager = () => {
     const fromNum = parseInt(manageFromSlipId, 10);
     const toNum = parseInt(manageToSlipId, 10);
     if (isNaN(fromNum)) {
-      const fallback = `${manageSlipsBooth?.number || 1}001`;
+      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(manageSlipsBooth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
+      const fallback = `${bNum}001`;
       setManageFromSlipId(fallback);
       const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
       setManageToSlipId(String(parseInt(fallback, 10) + count - 1).padStart(fallback.length, '0'));
@@ -297,7 +299,8 @@ export const KioskManager = () => {
     const toNum = parseInt(manageToSlipId, 10);
     const fromNum = parseInt(manageFromSlipId, 10);
     if (isNaN(toNum) || isNaN(fromNum) || toNum < fromNum) {
-      const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${manageSlipsBooth?.number || 1}001`, 10);
+      const bNum = manageSlipsBooth?.booth_number || manageSlipsBooth?.number || (manageSlipsBooth?.booth_id ? parseInt(manageSlipsBooth.booth_id.replace(/\D/g, ''), 10) : 1) || 1;
+      const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${bNum}001`, 10);
       const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
       setManageToSlipId(String(startNum + count - 1).padStart(manageFromSlipId?.length || 4, '0'));
     } else {
@@ -794,7 +797,7 @@ export const KioskManager = () => {
                   value={manageFromSlipId}
                   onChange={(e) => handleManageFromSlipIdChange(e.target.value)}
                   onBlur={handleManageFromSlipIdBlur}
-                  placeholder={`${manageSlipsBooth.number}001`}
+                  placeholder={`${manageSlipsBooth?.booth_number || manageSlipsBooth?.number || 1}001`}
                   className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
                   required
                 />
@@ -806,7 +809,7 @@ export const KioskManager = () => {
                   value={manageToSlipId}
                   onChange={(e) => handleManageToSlipIdChange(e.target.value)}
                   onBlur={handleManageToSlipIdBlur}
-                  placeholder={`${manageSlipsBooth.number}050`}
+                  placeholder={`${manageSlipsBooth?.booth_number || manageSlipsBooth?.number || 1}050`}
                   className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
                   required
                 />
