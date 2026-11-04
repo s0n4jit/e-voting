@@ -427,6 +427,23 @@ export default function SetupWizard() {
                       )}
                     </div>
                   </Field>
+
+                  <Field
+                    label="Initial Voter Slips per Booth (optional)"
+                    htmlFor="election-slips_per_booth"
+                    hint="Optionally configure how many sequential slips with 4-digit PINs to generate for each booth upon setup (e.g. 50 or 100). You can also generate slips at any time in the Voter Slips panel."
+                  >
+                    <input
+                      id="election-slips_per_booth"
+                      type="number"
+                      min={0}
+                      max={1000}
+                      className="input w-48 font-mono"
+                      placeholder="0"
+                      value={election.slips_per_booth || ''}
+                      onChange={(e) => set('election', 'slips_per_booth', parseInt(e.target.value, 10) || 0)}
+                    />
+                  </Field>
                 </>
               )}
 
@@ -448,6 +465,7 @@ export default function SetupWizard() {
                       ['Election', election.title],
                       ['Voting', `${election.date}, ${election.start_time}–${election.end_time}`],
                       ['Positions', election.positions.join(', ')],
+                      ['Initial slips per booth', election.slips_per_booth ? `${election.slips_per_booth} slips/booth` : 'Generate on Voter Slips page'],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-6 py-2.5">
                         <dt className="text-muted">{k}</dt>

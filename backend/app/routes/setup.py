@@ -264,6 +264,14 @@ def complete():
             slips = imported
             current_app.logger.info("Imported %d students during setup.", len(imported))
 
+        # Optional initial pre-generated slips per booth
+        slips_per_booth = int(el.get("slips_per_booth") or 0)
+        if slips_per_booth > 0:
+            from app.models.booth_slip import BoothSlip
+            for b_num in [1, 2, 3, 4]:
+                BoothSlip.generate_batch(election.id, booth_number=b_num, count=slips_per_booth)
+            current_app.logger.info("Pre-generated %d slips per booth during setup.", slips_per_booth)
+
         db.session.add(AuditLog(
             user_id=officer.id,
             action="SYSTEM_INSTALLED",
