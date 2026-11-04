@@ -179,7 +179,15 @@ export const KioskLogin = () => {
                 {election.paused ? 'Voting is paused for a short while. Please wait for the officer to resume it.' : 'Voting is not open at the moment. Please check with the desk.'}
               </p>
             )}
-            <Field label="Voter slip ID" htmlFor="slip" hint="Type only the 6 digits printed at the end of your slip ID.">
+            <Field
+              label="Voter slip ID"
+              htmlFor="slip"
+              hint={
+                <span>
+                  Type only the <strong className="font-bold text-brand dark:text-brand-fg">Last 6 digits</strong> printed at the end of your slip ID.
+                </span>
+              }
+            >
               <div className={`flex items-stretch rounded-lg border transition-all duration-200 overflow-hidden bg-surface ${
                 slipValid === true
                   ? 'border-ok ring-2 ring-ok/25'
@@ -215,7 +223,7 @@ export const KioskLogin = () => {
                 )}
               </div>
             </Field>
-            <Field label="Voting PIN" htmlFor="pin" hint="The 6-digit PIN given to you at the desk.">
+            <Field label="Voting PIN" htmlFor="pin" hint="The 6-digit Voting PIN printed on Your Voting Slip.">
               <input
                 id="pin"
                 className="input text-center text-2xl tracking-[0.5em] py-3 tabular-nums"
