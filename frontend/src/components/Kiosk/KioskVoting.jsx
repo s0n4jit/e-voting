@@ -796,35 +796,83 @@ export const KioskVoting = () => {
     <>
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
-          <div key="review" className={animation}>
-            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-3 border-b border-line shadow-xs">
-              <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-brand">Final step</p>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 text-fg">Review your choices</h1>
-              <p className="text-muted text-xs sm:text-sm mt-0.5">Check each choice. You can change any of them before submitting.</p>
+          <div key="review" className={`${animation} max-h-screen flex flex-col justify-between`}>
+            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-2 border-b border-line shadow-2xs flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-brand">Final step</span>
+                  <span className="text-muted text-xs">• All positions reviewed</span>
+                </div>
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-fg">Review your choices</h1>
+              </div>
+              <p className="text-muted text-xs hidden sm:block">You can change any choice before final submission.</p>
             </div>
 
-            <ul className="card divide-y divide-line mt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3 max-w-5xl mx-auto w-full">
               {positions.map((p, i) => {
                 const c = choices[p.position];
+                const isNota = c === 'NOTA';
                 return (
-                  <li key={p.position} className="flex items-center gap-4 p-4">
-                    {c && c !== 'NOTA' ? <Avatar candidate={c} size="w-12 h-12" /> : <div className="w-12 h-12 rounded-xl bg-recessed shrink-0" />}
+                  <div
+                    key={p.position}
+                    className="p-2.5 rounded-xl border border-line bg-surface shadow-2xs flex items-center gap-3 transition-colors hover:border-brand/40"
+                  >
+                    {isNota ? (
+                      <div className="w-10 h-10 rounded-lg bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                        NOTA
+                      </div>
+                    ) : c ? (
+                      <Avatar candidate={c} size="w-10 h-10" rounded="rounded-lg" text="text-base" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                        ?
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-muted">{p.position}</p>
-                      <p className="font-medium truncate">{c === 'NOTA' ? 'NOTA' : c ? c.name : 'Not selected'}</p>
+                      <p className="text-[11px] font-bold text-muted uppercase tracking-wider truncate">
+                        {p.position}
+                      </p>
+                      <p className="font-bold text-sm text-fg truncate">
+                        {isNota ? 'None of the Above (NOTA)' : c ? c.name : 'Not selected'}
+                      </p>
                     </div>
-                    <button className="btn-ghost btn-sm" onClick={() => { setFromReview(true); go(i, 'prev'); }}>Change</button>
-                  </li>
+                    <button
+                      type="button"
+                      className="btn-ghost btn-xs text-brand hover:text-brand-hover hover:bg-brand-soft font-bold px-2 py-1"
+                      onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                    >
+                      Change
+                    </button>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
 
             {submitError && (
-              <p className="text-sm text-bad bg-bad-soft rounded-lg px-3 py-2 mt-4 animate-pop-in" role="alert">{submitError}</p>
+              <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2 mt-2 animate-pop-in" role="alert">
+                {submitError}
+              </p>
             )}
-            <div className="flex items-center justify-between mt-8">
-              <button className="btn-secondary" onClick={() => go(total - 1, 'prev')}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button ref={submitBtnRef} className="btn-primary btn-lg" disabled={answered < total} onClick={() => setConfirmOpen(true)}>Submit my vote</button>
+
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-line">
+              <button
+                type="button"
+                className="btn-secondary btn-sm flex items-center gap-1.5"
+                onClick={() => go(total - 1, 'prev')}
+              >
+                <ArrowLeftIcon className="w-4 h-4" />
+                <span>Back</span>
+              </button>
+              <button
+                ref={submitBtnRef}
+                type="button"
+                className="btn-primary btn-lg shadow-md px-8 py-3 text-base font-black flex items-center gap-2"
+                disabled={answered < total}
+                onClick={() => setConfirmOpen(true)}
+              >
+                <span>Submit my vote</span>
+                <CheckCircleIcon className="w-5 h-5" />
+              </button>
             </div>
           </div>
         ) : (

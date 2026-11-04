@@ -261,7 +261,7 @@ export const KioskLogin = () => {
           {/* Privacy footer */}
           <div className="mt-8 flex items-center justify-center gap-2 text-xs text-muted text-center">
             <ShieldCheckIcon className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span>Anonymous Secret Ballot: Voting slips and PINs contain no student names or personal records.</span>
+            <span>Enter the 4-digit voting PIN from your paper voter slip to unlock your ballot.</span>
           </div>
         </div>
       </main>

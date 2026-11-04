@@ -85,8 +85,11 @@ def transition(election, target):
 @admin_required
 def overview():
     election = Election.current()
-    voters = User.query.filter_by(role="voter").count()
-    cast = (
+    from app.models.booth_slip import BoothSlip
+    slips_total = BoothSlip.query.filter_by(election_id=election.id).count() if election else 0
+    slips_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count() if election else 0
+    voters = slips_total if slips_total > 0 else User.query.filter_by(role="voter").count()
+    cast = slips_used if slips_total > 0 else (
         VoterRecord.query.filter_by(election_id=election.id, has_voted=True).count() if election else 0
     )
     candidates = Candidate.query.filter_by(election_id=election.id).count() if election else 0
@@ -101,6 +104,25 @@ def overview():
     recent = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
     user_ids = {a.user_id for a in recent if a.user_id}
     actors = {u.id: u.name for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    recent_activity = []
+    import re
+    for a in recent:
+        actor_name = actors.get(a.user_id)
+        if not actor_name:
+            if a.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST") or "Voting ID" in (a.details or ""):
+                m = re.search(r"Voting ID\s+([A-Za-z0-9_-]+)", a.details or "")
+                actor_name = f"Voter ({m.group(1)})" if m else "Voter"
+            elif "BOOTH-" in (a.details or ""):
+                m = re.search(r"(BOOTH-\d+)", a.details or "")
+                actor_name = m.group(1) if m else "Voting Booth"
+            else:
+                actor_name = "System"
+        recent_activity.append({
+            "action": a.action,
+            "details": a.details,
+            "actor": actor_name,
+            "at": utc_iso(a.created_at),
+        })
     return jsonify({
         "election": election.to_dict() if election else None,
         "stats": {
@@ -115,24 +137,14 @@ def overview():
             "active_booths": active_booths,
         },
         "setup": {
-            "programmes": Programme.query.filter_by(is_active=True).count(),
+            "voter_slips": slips_total,
             "positions": len(election.positions) if election else 0,
             "candidates": candidates,
             "desk_officers": desk_officers,
             "voting_booths": total_booths,
         },
-        "recent_activity": [
-            {
-                "action": a.action,
-                "details": a.details,
-                "actor": actors.get(a.user_id, "System"),
-                "at": utc_iso(a.created_at),
-            }
-            for a in recent
-        ],
+        "recent_activity": recent_activity,
     }), 200
-
-
 # ── lifecycle ─────────────────────────────────────────────────────────────────
 
 @manage_bp.post("/elections/<int:election_id>/status")

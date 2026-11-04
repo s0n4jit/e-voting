@@ -18,7 +18,6 @@ import CandidateManager from './components/Admin/CandidateManager';
 import AuditLog from './components/Admin/AuditLog';
 import KioskManager from './components/Admin/KioskManager';
 import OfficerManager from './components/Admin/OfficerManager';
-import ProgrammeManager from './components/Admin/ProgrammeManager';
 import SettingsPage from './components/Admin/SettingsPage';
 import SystemPage from './components/Admin/SystemPage';
 import ReceiptManager from './components/Admin/ReceiptManager';
@@ -101,7 +100,6 @@ function AppRoutes() {
       <Route path="/admin/elections" element={page(ADMIN, <ElectionManager />)} />
       <Route path="/admin/candidates" element={page(ADMIN, <CandidateManager />)} />
       <Route path="/admin/officers" element={page(ADMIN, <OfficerManager />)} />
-      <Route path="/admin/programmes" element={page(ADMIN, <ProgrammeManager />)} />
       <Route path="/admin/kiosks" element={page(ADMIN, <KioskManager />)} />
       <Route path="/admin/receipts" element={page(ADMIN, <ReceiptManager />)} />
       <Route path="/admin/audit" element={page(ADMIN, <AuditLog />)} />

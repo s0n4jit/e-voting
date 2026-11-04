@@ -9,6 +9,10 @@ import {
   UserGroupIcon,
   UsersIcon,
   InboxIcon,
+  TicketIcon,
+  PresentationChartBarIcon,
+  CheckBadgeIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, StatCard, formatSchedule } from '../ui';
@@ -52,9 +56,9 @@ export const AdminDashboard = () => {
   const stage = STAGES.findIndex(([k]) => k === election?.status);
 
   const todo = data && [
-    { done: data.setup.programmes > 0, label: 'Add programmes or classes', to: '/admin/programmes' },
-    { done: data.setup.candidates > 0, label: 'Add candidates for each position', to: '/admin/candidates' },
-    { done: (data.setup.voting_booths || 0) > 0, label: 'Set up voting booths', to: '/admin/kiosks' },
+    { done: (data.setup?.candidates || 0) > 0, label: 'Add positions & candidates', to: '/admin/candidates' },
+    { done: (data.setup?.voter_slips || 0) > 0, label: 'Generate voting slips & PINs', to: '/admin/slips' },
+    { done: (data.setup?.voting_booths || 0) > 0, label: 'Set up voting booths', to: '/admin/kiosks' },
   ];
   const pending = todo?.filter((t) => !t.done) || [];
 
@@ -65,6 +69,52 @@ export const AdminDashboard = () => {
         subtitle={election ? election.title : 'No election configured yet'}
         actions={election && <StatusBadge label={election.status_label} />}
       />
+
+      {/* Quick Action Navigation Buttons */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <Link
+          to="/admin/slips"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <TicketIcon className="w-4 h-4 text-brand" />
+          <span>Voter Slips</span>
+        </Link>
+        <Link
+          to="/admin/kiosks"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <ComputerDesktopIcon className="w-4 h-4 text-brand" />
+          <span>Voting Booths</span>
+        </Link>
+        <Link
+          to="/admin/candidates"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <UserGroupIcon className="w-4 h-4 text-brand" />
+          <span>Candidates</span>
+        </Link>
+        <Link
+          to="/admin/results"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <PresentationChartBarIcon className="w-4 h-4 text-brand" />
+          <span>Live Results</span>
+        </Link>
+        <Link
+          to="/admin/receipts"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <CheckBadgeIcon className="w-4 h-4 text-brand" />
+          <span>Vote Receipts</span>
+        </Link>
+        <Link
+          to="/admin/audit"
+          className="btn-secondary btn-sm flex items-center gap-1.5 hover:border-brand/40 text-xs font-bold"
+        >
+          <DocumentTextIcon className="w-4 h-4 text-brand" />
+          <span>Audit Log</span>
+        </Link>
+      </div>
 
       {error && <div className="card mb-6"><EmptyState title={error} /></div>}
 
@@ -87,9 +137,9 @@ export const AdminDashboard = () => {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} label="Registered voters" value={s?.registered_voters} icon={UsersIcon} />
+        <StatCard loading={loading} label="Total voter slips" value={s?.registered_voters} icon={UsersIcon} />
         <StatCard loading={loading} label="Votes cast" value={s?.votes_cast} icon={CheckCircleIcon} />
-        <StatCard loading={loading} label="Remaining voters" value={s?.remaining_voters} icon={UserGroupIcon} />
+        <StatCard loading={loading} label="Unused slips remaining" value={s?.remaining_voters} icon={UserGroupIcon} />
         <StatCard loading={loading} label="Turnout" value={s && `${s.turnout_percent}%`} icon={ClipboardDocumentCheckIcon} />
         <StatCard
           loading={loading}
@@ -105,7 +155,7 @@ export const AdminDashboard = () => {
             <div className="h-full bg-brand rounded-full transition-[width] duration-700 ease-out" style={{ width: `${s?.turnout_percent || 0}%` }} />
           </div>
           <p className="text-xs text-muted mt-2">
-            {s ? `${s.votes_cast} of ${s.registered_voters} registered voters have voted` : ' '}
+            {s ? `${s.votes_cast} of ${s.registered_voters} voting slips cast` : ' '}
           </p>
         </div>
       </div>

@@ -401,8 +401,20 @@ def get_audit_logs():
             item["actor_name"] = actor.name
             item["actor_student_id"] = actor.student_id
             item["actor_role"] = actor.role
+        elif log.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST", "VOTE_CAST") or "Voting ID" in (log.details or ""):
+            import re
+            m = re.search(r"Voting ID\s+([A-Za-z0-9_-]+)", log.details or "")
+            item["actor_name"] = "Voter"
+            item["actor_student_id"] = m.group(1) if m else "Voter Slip"
+            item["actor_role"] = "voter"
+        elif "BOOTH-" in (log.details or "") or log.action in ("BOOTH_REVOKED", "BOOTH_DEVICE_REGISTERED", "BOOTH_RESET"):
+            import re
+            m = re.search(r"(BOOTH-\d+)", log.details or "")
+            item["actor_name"] = "Voting Booth"
+            item["actor_student_id"] = m.group(1) if m else "Booth"
+            item["actor_role"] = "booth"
         else:
-            item["actor_name"] = "Automated System / Voter" if not log.user_id else f"User #{log.user_id}"
+            item["actor_name"] = "System" if not log.user_id else f"User #{log.user_id}"
             item["actor_student_id"] = ""
             item["actor_role"] = "system" if not log.user_id else "unknown"
         serialized.append(item)

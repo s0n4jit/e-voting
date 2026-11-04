@@ -1,18 +1,19 @@
 """
 app/services/slip_pdf_service.py — Printable A4 PDF Voting Slips Generator.
 
-Generates clean, professional, high-contrast, print-friendly A4 voting slip sheets:
-  - 8 slips per A4 page (2 columns x 4 rows) for bulk printing.
+Generates clean, professional, high-contrast, print-friendly A4 voting slip sheets
+matching the classic official slips layout:
+  - 4 slips per A4 page (2 columns x 2 rows) matching the reference layout.
   - Dedicated single-slip PDF rendering for individual download.
   - Features the official college logo branding on the header.
   - Displays:
       * Institution Logo & College Name
       * Election Name
-      * Booth Badge (e.g. "OFFICIAL VOTING SLIP • BOOTH 1")
+      * Optional Booth Indicator (e.g. "VOTING BOOTH 1")
       * Voter Slip ID (e.g. "SUE26-E1-1001")
-      * 4-Digit Voting PIN (e.g. "4  8  2  9")
-  - Strictly no voter names, roll numbers, or personal identifying data.
-  - Clear scissor / cut dashed guidelines between slips.
+      * 4-Digit Voting PIN (e.g. "4   8   2   9")
+      * Official voter instruction footer.
+  - Strictly no personal identifying data or internal architecture disclosures.
 """
 
 import io
@@ -52,7 +53,7 @@ class SlipPdfService:
         logo_b64: Optional[str] = None,
     ) -> bytes:
         """
-        Renders a list of BoothSlip instances onto printable A4 sheets (8 slips per page).
+        Renders a list of BoothSlip instances onto printable A4 sheets (4 slips per page).
         Returns the raw PDF bytes.
         """
         buffer = io.BytesIO()
@@ -60,36 +61,36 @@ class SlipPdfService:
         page_w, page_h = A4  # 595.27 x 841.89 points
 
         if not institution_name:
-            institution_name = SystemSetting.get("institution_name", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya")
-        election_title = election.title if election else "General Campus Election"
+            institution_name = SystemSetting.get(
+                "institution_name", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga"
+            )
+        election_title = election.title if election else "Students' Union Election 2026-27 (test)"
         img_reader = cls._get_logo_image(logo_b64)
 
-        # Grid configuration: 2 columns x 4 rows = 8 slips per page
-        margin_x = 22.0
-        margin_y = 22.0
-        gutter_x = 12.0
-        gutter_y = 10.0
+        # 4 slips per page: 2 columns x 2 rows
         cols = 2
-        rows = 4
-
-        slip_w = (page_w - (margin_x * 2) - (gutter_x * (cols - 1))) / cols  # ~269.6 pt
-        slip_h = (page_h - (margin_y * 2) - (gutter_y * (rows - 1))) / rows  # ~192.0 pt
+        rows = 2
+        margin_x = 32.0
+        gutter_x = 18.0
+        gutter_y = 20.0
+        slip_w = (page_w - (margin_x * 2) - (gutter_x * (cols - 1))) / cols  # ~248.6 pt
+        slip_h = 320.0
+        total_grid_h = rows * slip_h + (rows - 1) * gutter_y
+        start_y = (page_h - total_grid_h) / 2.0
 
         slips_per_page = cols * rows
 
         for idx, slip in enumerate(slips):
             slot_idx = idx % slips_per_page
 
-            # New page after every 8 slips
             if slot_idx == 0 and idx > 0:
                 c.showPage()
 
             col = slot_idx % cols
-            row = slot_idx // cols  # 0 at top, 3 at bottom
+            row = slot_idx // cols
 
-            # ReportLab origin (0,0) is bottom-left
             x = margin_x + col * (slip_w + gutter_x)
-            y = page_h - margin_y - (row + 1) * slip_h - row * gutter_y
+            y = page_h - start_y - (row + 1) * slip_h - row * gutter_y
 
             cls._draw_single_slip(
                 c=c,
@@ -116,32 +117,25 @@ class SlipPdfService:
         logo_b64: Optional[str] = None,
     ) -> bytes:
         """
-        Renders a single individual voter slip sheet centered on an A4 page with cutting guide.
+        Renders a single individual voter slip sheet centered on an A4 page.
         """
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
         page_w, page_h = A4
 
         if not institution_name:
-            institution_name = SystemSetting.get("institution_name", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya")
-        election_title = election.title if election else (slip.election.title if slip.election else "General Campus Election")
+            institution_name = SystemSetting.get(
+                "institution_name", "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga"
+            )
+        election_title = election.title if election else (
+            slip.election.title if slip.election else "Students' Union Election 2026-27 (test)"
+        )
         img_reader = cls._get_logo_image(logo_b64)
 
-        # Center a large, crisp slip card (320 pt x 220 pt)
-        card_w = 320.0
-        card_h = 220.0
+        card_w = 260.0
+        card_h = 330.0
         card_x = (page_w - card_w) / 2.0
         card_y = (page_h - card_h) / 2.0
-
-        # Draw page heading
-        c.saveState()
-        c.setFont("Helvetica-Bold", 11)
-        c.setFillColor(colors.HexColor("#0f172a"))
-        c.drawCentredString(page_w / 2.0, card_y + card_h + 35, "OFFICIAL VOTER CREDENTIAL SLIP")
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.HexColor("#64748b"))
-        c.drawCentredString(page_w / 2.0, card_y + card_h + 22, "Cut along the dashed lines below and present to the voter.")
-        c.restoreState()
 
         cls._draw_single_slip(
             c=c,
@@ -173,29 +167,18 @@ class SlipPdfService:
         institution_name: str,
         img_reader: Optional[ImageReader] = None,
     ):
-        """Draws one individual voter slip within (x, y, w, h)."""
-        # 1. Outer cutting border (dashed slate border with scissors cue)
+        """Draws one individual voter slip card matching the classic reference slips layout."""
+        # 1. Outer rounded border: slate-400
         c.saveState()
         c.setStrokeColor(colors.HexColor("#94a3b8"))
         c.setLineWidth(0.8)
-        c.setDash([3, 3], 0)
-        c.roundRect(x, y, w, h, 6, fill=0, stroke=1)
+        c.roundRect(x, y, w, h, 8, fill=0, stroke=1)
         c.restoreState()
 
-        # Inner slip card content
-        inner_pad = 7.0
-        ix = x + inner_pad
-        iy = y + inner_pad
-        iw = w - (inner_pad * 2)
-        ih = h - (inner_pad * 2)
-
-        # 2. Header: College Logo on left + Institution & Election on right
-        header_h = 32.0
-        header_y = iy + ih - header_h
-
-        logo_size = 26.0
-        logo_x = ix + 4.0
-        logo_y = header_y + (header_h - logo_size) / 2.0
+        # 2. Header: Logo on left, Institution & Election on right
+        logo_size = 36.0
+        logo_x = x + 12.0
+        logo_y = y + h - logo_size - 13.0
 
         if img_reader:
             try:
@@ -210,111 +193,108 @@ class SlipPdfService:
                     mask="auto",
                 )
                 c.restoreState()
-                text_left = logo_x + logo_size + 6.0
+                text_left = logo_x + logo_size + 8.0
             except Exception:
-                text_left = ix + 6.0
+                text_left = x + 12.0
         else:
-            text_left = ix + 6.0
+            text_left = x + 12.0
 
-        # Institution Name & Election Subtitle
+        # Institution name (up to 2 lines)
         c.saveState()
         c.setFillColor(colors.HexColor("#0f172a"))
-        c.setFont("Helvetica-Bold", 7.5)
-        inst_display = institution_name[:42] + ("…" if len(institution_name) > 42 else "")
-        c.drawString(text_left, header_y + 18, inst_display)
+        c.setFont("Helvetica-Bold", 8.8)
+
+        name_parts = [p.strip() for p in institution_name.split(",") if p.strip()]
+        if len(name_parts) >= 2:
+            line1 = name_parts[0]
+            line2 = ", ".join(name_parts[1:])
+        elif len(institution_name) > 34:
+            words = institution_name.split()
+            mid = len(words) // 2
+            line1 = " ".join(words[:mid])
+            line2 = " ".join(words[mid:])
+        else:
+            line1 = institution_name
+            line2 = ""
+
+        if line2:
+            c.drawString(text_left, y + h - 21.0, line1)
+            c.drawString(text_left, y + h - 32.0, line2)
+        else:
+            c.drawString(text_left, y + h - 26.0, line1)
 
         c.setFillColor(colors.HexColor("#475569"))
-        c.setFont("Helvetica", 6.5)
-        elec_display = election_title[:45] + ("…" if len(election_title) > 45 else "")
-        c.drawString(text_left, header_y + 7, elec_display)
+        c.setFont("Helvetica", 7.8)
+        elec_display = election_title[:46] + ("…" if len(election_title) > 46 else "")
+        c.drawString(text_left, y + h - 45.0, elec_display)
         c.restoreState()
 
         # Header dividing dashed line
         c.saveState()
-        c.setStrokeColor(colors.HexColor("#cbd5e1"))
+        c.setStrokeColor(colors.HexColor("#94a3b8"))
         c.setLineWidth(0.6)
-        c.setDash([2, 2], 0)
-        c.line(ix + 2, header_y - 2, ix + iw - 2, header_y - 2)
+        c.setDash([3, 3], 0)
+        c.line(x, y + h - 58.0, x + w, y + h - 58.0)
         c.restoreState()
 
-        # 3. Booth Machine Pill Badge
-        badge_h = 13.0
-        badge_y = header_y - 18.0
-        badge_w = min(150.0, iw - 16.0)
-        badge_x = ix + (iw - badge_w) / 2.0
+        # 3. Optional Booth badge
+        content_top = y + h - 68.0
+        if slip.booth_number:
+            badge_w = 110.0
+            badge_h = 13.0
+            badge_x = x + (w - badge_w) / 2.0
+            badge_y = content_top - badge_h
 
+            c.saveState()
+            c.setFillColor(colors.HexColor("#f1f5f9"))
+            c.setStrokeColor(colors.HexColor("#cbd5e1"))
+            c.roundRect(badge_x, badge_y, badge_w, badge_h, 3, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor("#334155"))
+            c.setFont("Helvetica-Bold", 6.8)
+            c.drawCentredString(x + w / 2.0, badge_y + 3.5, f"VOTING BOOTH {slip.booth_number}")
+            c.restoreState()
+            id_header_y = badge_y - 18.0
+        else:
+            id_header_y = content_top - 12.0
+
+        # 4. Voter Slip ID Section
         c.saveState()
-        c.setFillColor(colors.HexColor("#2563eb"))  # Brand blue
-        c.roundRect(badge_x, badge_y, badge_w, badge_h, 3, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 7.0)
-        booth_label = (
-            f"OFFICIAL VOTING SLIP  •  BOOTH {slip.booth_number}"
-            if slip.booth_number
-            else "OFFICIAL VOTING SLIP  •  UNASSIGNED"
-        )
-        c.drawCentredString(ix + iw / 2.0, badge_y + 3.5, booth_label)
-        c.restoreState()
-
-        # 4. Voter Slip ID Section (Full width box for long formatted ID like SUE26-E1-1001)
-        id_box_h = 32.0
-        id_box_y = badge_y - id_box_h - 4.0
-
-        c.saveState()
-        c.setFillColor(colors.HexColor("#f8fafc"))
-        c.setStrokeColor(colors.HexColor("#e2e8f0"))
-        c.setLineWidth(0.8)
-        c.roundRect(ix + 4, id_box_y, iw - 8, id_box_h, 4, fill=1, stroke=1)
-
         c.setFillColor(colors.HexColor("#64748b"))
-        c.setFont("Helvetica-Bold", 6.0)
-        c.drawCentredString(ix + iw / 2.0, id_box_y + id_box_h - 9, "VOTER SLIP ID")
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(x + w / 2.0, id_header_y, "VOTER SLIP ID")
 
         # Monospace formatted ID: SUE26-E1-1001
         c.setFillColor(colors.HexColor("#0f172a"))
-        c.setFont("Courier-Bold", 12.0)
-        c.drawCentredString(ix + iw / 2.0, id_box_y + 7, str(slip.voting_id))
+        c.setFont("Courier-Bold", 17.0)
+        c.drawCentredString(x + w / 2.0, id_header_y - 20.0, str(slip.voting_id))
         c.restoreState()
 
         # 5. 4-Digit Voting PIN Section
-        pin_box_h = 38.0
-        pin_box_y = id_box_y - pin_box_h - 5.0
-
+        pin_header_y = id_header_y - 52.0
         c.saveState()
-        c.setFillColor(colors.HexColor("#eff6ff"))  # Soft blue
-        c.setStrokeColor(colors.HexColor("#3b82f6"))  # Blue outline
-        c.setLineWidth(1.0)
-        c.roundRect(ix + 4, pin_box_y, iw - 8, pin_box_h, 4, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor("#64748b"))
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(x + w / 2.0, pin_header_y, "VOTING PIN")
 
-        c.setFillColor(colors.HexColor("#1d4ed8"))
-        c.setFont("Helvetica-Bold", 6.5)
-        c.drawCentredString(ix + iw / 2.0, pin_box_y + pin_box_h - 10, "4-DIGIT VOTING PIN")
-
-        # Reveal PIN
         pin_val = getattr(slip, "raw_pin", None) or slip.reveal_pin() or "••••"
         spaced_pin = "   ".join(list(str(pin_val)))
-        c.setFillColor(colors.HexColor("#1e3a8a"))
-        c.setFont("Courier-Bold", 16.0)
-        c.drawCentredString(ix + iw / 2.0, pin_box_y + 8, spaced_pin)
+        c.setFillColor(colors.HexColor("#0f172a"))
+        c.setFont("Courier-Bold", 22.0)
+        c.drawCentredString(x + w / 2.0, pin_header_y - 25.0, spaced_pin)
         c.restoreState()
 
-        # 6. Instructions / Security Footer
-        footer_y = iy + 3.0
+        # 6. Dashed divider above footer
         c.saveState()
-        c.setFillColor(colors.HexColor("#334155"))
-        c.setFont("Helvetica-Bold", 6.0)
-        inst_text = (
-            f"Walk to Booth {slip.booth_number} and enter your 4-digit PIN."
-            if slip.booth_number
-            else "Walk to your assigned booth and enter your 4-digit PIN."
-        )
-        c.drawCentredString(ix + iw / 2.0, footer_y + 10, inst_text)
+        c.setStrokeColor(colors.HexColor("#94a3b8"))
+        c.setLineWidth(0.6)
+        c.setDash([3, 3], 0)
+        c.line(x, y + 42.0, x + w, y + 42.0)
+        c.restoreState()
 
-        c.setFont("Helvetica", 5.2)
-        c.setFillColor(colors.HexColor("#64748b"))
-        c.drawCentredString(
-            ix + iw / 2.0,
-            footer_y + 2,
-            "Secret Ballot: No voter identity is linked to this slip. Destroy after voting.",
-        )
+        # 7. Official Voter Instruction Footer
+        c.saveState()
+        c.setFillColor(colors.HexColor("#475569"))
+        c.setFont("Helvetica", 7.2)
+        c.drawCentredString(x + w / 2.0, y + 25.0, "Keep this slip and the PIN secret. At the voting booth,")
+        c.drawCentredString(x + w / 2.0, y + 14.0, "enter the slip ID and this PIN to vote once.")
         c.restoreState()

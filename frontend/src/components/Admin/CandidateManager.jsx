@@ -40,7 +40,8 @@ export const CandidateManager = () => {
   useEffect(() => {
     setElection(null);
     load();
-    adminApi.getProgrammes().then((p) => setDepartments(p.filter((x) => x.is_active))).catch(() => {});
+    // Programmes removed
+    setDepartments([]);
   }, [load]);
   usePolling(() => (electionId ? adminApi.getElection(electionId).then(setElection).catch(() => {}) : null), 4000);
 
@@ -191,11 +192,8 @@ export const CandidateManager = () => {
                   {positions.map((p) => <option key={p}>{p}</option>)}
                 </select>
               </Field>
-              <Field label="Department" htmlFor="c-dept" hint={departments.length ? undefined : 'Add programmes first on the Programmes page.'}>
-                <select id="c-dept" className="input" required value={form.department} onChange={(e) => set('department', e.target.value)}>
-                  <option value="">Select…</option>
-                  {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-                </select>
+              <Field label="Department / Stream" htmlFor="c-dept" hint="Optional department or stream (e.g. Political Science, Arts, Science)">
+                <input id="c-dept" className="input" placeholder="e.g. Political Science (optional)" value={form.department} onChange={(e) => set('department', e.target.value)} maxLength={100} />
               </Field>
               <Field label="Semester / year" htmlFor="c-sem" hint="Shown on the voting card, e.g. Semester 3.">
                 <input id="c-sem" className="input" value={form.semester} onChange={(e) => set('semester', e.target.value)} maxLength={30} />

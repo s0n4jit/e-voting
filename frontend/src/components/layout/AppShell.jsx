@@ -38,7 +38,6 @@ const navFor = (role) => {
       { label: 'Candidates', to: '/admin/candidates', icon: UserGroupIcon },
       { label: 'Voter slips', to: '/admin/slips', icon: TicketIcon },
       { label: 'Desk officers', to: '/admin/officers', icon: IdentificationIcon },
-      { label: 'Programmes', to: '/admin/programmes', icon: AcademicCapIcon },
       { label: 'Voting booths', to: '/admin/kiosks', icon: ComputerDesktopIcon },
       { label: 'Results', to: '/admin/results', icon: PresentationChartBarIcon },
       { label: 'Vote receipts', to: '/admin/receipts', icon: CheckBadgeIcon },

@@ -478,10 +478,10 @@ export const VoterSlipsManager = () => {
           </div>
 
           <div className="p-3 rounded-xl bg-recessed/60 border border-line text-xs text-muted space-y-1">
-            <p className="font-bold text-fg">Secret Ballot Architecture:</p>
-            <p>• IDs will be generated sequentially (e.g. 1001, 1002...).</p>
-            <p>• PINs are 4 digits and verified via salted hash.</p>
-            <p>• Plaintext PINs are only used to render downloadable A4 PDFs.</p>
+            <p className="font-bold text-fg">Voter Slips Generation Guide:</p>
+            <p>• Sequential slip IDs are formatted with the election prefix (e.g. SUE26-E1-1001).</p>
+            <p>• Each slip includes an authorized 4-digit voting PIN for kiosk unlock.</p>
+            <p>• Slips can be downloaded individually or as printable A4 PDF sheets.</p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
