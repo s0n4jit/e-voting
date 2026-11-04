@@ -911,12 +911,7 @@ def revoke_kiosk(kiosk_id):
     officer = db.session.get(User, officer_id)
     election = kiosk.election or Election.current()
 
-    # 1. Unallot all unused slips for this kiosk and return them to the unassigned pool
-    from app.models.booth_slip import BoothSlip
-    unallotted_count = BoothSlip.query.filter(
-        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
-        BoothSlip.is_used == False
-    ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
+    # 1. Keep printed slips assigned to this booth machine so pre-printed slips match when re-setup
 
     # 2. Invalidate active token and session on the booth machine
     import secrets
@@ -947,7 +942,7 @@ def revoke_kiosk(kiosk_id):
     db.session.add(AuditLog(
         user_id=officer.id,
         action="BOOTH_REVOKED",
-        details=f"Revoked booth session for {kiosk.device_name} (Booth {kiosk.number}). Session terminated on terminal; {unallotted_count} unused slip(s) returned to unassigned pool.",
+        details=f"Revoked booth session for {kiosk.device_name} (Booth {kiosk.number}). Session terminated on terminal; pre-printed slips kept assigned to booth.",
         ip_address=request.remote_addr or "",
     ))
     db.session.commit()
@@ -955,7 +950,7 @@ def revoke_kiosk(kiosk_id):
     from app.utils.timeutil import utc_iso
     return jsonify({
         "success": True,
-        "message": f"Booth {kiosk.device_name} session was revoked. The terminal session was terminated and {unallotted_count} unused slips returned to pool.",
+        "message": f"Booth {kiosk.device_name} session was revoked. The terminal session was terminated and existing slips remain assigned for reconnection.",
         "token": token,
         "totp_code": totp_code,
         "booth_id": kiosk.device_name,
@@ -1302,20 +1297,16 @@ def get_booths_slips_metrics():
             "booths": [],
         }), 200
 
-    # Get all active kiosks/booths for this election
-    kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
-    if not kiosks:
-        # Fallback to distinct booth numbers in booth_slips (ignore None which represents unassigned pool)
-        distinct_nums = [
-            r[0] for r in db.session.query(BoothSlip.booth_number)
-            .filter_by(election_id=election.id)
-            .distinct()
-            .order_by(BoothSlip.booth_number.asc())
-            .all()
-            if r[0] is not None
-        ]
-    else:
-        distinct_nums = sorted(list({k.number for k in kiosks if k.number is not None}))
+    # Get all booth numbers from registered kiosks and existing booth slips
+    kiosk_numbers = {k.number for k in KioskDevice.query.filter_by(election_id=election.id).all() if k.number is not None}
+    slip_numbers = {
+        r[0] for r in db.session.query(BoothSlip.booth_number)
+        .filter_by(election_id=election.id)
+        .distinct()
+        .all()
+        if r[0] is not None
+    }
+    distinct_nums = sorted(list(kiosk_numbers | slip_numbers))
 
     booth_stats = []
     total_gen = 0

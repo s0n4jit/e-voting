@@ -38,7 +38,7 @@ export const VoterSlipsManager = () => {
   const fetchMetrics = useCallback(async () => {
     try {
       const data = await adminApi.getBoothSlipsMetrics();
-      setMetrics(data);
+      if (data) setMetrics(data);
     } catch {
       // silent
     }
@@ -354,15 +354,27 @@ export const VoterSlipsManager = () => {
                       {s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
                     </td>
                     <td className="text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadBoothPdf(s.booth_number)}
-                        className="btn-ghost btn-sm text-brand"
-                        title={`Download printable PDF for Booth ${s.booth_number}`}
-                      >
-                        <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                        <span>Booth PDF</span>
-                      </button>
+                      {s.booth_number ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadBoothPdf(s.booth_number)}
+                          className="btn-ghost btn-sm text-brand"
+                          title={`Download printable PDF for Booth ${s.booth_number}`}
+                        >
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                          <span>Booth PDF</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleDownloadAllPdf}
+                          className="btn-ghost btn-sm text-muted hover:text-brand"
+                          title="Download printable PDF for all slips"
+                        >
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                          <span>All Slips PDF</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

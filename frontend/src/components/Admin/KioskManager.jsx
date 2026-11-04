@@ -133,8 +133,8 @@ export const KioskManager = () => {
     setFromSlipId(val);
     const fromNum = parseInt(val, 10);
     const toNum = parseInt(toSlipId, 10);
-    if (!isNaN(fromNum)) {
-      if (!isNaN(toNum) && toNum >= fromNum && val.trim().length >= 3) {
+    if (!isNaN(fromNum) && val.trim().length >= 3) {
+      if (!isNaN(toNum) && toNum >= fromNum) {
         const newCount = toNum - fromNum + 1;
         setSlipsCount(newCount);
       } else {
@@ -259,8 +259,8 @@ export const KioskManager = () => {
     setManageFromSlipId(val);
     const fromNum = parseInt(val, 10);
     const toNum = parseInt(manageToSlipId, 10);
-    if (!isNaN(fromNum)) {
-      if (!isNaN(toNum) && toNum >= fromNum && val.trim().length >= 3) {
+    if (!isNaN(fromNum) && val.trim().length >= 3) {
+      if (!isNaN(toNum) && toNum >= fromNum) {
         setManageSlipsCount(toNum - fromNum + 1);
       } else {
         const count = parseInt(manageSlipsCount, 10) || 1;
@@ -672,72 +672,35 @@ export const KioskManager = () => {
         </form>
       </Modal>
 
-      {/* Token Ready Result Modal with Both Token AND TOTP Code */}
-      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth Setup Codes Ready">
+      {/* Token Ready Result Modal */}
+      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth Token Ready">
         {issued && (
-          <div className="space-y-4">
+          <div className="space-y-4 text-center">
             {issued.slips_count > 0 && (
-              <div className="p-3 rounded-xl bg-ok-soft/30 border border-ok/20 text-xs text-ok font-medium text-center">
+              <div className="p-3 rounded-xl bg-ok-soft/30 border border-ok/20 text-xs text-ok font-medium">
                 ✓ Slips allotted: <strong>{issued.slips_count} votes</strong> ({issued.from_slip_id || '—'} to {issued.to_slip_id || '—'}) assigned to <strong>{issued.booth_id}</strong>
               </div>
             )}
 
-            <p className="text-xs text-muted text-center">
-              On the booth computer, navigate to the setup screen. Enter the <strong>Booth Token</strong> and the <strong>Authenticator Code (TOTP)</strong> below to authorize the terminal.
+            <p className="text-xs text-muted">
+              Enter this token on the booth computer for “{issued.election_title}”. Valid for 15 minutes.
             </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Booth Token */}
-              <div className="p-3.5 rounded-xl bg-recessed/60 border border-line space-y-1 text-center">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted block">
-                  1. Booth Token
-                </span>
-                <p className="font-mono text-2xl font-black tracking-widest text-brand select-all py-1">
-                  {issued.token}
-                </p>
-                <button
-                  type="button"
-                  className="btn-ghost btn-sm text-xs inline-flex items-center gap-1 mx-auto text-muted hover:text-fg"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(issued.token);
-                    toast.success('Booth token copied to clipboard');
-                  }}
-                >
-                  <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy Token
-                </button>
-              </div>
-
-              {/* TOTP Code */}
-              <div className="p-3.5 rounded-xl bg-recessed/60 border border-line space-y-1 text-center">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted block">
-                  2. Officer Authenticator (TOTP)
-                </span>
-                <p className="font-mono text-2xl font-black tracking-widest text-fg select-all py-1">
-                  {issued.totp_code || '------'}
-                </p>
-                {issued.totp_code ? (
-                  <button
-                    type="button"
-                    className="btn-ghost btn-sm text-xs inline-flex items-center gap-1 mx-auto text-muted hover:text-fg"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(issued.totp_code);
-                      toast.success('TOTP code copied to clipboard');
-                    }}
-                  >
-                    <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy TOTP
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-muted block py-1">Use your authenticator app</span>
-                )}
-              </div>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-surface border border-line/60 text-[11px] text-muted space-y-0.5">
-              <p>• Valid for <strong>15 minutes</strong> for <strong>{issued.booth_id}</strong>.</p>
-              <p>• The terminal locks into secure kiosk mode immediately upon activation.</p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-line">
+            <p className="font-mono text-4xl font-black tracking-widest select-all bg-recessed/60 py-3 rounded-xl border border-line text-brand">
+              {issued.token}
+            </p>
+            <p className="text-xs text-muted">
+              On the booth machine, enter this token and your 6-digit code from your authenticator app.
+            </p>
+            <div className="flex justify-center gap-2 pt-1">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  navigator.clipboard?.writeText(issued.token);
+                  toast.success('Token copied to clipboard');
+                }}
+              >
+                <ClipboardDocumentIcon className="w-4 h-4" /> Copy Token
+              </button>
               <button className="btn-primary" onClick={() => setIssued(null)}>
                 Done
               </button>

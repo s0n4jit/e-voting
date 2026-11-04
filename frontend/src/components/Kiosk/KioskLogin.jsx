@@ -53,28 +53,8 @@ export const KioskLogin = () => {
   const currentVotingId = info?.current_voting_id || null;
   const isExhausted = Boolean(info?.is_exhausted);
 
-  const digit = (d) => {
-    if (pin.length < 4) {
-      const next = (pin + d).slice(0, 4);
-      setPin(next);
-      setError('');
-    }
-  };
-
-  const backspace = () => {
-    setPin(pin.slice(0, -1));
-    setError('');
-  };
-
-  const clear = () => {
-    setPin('');
-    setError('');
-    pinRef.current?.focus();
-  };
-
-  const submit = useCallback(async (e) => {
-    if (e) e.preventDefault();
-    if (pin.length !== 4 || busy) return;
+  const submitWithPin = useCallback(async (pinValue) => {
+    if (!pinValue || pinValue.length !== 4 || busy) return;
 
     if (!currentVotingId) {
       setError('No active voting slip available for this booth. Please contact the polling officer.');
@@ -87,7 +67,7 @@ export const KioskLogin = () => {
       const res = await authApi.boothPinLogin({
         kioskToken,
         votingId: currentVotingId,
-        pin,
+        pin: pinValue,
       });
 
       localStorage.setItem('access_token', res.access_token);
@@ -103,7 +83,45 @@ export const KioskLogin = () => {
     } finally {
       setBusy(false);
     }
-  }, [pin, busy, currentVotingId, kioskToken, election?.id, navigate]);
+  }, [busy, currentVotingId, kioskToken, election?.id, navigate]);
+
+  const digit = (d) => {
+    if (pin.length < 4 && !busy) {
+      const next = (pin + d).slice(0, 4);
+      setPin(next);
+      setError('');
+      if (next.length === 4 && open && currentVotingId) {
+        setTimeout(() => submitWithPin(next), 120);
+      }
+    }
+  };
+
+  const handlePinChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+    setPin(val);
+    setError('');
+    if (val.length === 4 && open && currentVotingId && !busy) {
+      setTimeout(() => submitWithPin(val), 120);
+    }
+  };
+
+  const backspace = () => {
+    if (busy) return;
+    setPin(pin.slice(0, -1));
+    setError('');
+  };
+
+  const clear = () => {
+    if (busy) return;
+    setPin('');
+    setError('');
+    pinRef.current?.focus();
+  };
+
+  const submit = (e) => {
+    if (e) e.preventDefault();
+    submitWithPin(pin);
+  };
 
   if (booth === 'setup') return <BoothSetup onActivated={activated} />;
   if (booth === 'checking') return <LoadingSpinner size="lg" />;
@@ -198,16 +216,13 @@ export const KioskLogin = () => {
                     maxLength={4}
                     placeholder="••••"
                     value={pin}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                      setPin(val);
-                      setError('');
-                    }}
+                    onChange={handlePinChange}
                     ref={pinRef}
                     autoComplete="off"
                     autoFocus
                     required
-                    className="w-full text-center text-3xl font-bold tracking-[0.5em] py-3.5 rounded-xl border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand tabular-nums shadow-2xs"
+                    disabled={busy || !open}
+                    className="w-full text-center text-3xl font-bold tracking-[0.5em] py-3.5 rounded-xl border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand tabular-nums shadow-2xs disabled:opacity-50"
                   />
                   <p className="text-[11px] text-muted text-center pt-1">
                     Enter the 4-digit PIN printed on your voting slip.

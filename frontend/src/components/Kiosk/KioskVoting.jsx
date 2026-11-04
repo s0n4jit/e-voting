@@ -374,6 +374,7 @@ export const KioskVoting = () => {
   const [fromReview, setFromReview] = useState(false);
   const submitting = useRef(false);
   const submitBtnRef = useRef(null);
+  const autoAdvanceTimer = useRef(null);
 
   // When reaching final review, autoscroll smoothly to the submit button
   useEffect(() => {
@@ -585,7 +586,16 @@ export const KioskVoting = () => {
     } else go(step + 1, 'next');
   };
 
-  const select = (value) => setChoices((c) => ({ ...c, [current.position]: value }));
+  const select = (value) => {
+    setChoices((c) => ({ ...c, [current.position]: value }));
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
+    // Automatically advance to the next position after a brief visual confirmation delay
+    autoAdvanceTimer.current = setTimeout(() => {
+      next();
+    }, 320);
+  };
 
   const submit = async () => {
     if (submitting.current) return; // guards against double taps
