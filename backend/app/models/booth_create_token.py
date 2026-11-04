@@ -20,6 +20,13 @@ class BoothCreateToken(db.Model):
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     used_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    booth_number = db.Column(db.Integer, nullable=True)
+    kiosk_id = db.Column(db.Integer, db.ForeignKey("kiosk_devices.id", ondelete="SET NULL"), nullable=True)
+    from_slip_id = db.Column(db.String(30), nullable=True)
+    to_slip_id = db.Column(db.String(30), nullable=True)
+    slips_count = db.Column(db.Integer, nullable=True)
+
+    kiosk = db.relationship("KioskDevice", foreign_keys=[kiosk_id], lazy="select")
 
     @property
     def expired(self) -> bool:

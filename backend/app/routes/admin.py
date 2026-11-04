@@ -684,20 +684,40 @@ def get_desk_voters():
 @admin_bp.get("/booths/next-available")
 @admin_required
 def get_next_available_booth():
-    """Returns the next available booth number, active booth count, and existing booth numbers."""
+    """Returns the next available booth number, active booth count, and available unallotted slips per booth."""
     election = Election.current()
     if not election:
-        return jsonify({"next_booth_number": 1, "next_booth_id": "BOOTH-01", "total_active_booths": 0, "existing_booth_numbers": []}), 200
-    booths = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+        return jsonify({"next_booth_number": 1, "next_booth_id": "BOOTH-01", "total_active_booths": 0, "existing_booth_numbers": [], "available_slips_by_booth": []}), 200
+    booths = KioskDevice.query.filter_by(election_id=election.id).all()
     used_numbers = {b.number for b in booths}
     n = 1
     while n in used_numbers:
         n += 1
+
+    from app.models.booth_slip import BoothSlip
+    max_b = max([4] + list(used_numbers))
+    slip_summary = []
+    for b_num in range(1, max_b + 2):
+        slips_all = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num).order_by(BoothSlip.sequence_number.asc()).all()
+        unallotted = [s for s in slips_all if s.booth_id is None and not s.is_used]
+        allotted = [s for s in slips_all if s.booth_id is not None]
+        used = [s for s in slips_all if s.is_used]
+        slip_summary.append({
+            "booth_number": b_num,
+            "total_slips": len(slips_all),
+            "unallotted_count": len(unallotted),
+            "allotted_count": len(allotted),
+            "used_count": len(used),
+            "first_unallotted_id": unallotted[0].voting_id if unallotted else None,
+            "last_unallotted_id": unallotted[-1].voting_id if unallotted else None,
+        })
+
     return jsonify({
         "next_booth_number": n,
         "next_booth_id": f"BOOTH-{n:02d}",
-        "total_active_booths": len(booths),
+        "total_active_booths": len([b for b in booths if b.is_active]),
         "existing_booth_numbers": sorted(list(used_numbers)),
+        "available_slips_by_booth": slip_summary,
     }), 200
 
 
@@ -705,10 +725,13 @@ def get_next_available_booth():
 @admin_required
 def create_booth_token():
     """
-    Generate a one-time token for setting up a voting booth with pre-allocated slips.
+    Generate a one-time token for setting up a voting booth.
+    Allots specified slips (or unallotted slips in range) to the booth machine at the time of token generation.
     """
+    import secrets
     from app.models.booth_create_token import TOKEN_LIFETIME, BoothCreateToken
     from app.routes.booth import _hash, new_create_token
+    from app.models.kiosk_device import hash_token
     from app.models.booth_slip import BoothSlip
 
     officer = db.session.get(User, int(get_jwt_identity()))
@@ -721,6 +744,8 @@ def create_booth_token():
     payload = request.get_json(silent=True) or {}
     booth_num = payload.get("booth_number")
     slips_count = int(payload.get("slips_count", 0) or 0)
+    from_slip_id = str(payload.get("from_slip_id") or "").strip()
+    to_slip_id = str(payload.get("to_slip_id") or "").strip()
 
     if not booth_num:
         used_nums = {k.number for k in KioskDevice.query.filter_by(election_id=election.id).all()}
@@ -731,44 +756,107 @@ def create_booth_token():
     else:
         booth_num = int(booth_num)
 
-    from_id = None
-    to_id = None
+    # 1. Pre-create or retrieve KioskDevice for this booth
+    kiosk = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_num).first()
+    if not kiosk:
+        raw_dummy = f"pending_{secrets.token_urlsafe(32)}"
+        kiosk = KioskDevice(
+            device_name=f"BOOTH-{booth_num:02d}",
+            booth_number=booth_num,
+            kiosk_token=hash_token(raw_dummy),
+            election_id=election.id,
+            is_active=False,
+        )
+        db.session.add(kiosk)
+        db.session.flush()
 
-    if slips_count > 0:
-        existing_count = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).count()
-        if existing_count == 0:
-            created = BoothSlip.generate_batch(election.id, booth_number=booth_num, count=slips_count)
-            from_id = created[0].voting_id
-            to_id = created[-1].voting_id
-        else:
-            first_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.asc()).first()
-            last_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.desc()).first()
-            from_id = first_slip.voting_id if first_slip else None
-            to_id = last_slip.voting_id if last_slip else None
-            if slips_count > existing_count:
-                more = BoothSlip.generate_batch(election.id, booth_number=booth_num, count=slips_count - existing_count)
-                to_id = more[-1].voting_id
+    # 2. Check available unallotted slips for this booth
+    unallotted_q = BoothSlip.query.filter_by(
+        election_id=election.id,
+        booth_number=booth_num,
+        booth_id=None,
+        is_used=False
+    ).order_by(BoothSlip.sequence_number.asc())
+    unallotted_count = unallotted_q.count()
+
+    # If slips_count is specified but not enough unallotted slips exist, auto-generate them
+    if slips_count > unallotted_count:
+        needed = slips_count - unallotted_count
+        BoothSlip.generate_batch(election.id, booth_number=booth_num, count=needed, booth_id=None)
+
+    # Select slips to allot to this kiosk machine
+    slips_to_allot = []
+    if from_slip_id and to_slip_id:
+        slips_to_allot = BoothSlip.query.filter(
+            BoothSlip.election_id == election.id,
+            BoothSlip.booth_number == booth_num,
+            BoothSlip.booth_id == None,
+            BoothSlip.is_used == False,
+            BoothSlip.voting_id >= from_slip_id,
+            BoothSlip.voting_id <= to_slip_id
+        ).order_by(BoothSlip.sequence_number.asc()).all()
+    elif slips_count > 0:
+        slips_to_allot = (
+            BoothSlip.query.filter_by(
+                election_id=election.id,
+                booth_number=booth_num,
+                booth_id=None,
+                is_used=False
+            )
+            .order_by(BoothSlip.sequence_number.asc())
+            .limit(slips_count)
+            .all()
+        )
     else:
-        first_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.asc()).first()
-        last_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.desc()).first()
-        from_id = first_slip.voting_id if first_slip else f"{booth_num}001"
-        to_id = last_slip.voting_id if last_slip else f"{booth_num}050"
+        # Default: allot all unallotted slips for this booth
+        slips_to_allot = (
+            BoothSlip.query.filter_by(
+                election_id=election.id,
+                booth_number=booth_num,
+                booth_id=None,
+                is_used=False
+            )
+            .order_by(BoothSlip.sequence_number.asc())
+            .all()
+        )
 
+    # 3. Allot the slips to this booth machine
+    for s in slips_to_allot:
+        s.booth_id = kiosk.id
+
+    from_id = slips_to_allot[0].voting_id if slips_to_allot else None
+    to_id = slips_to_allot[-1].voting_id if slips_to_allot else None
+
+    # 4. Create one-time booth activation token
     token = new_create_token()
     expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
-    db.session.add(BoothCreateToken(token_hash=_hash(token.replace("-", "")), election_id=election.id,
-                                    created_by=officer.id, expires_at=expires))
-    db.session.add(AuditLog(user_id=officer.id, action="BOOTH_TOKEN_CREATED",
-                            details=f"Generated a booth token for Booth {booth_num} ({election.title}), allocated {slips_count} slips ({from_id} to {to_id}).", ip_address=request.remote_addr or ""))
+    db.session.add(BoothCreateToken(
+        token_hash=_hash(token.replace("-", "")),
+        election_id=election.id,
+        created_by=officer.id,
+        expires_at=expires,
+        booth_number=booth_num,
+        kiosk_id=kiosk.id,
+        from_slip_id=from_id,
+        to_slip_id=to_id,
+        slips_count=len(slips_to_allot),
+    ))
+    db.session.add(AuditLog(
+        user_id=officer.id,
+        action="BOOTH_TOKEN_CREATED",
+        details=f"Generated a booth token for Booth {booth_num} ({election.title}), allotted {len(slips_to_allot)} slips ({from_id or 'none'} to {to_id or 'none'}) to {kiosk.device_name}.",
+        ip_address=request.remote_addr or ""
+    ))
     db.session.commit()
+
     from app.utils.timeutil import utc_iso
     return jsonify({
         "token": token,
         "expires_at": utc_iso(expires),
         "election_title": election.title,
         "booth_number": booth_num,
-        "booth_id": f"BOOTH-{booth_num:02d}",
-        "slips_count": slips_count,
+        "booth_id": kiosk.device_name,
+        "slips_count": len(slips_to_allot),
         "from_slip_id": from_id,
         "to_slip_id": to_id,
     }), 201
@@ -789,6 +877,12 @@ def delete_kiosk(kiosk_id):
     kiosk = db.session.get(KioskDevice, kiosk_id)
     if not kiosk:
         return jsonify({"error": "Kiosk terminal not found."}), 404
+
+    # Unallot unused slips so they can be re-allotted to another booth session
+    from app.models.booth_slip import BoothSlip
+    BoothSlip.query.filter_by(booth_id=kiosk.id, is_used=False).update(
+        {"booth_id": None}, synchronize_session=False
+    )
 
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()), action="BOOTH_REMOVED",
@@ -1027,15 +1121,11 @@ def generate_booth_slips(booth_number):
     if count <= 0 or count > 2000:
         return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
 
-    # Resolve kiosk if exists
-    kiosk = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_number).first()
-    booth_id = kiosk.id if kiosk else None
-
     created = BoothSlip.generate_batch(
         election_id=election.id,
         booth_number=booth_number,
         count=count,
-        booth_id=booth_id,
+        booth_id=None,
     )
 
     db.session.add(AuditLog(
@@ -1079,12 +1169,11 @@ def generate_all_booth_slips():
     summary = []
     total_created = 0
     for b_num in booth_numbers:
-        kiosk = next((k for k in kiosks if k.number == b_num), None)
         created = BoothSlip.generate_batch(
             election_id=election.id,
             booth_number=b_num,
             count=count_per_booth,
-            booth_id=kiosk.id if kiosk else None,
+            booth_id=None,
         )
         if created:
             total_created += len(created)

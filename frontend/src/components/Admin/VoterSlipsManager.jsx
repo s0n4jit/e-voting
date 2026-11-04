@@ -333,10 +333,28 @@ export const VoterSlipsManager = () => {
 
         {/* Table Content */}
         {loading ? (
-          <TableSkeleton rows={5} cols={5} />
+          <TableSkeleton rows={5} cols={7} />
         ) : slips.length === 0 ? (
-          <EmptyState icon={TicketIcon} title="No slips match the current filter">
-            Try adjusting your search or booth filters, or generate new slips using the button above.
+          <EmptyState
+            icon={TicketIcon}
+            title={total === 0 ? "No voter slips generated yet" : "No slips match the current filter"}
+          >
+            {total === 0 ? (
+              <div className="space-y-3 mt-1">
+                <p>Click the <strong>Generate Slips</strong> button above to pre-generate sequential voting credentials with 4-digit PINs.</p>
+                <div>
+                  <button
+                    onClick={() => setGenerateModalOpen(true)}
+                    className="btn-primary inline-flex items-center gap-1.5"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    <span>Generate Slips Now</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              "Try adjusting your search or booth filters, or generate new slips using the button above."
+            )}
           </EmptyState>
         ) : (
           <div className="overflow-x-auto">
@@ -344,7 +362,8 @@ export const VoterSlipsManager = () => {
               <thead>
                 <tr>
                   <th>Voting ID</th>
-                  <th>Booth Terminal</th>
+                  <th>Booth Number</th>
+                  <th>Machine Allotment</th>
                   <th>Sequence #</th>
                   <th>Status</th>
                   <th>Used At</th>
@@ -360,7 +379,19 @@ export const VoterSlipsManager = () => {
                       </span>
                     </td>
                     <td className="font-semibold text-fg">
-                      BOOTH-{String(s.booth_number).padStart(2, '0')}
+                      Booth {s.booth_number} (BOOTH-{String(s.booth_number).padStart(2, '0')})
+                    </td>
+                    <td>
+                      {s.booth_id ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok-soft text-ok">
+                          <CheckCircleIcon className="w-3.5 h-3.5" />
+                          <span>Allotted to Machine</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-recessed text-muted border border-line">
+                          <span>Pending Setup</span>
+                        </span>
+                      )}
                     </td>
                     <td className="text-muted font-mono text-xs">#{s.sequence_number}</td>
                     <td>

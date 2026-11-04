@@ -123,6 +123,13 @@ class KioskDevice(db.Model):
 
     def to_dict(self) -> dict:
         from app.utils.timeutil import utc_iso
+        from app.models.booth_slip import BoothSlip
+
+        slips_q = BoothSlip.query.filter_by(election_id=self.election_id, booth_id=self.id)
+        allotted_count = slips_q.count()
+        used_count = slips_q.filter_by(is_used=True).count()
+        first_slip = slips_q.order_by(BoothSlip.sequence_number.asc()).first()
+        last_slip = slips_q.order_by(BoothSlip.sequence_number.desc()).first()
 
         return {
             "id": self.id,
@@ -135,6 +142,11 @@ class KioskDevice(db.Model):
             "ip_address": self.ip_address,
             "is_active": self.is_active,
             "online": self.online,
+            "allotted_count": allotted_count,
+            "used_count": used_count,
+            "remaining_count": max(0, allotted_count - used_count),
+            "from_slip_id": first_slip.voting_id if first_slip else None,
+            "to_slip_id": last_slip.voting_id if last_slip else None,
             "created_at": utc_iso(self.created_at),
             "last_heartbeat": utc_iso(self.last_heartbeat),
         }

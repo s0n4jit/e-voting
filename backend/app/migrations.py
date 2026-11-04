@@ -33,6 +33,11 @@ _COLUMNS = [
     ("programmes", "programme", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("programmes", "department", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("kiosk_devices", "booth_number", "INTEGER"),
+    ("booth_create_tokens", "booth_number", "INTEGER"),
+    ("booth_create_tokens", "kiosk_id", "INTEGER"),
+    ("booth_create_tokens", "from_slip_id", "VARCHAR(30)"),
+    ("booth_create_tokens", "to_slip_id", "VARCHAR(30)"),
+    ("booth_create_tokens", "slips_count", "INTEGER"),
 ]
 
 

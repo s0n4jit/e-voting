@@ -85,8 +85,29 @@ def activate():
     if claimed != 1:
         return failure
 
-    booth_id = KioskDevice.next_booth_id(election.id)
-    device, raw = KioskDevice.activate(booth_id, request.remote_addr or "", election.id)
+    from app.models.booth_slip import BoothSlip
+    device = None
+    if getattr(row, "kiosk_id", None):
+        device = db.session.get(KioskDevice, row.kiosk_id)
+        if device:
+            raw = f"booth_{secrets.token_urlsafe(32)}"
+            now = datetime.now(timezone.utc)
+            device.kiosk_token = hash_token(raw)
+            device.is_active = True
+            device.ip_address = request.remote_addr or ""
+            device.last_heartbeat = now
+            booth_id = device.device_name
+
+    if not device:
+        booth_num = getattr(row, "booth_number", None) or 1
+        booth_id = f"BOOTH-{booth_num:02d}"
+        device, raw = KioskDevice.activate(booth_id, request.remote_addr or "", election.id)
+        device.booth_number = booth_num
+
+    # Ensure unlinked slips matching this booth number get associated
+    BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, booth_id=None).update(
+        {"booth_id": device.id}, synchronize_session=False
+    )
     db.session.add(AuditLog(
         user_id=officer.id,
         action="BOOTH_ACTIVATED",
@@ -120,9 +141,23 @@ def get_current_slip():
             "total_slips": 0,
         }), 200
 
-    current_slip = BoothSlip.get_current_slip(election.id, device.number)
-    total_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number).count()
-    used_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, is_used=True).count()
+    current_slip = (
+        BoothSlip.query.filter_by(election_id=election.id, booth_id=device.id, is_used=False)
+        .order_by(BoothSlip.sequence_number.asc())
+        .first()
+    )
+    if not current_slip:
+        current_slip = BoothSlip.get_current_slip(election.id, device.number)
+
+    total_slips = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number)
+    ).count()
+    used_slips = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
+        BoothSlip.is_used == True
+    ).count()
     remaining = total_slips - used_slips
 
     return jsonify({
