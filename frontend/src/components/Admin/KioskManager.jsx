@@ -94,9 +94,10 @@ export const KioskManager = () => {
 
   // When slips count changes, automatically recalculate toSlipId
   const handleSlipsCountChange = (val) => {
-    const count = Math.max(1, parseInt(val, 10) || 1);
-    setSlipsCount(count);
-    if (fromSlipId) {
+    setSlipsCount(val);
+    if (val === '') return;
+    const count = parseInt(val, 10);
+    if (!isNaN(count) && count > 0) {
       const startNum = parseInt(fromSlipId, 10);
       if (!isNaN(startNum)) {
         const endNum = startNum + count - 1;
@@ -105,15 +106,82 @@ export const KioskManager = () => {
     }
   };
 
+  const handleSlipsCountBlur = () => {
+    const count = Math.max(1, parseInt(slipsCount, 10) || 1);
+    setSlipsCount(count);
+    const startNum = parseInt(fromSlipId, 10);
+    if (!isNaN(startNum)) {
+      const endNum = startNum + count - 1;
+      setToSlipId(String(endNum).padStart(fromSlipId.length, '0'));
+    }
+  };
+
+  // When fromSlipId changes: update fromSlipId, and automatch toSlipId or slipsCount
+  const handleFromSlipIdChange = (val) => {
+    setFromSlipId(val);
+    const fromNum = parseInt(val, 10);
+    const toNum = parseInt(toSlipId, 10);
+    if (!isNaN(fromNum)) {
+      if (!isNaN(toNum) && toNum >= fromNum && val.trim().length >= 3) {
+        const newCount = toNum - fromNum + 1;
+        setSlipsCount(newCount);
+      } else {
+        const count = parseInt(slipsCount, 10) || 1;
+        setToSlipId(String(fromNum + count - 1).padStart(val.length, '0'));
+      }
+    }
+  };
+
+  const handleFromSlipIdBlur = () => {
+    const fromNum = parseInt(fromSlipId, 10);
+    const toNum = parseInt(toSlipId, 10);
+    if (isNaN(fromNum)) {
+      const fallbackFrom = `${selectedBooth}001`;
+      setFromSlipId(fallbackFrom);
+      const count = Math.max(1, parseInt(slipsCount, 10) || 1);
+      setToSlipId(String(parseInt(fallbackFrom, 10) + count - 1).padStart(fallbackFrom.length, '0'));
+    } else if (!isNaN(toNum) && toNum >= fromNum) {
+      setSlipsCount(toNum - fromNum + 1);
+    } else {
+      const count = Math.max(1, parseInt(slipsCount, 10) || 1);
+      setToSlipId(String(fromNum + count - 1).padStart(fromSlipId.length, '0'));
+    }
+  };
+
+  // When toSlipId changes: update toSlipId, and automatch slipsCount
+  const handleToSlipIdChange = (val) => {
+    setToSlipId(val);
+    const toNum = parseInt(val, 10);
+    const fromNum = parseInt(fromSlipId, 10);
+    if (!isNaN(toNum) && !isNaN(fromNum) && toNum >= fromNum) {
+      const newCount = toNum - fromNum + 1;
+      setSlipsCount(newCount);
+    }
+  };
+
+  const handleToSlipIdBlur = () => {
+    const toNum = parseInt(toSlipId, 10);
+    const fromNum = parseInt(fromSlipId, 10);
+    if (isNaN(toNum) || isNaN(fromNum) || toNum < fromNum) {
+      const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${selectedBooth}001`, 10);
+      const count = Math.max(1, parseInt(slipsCount, 10) || 1);
+      const endNum = startNum + count - 1;
+      setToSlipId(String(endNum).padStart(fromSlipId?.length || 4, '0'));
+    } else {
+      setSlipsCount(toNum - fromNum + 1);
+    }
+  };
+
   const handleGenerateToken = async (e) => {
     e.preventDefault();
     setBusy(true);
     try {
+      const finalCount = Math.max(1, parseInt(slipsCount, 10) || 1);
       const res = await adminApi.createBoothToken({
         booth_number: Number(selectedBooth),
-        slips_count: Number(slipsCount),
-        from_slip_id: fromSlipId.trim(),
-        to_slip_id: toSlipId.trim(),
+        slips_count: finalCount,
+        from_slip_id: String(fromSlipId).trim(),
+        to_slip_id: String(toSlipId).trim(),
       });
       setSetupModalOpen(false);
       setIssued(res);
@@ -354,6 +422,7 @@ export const KioskManager = () => {
               max={1500}
               value={slipsCount}
               onChange={(e) => handleSlipsCountChange(e.target.value)}
+              onBlur={handleSlipsCountBlur}
               className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
               required
             />
@@ -365,7 +434,8 @@ export const KioskManager = () => {
               <input
                 type="text"
                 value={fromSlipId}
-                onChange={(e) => setFromSlipId(e.target.value)}
+                onChange={(e) => handleFromSlipIdChange(e.target.value)}
+                onBlur={handleFromSlipIdBlur}
                 placeholder={`${selectedBooth}001`}
                 className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
                 required
@@ -376,13 +446,20 @@ export const KioskManager = () => {
               <input
                 type="text"
                 value={toSlipId}
-                onChange={(e) => setToSlipId(e.target.value)}
+                onChange={(e) => handleToSlipIdChange(e.target.value)}
+                onBlur={handleToSlipIdBlur}
                 placeholder={`${selectedBooth}050`}
                 className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
                 required
               />
             </div>
           </div>
+          <p className="text-[11px] text-muted flex items-center justify-between">
+            <span>Range matches slip count automatically.</span>
+            <span className="font-mono font-medium text-brand">
+              {fromSlipId && toSlipId ? `${fromSlipId} – ${toSlipId} (${Math.max(1, parseInt(slipsCount, 10) || 1)} slips)` : ''}
+            </span>
+          </p>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-line">
             <button
