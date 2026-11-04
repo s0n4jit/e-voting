@@ -89,19 +89,41 @@ def cast_multi_position_ballot(election_id):
     """
     Cast an anonymous multi-position ballot with NOTA support and kiosk verification.
     """
-    booth, denied = require_booth(get_jwt(), election_id)
+    claims = get_jwt()
+    booth, denied = require_booth(claims, election_id)
     if denied:
         return denied
-    user_id = get_jwt_identity()
-    user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
-    if not user:
-        return jsonify({"error": "Voter account not found."}), 404
 
     payload = request.get_json(silent=True) or {}
     selections = payload.get("selections")
 
     if selections is None:
         return jsonify({"error": "selections list is required."}), 400
+
+    # If voting with pre-generated Booth Slip (PIN-only)
+    if claims.get("voting_mode") == "booth_slip":
+        slip_id = claims.get("slip_id")
+        if not slip_id:
+            return jsonify({"error": "Invalid session", "message": "Voting slip session missing."}), 400
+        try:
+            result = VoteService.cast_booth_slip_vote(
+                slip_id=int(slip_id),
+                election_id=election_id,
+                selections=selections,
+                booth=booth,
+                ip_address=request.remote_addr or "127.0.0.1",
+                user_agent=request.user_agent.string if request.user_agent else "client",
+            )
+            return jsonify(dict(result)), 200
+        except VotingError as err:
+            return jsonify({"error": "Voting failed", "message": str(err)}), 400
+        except Exception as exc:
+            return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
+
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
+    if not user:
+        return jsonify({"error": "Voter account not found."}), 404
 
     try:
         result = VoteService.cast_multi_position_vote(

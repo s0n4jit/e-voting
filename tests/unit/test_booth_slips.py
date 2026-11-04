@@ -1,0 +1,199 @@
+"""
+tests/unit/test_booth_slips.py
+==============================
+Unit tests for Pre-generated Booth Slips and PIN-Only Voting:
+  - Multi-booth sequential ID generation (1001, 1002..., 2001, 2002...)
+  - Cryptographically secure 4-digit PIN generation (0000-9999) with leading zeros
+  - Salted bcrypt hash verification
+  - Fernet encryption/decryption for PDF rendering
+  - CRITICAL: No self-destruct or invalidation on incorrect PIN
+  - Automatic sequential advancement upon vote completion
+  - Anonymous multi-position vote submission with BoothSlip
+  - PDF slip generation
+"""
+
+import pytest
+from datetime import datetime, timedelta, timezone
+
+from app.models.election import Election
+from app.models.candidate import Candidate
+from app.models.kiosk_device import KioskDevice
+from app.models.booth_slip import BoothSlip
+from app.models.ballot_entry import BallotEntry
+from app.services.vote_service import VoteService, VotingError
+from app.services.slip_pdf_service import SlipPdfService
+
+
+@pytest.fixture
+def test_election(db_session):
+    now = datetime.now(timezone.utc)
+    elec = Election(
+        title="Campus Election 2026",
+        start_time=now - timedelta(hours=1),
+        end_time=now + timedelta(hours=8),
+        is_active=True,
+        status="voting_active",
+    )
+    db_session.add(elec)
+    db_session.flush()
+
+    c1 = Candidate(election_id=elec.id, name="Alice Sharma", position="General Secretary")
+    c2 = Candidate(election_id=elec.id, name="Bob Ahmed", position="General Secretary")
+    c3 = Candidate(election_id=elec.id, name="Carol Das", position="Cultural Secretary")
+    db_session.add_all([c1, c2, c3])
+    db_session.commit()
+    return elec
+
+
+class TestBoothSlipModel:
+    def test_pin_generation_preserves_4_digits_and_leading_zeros(self, app):
+        with app.app_context():
+            for _ in range(50):
+                pin = BoothSlip.generate_random_4digit_pin()
+                assert len(pin) == 4
+                assert pin.isdigit()
+                assert 0 <= int(pin) <= 9999
+
+    def test_sequential_id_generation_per_booth(self, app, db_session, test_election):
+        with app.app_context():
+            # Generate 4 slips for Booth 1
+            b1_slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=4)
+            assert [s.voting_id for s in b1_slips] == ["1001", "1002", "1003", "1004"]
+
+            # Generate 4 slips for Booth 2
+            b2_slips = BoothSlip.generate_batch(test_election.id, booth_number=2, count=4)
+            assert [s.voting_id for s in b2_slips] == ["2001", "2002", "2003", "2004"]
+
+            # Generate 2 slips for Booth 3
+            b3_slips = BoothSlip.generate_batch(test_election.id, booth_number=3, count=2)
+            assert [s.voting_id for s in b3_slips] == ["3001", "3002"]
+
+            # Append 2 more slips to Booth 1: should continue sequence from 1005
+            b1_more = BoothSlip.generate_batch(test_election.id, booth_number=1, count=2)
+            assert [s.voting_id for s in b1_more] == ["1005", "1006"]
+
+    def test_pin_verification_and_fernet_reveal(self, app, db_session, test_election):
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=1)
+            slip = slips[0]
+            raw_pin = slip.raw_pin
+            assert len(raw_pin) == 4
+
+            # Verify against correct PIN
+            assert slip.verify_pin(raw_pin) is True
+
+            # Verify against wrong PINs
+            assert slip.verify_pin("0000" if raw_pin != "0000" else "9999") is False
+            assert slip.verify_pin("123") is False
+            assert slip.verify_pin("abcd") is False
+
+            # Reveal decrypted PIN
+            decrypted = slip.reveal_pin()
+            assert decrypted == raw_pin
+
+    def test_no_self_destruct_on_failed_pin_attempts(self, app, db_session, test_election):
+        """CRITICAL: Failed PIN attempts must NEVER invalidate or destroy the slip."""
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=1)
+            slip = slips[0]
+
+            # Simulate 10 consecutive failed attempts
+            for _ in range(10):
+                res = slip.verify_pin("9999")
+
+            # Check that the slip is still completely unused and active
+            assert slip.is_used is False
+            assert slip.used_at is None
+
+            # Correct PIN still works
+            assert slip.verify_pin(slip.raw_pin) is True
+
+    def test_current_slip_advances_only_when_used(self, app, db_session, test_election):
+        with app.app_context():
+            BoothSlip.generate_batch(test_election.id, booth_number=1, count=3)
+
+            # Initially current slip is 1001
+            current = BoothSlip.get_current_slip(test_election.id, booth_number=1)
+            assert current.voting_id == "1001"
+
+            # Mark 1001 as used
+            current.is_used = True
+            current.used_at = datetime.now(timezone.utc)
+            db_session.commit()
+
+            # Now current slip automatically advances to 1002
+            next_slip = BoothSlip.get_current_slip(test_election.id, booth_number=1)
+            assert next_slip.voting_id == "1002"
+
+            # Booth 2 current slip is unaffected
+            BoothSlip.generate_batch(test_election.id, booth_number=2, count=2)
+            b2_curr = BoothSlip.get_current_slip(test_election.id, booth_number=2)
+            assert b2_curr.voting_id == "2001"
+
+
+class TestBoothSlipVotingFlow:
+    def test_cast_booth_slip_vote_atomic_and_anonymous(self, app, db_session, test_election):
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=2)
+            slip1 = slips[0]
+            slip2 = slips[1]
+
+            # Get candidates
+            cands = Candidate.query.filter_by(election_id=test_election.id).all()
+            gs_cand = [c for c in cands if c.position == "General Secretary"][0]
+
+            selections = [
+                {"position": "General Secretary", "candidate_id": gs_cand.id, "is_nota": False},
+                {"position": "Cultural Secretary", "is_nota": True},
+            ]
+
+            # Cast ballot
+            res = VoteService.cast_booth_slip_vote(
+                slip_id=slip1.id,
+                election_id=test_election.id,
+                selections=selections,
+                kiosk_token=None,
+                booth=None,
+                db=db_session,
+            )
+
+            assert res["success"] is True
+            assert res["data"]["voting_id"] == "1001"
+            assert res["data"]["next_voting_id"] == "1002"
+
+            # Verify slip1 is marked used
+            refreshed_s1 = db_session.get(BoothSlip, slip1.id)
+            assert refreshed_s1.is_used is True
+            assert refreshed_s1.used_at is not None
+
+            # Verify next current slip for Booth 1 is 1002
+            current = BoothSlip.get_current_slip(test_election.id, booth_number=1)
+            assert current.voting_id == "1002"
+
+            # Verify ballot entries recorded anonymously under blind_token
+            entries = BallotEntry.query.filter_by(election_id=test_election.id).all()
+            assert len(entries) == 2
+            blind_tokens = {e.blind_token for e in entries}
+            assert len(blind_tokens) == 1  # Both positions share the same blind token
+
+            # Double voting attempt with slip1 fails
+            with pytest.raises(VotingError, match="already been used"):
+                VoteService.cast_booth_slip_vote(
+                    slip_id=slip1.id,
+                    election_id=test_election.id,
+                    selections=selections,
+                    db=db_session,
+                )
+
+
+class TestSlipPdfService:
+    def test_generates_valid_pdf_bytes(self, app, db_session, test_election):
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=10)
+            pdf_bytes = SlipPdfService.generate_slips_pdf(
+                slips=slips,
+                election=test_election,
+                institution_name="Test College",
+            )
+            assert pdf_bytes.startswith(b"%PDF-")
+            assert len(pdf_bytes) > 1000

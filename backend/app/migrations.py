@@ -32,6 +32,7 @@ _COLUMNS = [
     ("programmes", "level", "VARCHAR(10) NOT NULL DEFAULT 'degree'"),
     ("programmes", "programme", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("programmes", "department", "VARCHAR(120) NOT NULL DEFAULT ''"),
+    ("kiosk_devices", "booth_number", "INTEGER"),
 ]
 
 

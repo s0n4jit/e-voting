@@ -18,6 +18,7 @@ from app.models.audit_log import AuditLog
 from app.models.booth_create_token import BoothCreateToken
 from app.models.election import Election
 from app.models.kiosk_device import KioskDevice
+from app.models.booth_slip import BoothSlip
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.utils.timeutil import utc_iso
@@ -97,6 +98,44 @@ def activate():
     return jsonify({"booth_token": raw, "booth_id": booth_id}), 201
 
 
+@booth_bp.get("/current-slip")
+@limiter.exempt
+def get_current_slip():
+    """
+    Returns the current unused sequential voting ID for this kiosk terminal's booth.
+    """
+    ok, device = KioskDevice.verify_token(booth_token_from_request())
+    if not ok:
+        return jsonify({"error": "Unauthorized booth"}), 403
+
+    election = device.election or Election.current()
+    if not election:
+        return jsonify({
+            "booth_id": device.booth_id,
+            "booth_number": device.number,
+            "current_voting_id": None,
+            "has_slips": False,
+            "is_exhausted": False,
+            "slips_remaining": 0,
+            "total_slips": 0,
+        }), 200
+
+    current_slip = BoothSlip.get_current_slip(election.id, device.number)
+    total_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number).count()
+    used_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, is_used=True).count()
+    remaining = total_slips - used_slips
+
+    return jsonify({
+        "booth_id": device.booth_id,
+        "booth_number": device.number,
+        "current_voting_id": current_slip.voting_id if current_slip else None,
+        "has_slips": bool(current_slip),
+        "is_exhausted": total_slips > 0 and remaining == 0,
+        "slips_remaining": remaining,
+        "total_slips": total_slips,
+    }), 200
+
+
 @booth_bp.get("/status")
 @limiter.exempt
 def status():
@@ -107,9 +146,22 @@ def status():
     commit_or_flush()  # keeps the "last seen" time
     election = device.election or Election.current()
     data = election.to_dict() if election else None
+
+    # Retrieve current slip info for this booth
+    current_slip = BoothSlip.get_current_slip(election.id, device.number) if election else None
+    total_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number).count() if election else 0
+    used_slips = BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, is_used=True).count() if election else 0
+    remaining = total_slips - used_slips
+
     return jsonify({
         "valid": True,
         "booth_id": device.booth_id,
+        "booth_number": device.number,
+        "current_voting_id": current_slip.voting_id if current_slip else None,
+        "has_slips": bool(current_slip),
+        "is_exhausted": total_slips > 0 and remaining == 0,
+        "slips_remaining": remaining,
+        "total_slips": total_slips,
         "slip_prefix": election.ensure_slip_prefix() if election else None,
         "voting_open": bool(election and election.is_ongoing),
         "voting_ended": bool(election and not election.desk_open),

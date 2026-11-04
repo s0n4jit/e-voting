@@ -49,7 +49,19 @@ class KioskDevice(db.Model):
     )
     last_heartbeat = db.Column(db.DateTime(timezone=True), nullable=True)
     election_id = db.Column(db.Integer, db.ForeignKey("elections.id", ondelete="CASCADE"), nullable=True, index=True)
+    booth_number = db.Column(db.Integer, nullable=True)
     election = db.relationship("Election")
+
+    @property
+    def number(self) -> int:
+        if self.booth_number is not None:
+            return self.booth_number
+        try:
+            import re
+            m = re.search(r'\d+', str(self.device_name))
+            return int(m.group(0)) if m else 1
+        except Exception:
+            return 1
 
     @property
     def booth_id(self) -> str:
@@ -115,6 +127,7 @@ class KioskDevice(db.Model):
         return {
             "id": self.id,
             "booth_id": self.device_name,
+            "booth_number": self.number,
             "election_id": self.election_id,
             "election_title": self.election.title if self.election else None,
             "device_name": self.device_name,

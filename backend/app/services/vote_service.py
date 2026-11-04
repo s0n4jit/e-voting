@@ -30,6 +30,7 @@ from app.models.ballot_entry import BallotEntry
 from app.models.audit_log import AuditLog
 from app.models.voting_token import VotingToken
 from app.models.kiosk_device import KioskDevice
+from app.models.booth_slip import BoothSlip
 
 logger = logging.getLogger(__name__)
 
@@ -569,6 +570,211 @@ class VoteService:
             "candidates": all_flat_candidates,
         }
 
+
+    @classmethod
+    def cast_booth_slip_vote(
+        cls,
+        slip_id: int,
+        election_id: int,
+        selections: List[Dict[str, Any]],
+        kiosk_token: Optional[str] = None,
+        booth=None,
+        ip_address: str = "127.0.0.1",
+        user_agent: str = "internal",
+        db=None,
+    ) -> VoteResult:
+        """
+        Atomically casts an anonymous vote using a pre-generated BoothSlip:
+          1. Validates election status (is_active, not voting_paused).
+          2. Validates kiosk terminal.
+          3. Locks BoothSlip with with_for_update() and verifies it is unused.
+          4. Validates all position selections (candidates / NOTA).
+          5. Atomically marks BoothSlip as USED.
+          6. Inserts anonymous BallotEntry rows under a unified blind token.
+          7. Logs an anonymous audit event (no voter identity).
+          8. Generates server-side receipt without identity.
+          9. Returns success with next sequential voting ID.
+        """
+        session = db.session if hasattr(db, "session") else (db or default_db.session)
+
+        # 1. Resolve and validate election
+        if not election_id:
+            raise VotingError("Election ID is required.")
+        election = session.get(Election, election_id)
+        if not election:
+            raise VotingError("Election not found.")
+
+        if not election.is_active:
+            raise VotingError("Voting is not open.")
+        if election.voting_paused:
+            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
+
+        # 2. Validate kiosk device
+        if kiosk_token:
+            valid, kiosk_dev = KioskDevice.verify_token(kiosk_token)
+            if not valid:
+                raise VotingError("Invalid or unauthorized kiosk terminal.")
+            booth = kiosk_dev
+
+        # 3. Lock BoothSlip with with_for_update()
+        booth_slip = (
+            session.query(BoothSlip)
+            .filter_by(id=slip_id, election_id=election.id)
+            .with_for_update()
+            .first()
+        )
+        if not booth_slip:
+            raise VotingError("Voting slip credential not found.")
+        if booth_slip.is_used:
+            raise VotingError("This voting slip has already been used.")
+        if booth and booth.number != booth_slip.booth_number:
+            raise VotingError(f"Voting slip belongs to Booth {booth_slip.booth_number}, not Booth {booth.number}.")
+
+        # 4. Validate selections across all positions configured in the election
+        if not selections or not isinstance(selections, list):
+            raise VotingError("Ballot selections are required.")
+
+        candidates = session.query(Candidate).filter_by(election_id=election.id).all()
+        if not candidates:
+            raise VotingError("No candidates configured for this election.")
+
+        cands_by_id = {c.id: c for c in candidates}
+        distinct_positions = sorted(list({c.position for c in candidates if c.position}))
+        if not distinct_positions:
+            distinct_positions = ["General Secretary"]
+
+        required_positions = set(distinct_positions)
+        selected_positions = set()
+        validated_entries = []
+
+        for item in selections:
+            if not isinstance(item, dict):
+                raise VotingError("Invalid ballot selection item format.")
+
+            pos = str(item.get("position", "")).strip()
+            if not pos:
+                raise VotingError("Position name is required for each ballot choice.")
+
+            if pos not in required_positions:
+                raise VotingError(f"Position '{pos}' is not valid for this election.")
+
+            if pos in selected_positions:
+                raise VotingError(f"Duplicate selection submitted for position '{pos}'.")
+
+            selected_positions.add(pos)
+            is_nota = bool(item.get("is_nota", False))
+            candidate_id = item.get("candidate_id")
+
+            if is_nota:
+                validated_entries.append({
+                    "position": pos,
+                    "candidate_id": None,
+                    "is_nota": True,
+                })
+            else:
+                if not candidate_id:
+                    raise VotingError(f"Candidate choice or NOTA is required for position '{pos}'.")
+
+                cand = cands_by_id.get(int(candidate_id)) if str(candidate_id).isdigit() else None
+                if not cand:
+                    raise VotingError(f"Selected candidate not found for position '{pos}'.")
+
+                if cand.position != pos:
+                    raise VotingError(f"Candidate '{cand.name}' does not run for position '{pos}'.")
+
+                validated_entries.append({
+                    "position": pos,
+                    "candidate_id": cand.id,
+                    "is_nota": False,
+                })
+
+        missing_positions = required_positions - selected_positions
+        if missing_positions:
+            raise VotingError(
+                f"Incomplete ballot: missing selection for position(s): {', '.join(sorted(missing_positions))}."
+            )
+
+        now = datetime.now(timezone.utc)
+
+        # 5. Atomically mark BoothSlip as USED
+        booth_slip.is_used = True
+        booth_slip.used_at = now
+
+        # 6. Blind token for anonymous ballot entries
+        blind_seed = uuid.uuid4().hex.encode("utf-8")
+        blind_token = hmac.new(
+            blind_seed,
+            f"election-{election.id}:booth-{booth_slip.booth_number}:{uuid.uuid4().hex}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+
+        for entry in validated_entries:
+            ballot_entry = BallotEntry(
+                election_id=election.id,
+                candidate_id=entry["candidate_id"],
+                position=entry["position"],
+                is_nota=entry["is_nota"],
+                blind_token=blind_token,
+                cast_at=now,
+            )
+            session.add(ballot_entry)
+
+        # 7. Anonymous audit log
+        audit_entry = AuditLog(
+            user_id=None,
+            action="VOTE_CAST_BOOTH",
+            details=f"Anonymous ballot cast with Voting ID {booth_slip.voting_id} ({len(validated_entries)} positions){_at_booth(booth)}.",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            created_at=now,
+        )
+        session.add(audit_entry)
+
+        # 8. Server-side receipt
+        slip_record_id = f"SLIP-{booth_slip.voting_id}"
+        try:
+            from app.services.receipt_service import ReceiptService
+            from app.models.system_setting import SystemSetting
+            branding = SystemSetting.branding()
+            choices_list = [
+                {
+                    "position": e["position"],
+                    "candidate_name": "None of the Above (NOTA)" if e["is_nota"] else cands_by_id[e["candidate_id"]].name,
+                    "is_nota": e["is_nota"],
+                }
+                for e in validated_entries
+            ]
+            ReceiptService.create_receipt(
+                slip_id=slip_record_id,
+                booth_name=booth.booth_id if booth else f"BOOTH-{booth_slip.booth_number:02d}",
+                election_id=election.id,
+                election_title=election.title,
+                institution_name=branding.get("institution_name", "Campus Voting"),
+                choices=choices_list,
+                is_mock=bool(election.is_mock),
+                db_session=session,
+            )
+        except Exception as ex:
+            logger.warning(f"Could not generate server-side receipt: {ex}")
+
+        session.commit()
+
+        # Query next sequential slip for this booth
+        next_slip = BoothSlip.get_current_slip(election.id, booth_slip.booth_number)
+        next_voting_id = next_slip.voting_id if next_slip else None
+
+        return VoteResult(
+            success=True,
+            message="Your ballot has been cast successfully.",
+            data={
+                "blind_token": blind_token,
+                "voting_id": booth_slip.voting_id,
+                "next_voting_id": next_voting_id,
+                "positions_count": len(validated_entries),
+                "cast_at": now.isoformat(),
+            }
+        )
+
     @classmethod
     def calculate_turnout(cls, election_id: int, db=None) -> dict:
         """Calculate voter turnout statistics for an election."""
@@ -612,3 +818,5 @@ cast_vote = VoteService.cast_vote
 cast_multi_position_vote = VoteService.cast_multi_position_vote
 get_results = VoteService.get_results
 calculate_turnout = VoteService.calculate_turnout
+
+cast_booth_slip_vote = VoteService.cast_booth_slip_vote

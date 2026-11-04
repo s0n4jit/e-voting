@@ -1,3 +1,4 @@
+from app.models.booth_slip import BoothSlip
 """
 app/routes/auth.py — Authentication routes.
 """
@@ -774,3 +775,95 @@ def voter_pin_login():
         }),
         200,
     )
+
+
+@auth_bp.post("/booth-pin-login")
+@limiter.limit("60 per minute")
+def booth_pin_login():
+    """
+    PIN-only authentication for voting machines:
+      - Validates kiosk token.
+      - Automatically checks submitted 4-digit PIN against the active sequential voting ID for that booth.
+      - CRITICAL: An incorrect PIN attempt NEVER marks voting ID as used, never deletes or destroys credentials,
+        and never advances the sequence.
+      - On success: issues voting JWT without voter personal info.
+    """
+    payload = request.get_json(silent=True) or {}
+    kiosk_token = (request.headers.get("X-Kiosk-Token") or payload.get("kiosk_token") or "").strip()
+    voting_id = str(payload.get("voting_id") or "").strip()
+    pin = str(payload.get("pin") or "").strip()
+
+    if not kiosk_token:
+        return jsonify({"error": "Unauthorized", "message": "Voting kiosk terminal token is required."}), 403
+
+    valid_kiosk, kiosk_device = KioskDevice.verify_token(kiosk_token)
+    if not valid_kiosk or not kiosk_device:
+        return jsonify({"error": "Unauthorized", "message": "Invalid or revoked kiosk terminal token."}), 403
+
+    election = kiosk_device.election or Election.current()
+    if not election:
+        return jsonify({"error": "No election", "message": "No active election configured for this booth."}), 404
+
+    if not election.is_active:
+        return jsonify({"error": "Voting closed", "message": "Voting is not currently open for this election."}), 403
+
+    if election.voting_paused:
+        return jsonify({"error": "Voting paused", "message": "Voting is temporarily paused. Please wait for the election officer."}), 403
+
+    # Resolve active sequential slip for this booth
+    current_slip = BoothSlip.get_current_slip(election.id, kiosk_device.number)
+    if not current_slip:
+        return jsonify({
+            "error": "Slips exhausted",
+            "message": "All voting slips for this booth have been used, or slips have not been generated yet."
+        }), 400
+
+    # Ensure voting_id matches current active slip
+    if voting_id and voting_id != current_slip.voting_id:
+        return jsonify({
+            "error": "ID Mismatch",
+            "message": f"Terminal voting ID has updated to {current_slip.voting_id}. Please check your slip.",
+            "current_voting_id": current_slip.voting_id,
+        }), 409
+
+    # Validate PIN format: 4 digits
+    if not pin.isdigit() or len(pin) != 4:
+        return jsonify({
+            "error": "Invalid PIN format",
+            "message": "Please enter a valid 4-digit voting PIN."
+        }), 401
+
+    # Verify PIN against hash
+    if not current_slip.verify_pin(pin):
+        # CRITICAL: Do NOT mark used, do NOT destroy, do NOT advance.
+        return jsonify({
+            "error": "Incorrect PIN",
+            "message": "Incorrect PIN. Please check your voting slip and try again."
+        }), 401
+
+    # Issued JWT for anonymous ballot casting
+    access_token = create_access_token(
+        identity=f"slip_{current_slip.id}",
+        expires_delta=timedelta(minutes=20),
+        additional_claims={
+            "role": "voter",
+            "voting_mode": "booth_slip",
+            "booth_id": kiosk_device.booth_id,
+            "booth_number": kiosk_device.number,
+            "booth_ref": kiosk_device.ref,
+            "slip_id": current_slip.id,
+            "voting_id": current_slip.voting_id,
+            "election_id": election.id,
+            "voting_authorized": True,
+            "is_kiosk": True,
+        },
+    )
+
+    return jsonify({
+        "access_token": access_token,
+        "voting_id": current_slip.voting_id,
+        "booth_id": kiosk_device.booth_id,
+        "election_id": election.id,
+        "voting_authorized": True,
+        "message": "PIN verified successfully.",
+    }), 200

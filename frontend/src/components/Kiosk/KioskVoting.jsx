@@ -388,7 +388,7 @@ export const KioskVoting = () => {
 
   const finish = useCallback(() => {
     voterApi.endSession(localStorage.getItem('access_token')).catch(() => {}); // the desk list stops showing this student as active
-    ['access_token', 'refresh_token', 'user'].forEach((k) => localStorage.removeItem(k));
+    ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
     navigate('/kiosk/vote', { replace: true });
   }, [navigate]);
 
@@ -422,7 +422,7 @@ export const KioskVoting = () => {
         }
         setElection(data.election || { title: data.title });
         setPositions(list);
-        setStage('intro');
+        setStage('ballot');
       })
       .catch((err) => {
         setError(errorMessage(err, 'The ballot could not be loaded. Please speak to the desk.'));
@@ -659,9 +659,15 @@ export const KioskVoting = () => {
         <div className="max-w-6xl mx-auto px-4 h-12 sm:h-14 flex items-center justify-between gap-4">
           <BrandMark />
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 shadow-2xs">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-surface border border-line text-xs font-mono font-bold text-fg shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{activeBoothId}</span>
+              {localStorage.getItem('voting_id') && (
+                <>
+                  <span className="text-muted/50">•</span>
+                  <span className="text-brand">ID: {localStorage.getItem('voting_id')}</span>
+                </>
+              )}
             </div>
             <BoothClock />
             <ThemeToggle />

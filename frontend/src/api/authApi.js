@@ -43,6 +43,16 @@ export const authApi = {
     return response.data;
   },
 
+  // Pre-generated Booth Slip PIN-only login
+  boothPinLogin: async ({ kioskToken, votingId, pin }) => {
+    const response = await apiClient.post(
+      '/auth/booth-pin-login',
+      { voting_id: votingId, pin, kiosk_token: kioskToken },
+      { headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} }
+    );
+    return response.data;
+  },
+
   // Booth Kiosk Voter PIN Login
   voterPinLogin: async (studentId, votingPin, electionId, kioskToken) => {
     const payload = {

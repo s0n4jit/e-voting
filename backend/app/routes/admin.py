@@ -1,3 +1,6 @@
+from app.models.booth_slip import BoothSlip
+from app.services.slip_pdf_service import SlipPdfService
+from flask import Response
 """
 app/routes/admin.py — Administrator routes.
 """
@@ -864,3 +867,236 @@ def update_officer(officer_id):
     ))
     db.session.commit()
     return jsonify(officer.to_dict()), 200
+
+
+# ── Booth Slips & Printable Credentials Endpoints ─────────────────────────
+
+@admin_bp.get("/booths/slips-metrics")
+@admin_required
+def get_booths_slips_metrics():
+    """Returns real-time slip inventory and progress metrics across all voting booths."""
+    election_id = request.args.get("election_id", type=int)
+    election = db.session.get(Election, election_id) if election_id else Election.current()
+    if not election:
+        return jsonify({
+            "total_booths": 0,
+            "total_generated": 0,
+            "total_used": 0,
+            "total_unused": 0,
+            "completion_rate": 0.0,
+            "booths": [],
+        }), 200
+
+    # Get all active kiosks/booths for this election
+    kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+    if not kiosks:
+        # Fallback to distinct booth numbers in booth_slips
+        distinct_nums = [
+            r[0] for r in db.session.query(BoothSlip.booth_number)
+            .filter_by(election_id=election.id)
+            .distinct()
+            .order_by(BoothSlip.booth_number.asc())
+            .all()
+        ]
+    else:
+        distinct_nums = sorted(list({k.number for k in kiosks}))
+
+    booth_stats = []
+    total_gen = 0
+    total_used = 0
+
+    for b_num in distinct_nums:
+        slips_query = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num)
+        total_for_booth = slips_query.count()
+        used_for_booth = slips_query.filter_by(is_used=True).count()
+        unused_for_booth = total_for_booth - used_for_booth
+
+        current_slip = BoothSlip.get_current_slip(election.id, b_num)
+        current_id = current_slip.voting_id if current_slip else ("Exhausted" if total_for_booth > 0 else "None")
+
+        rate = round((used_for_booth / total_for_booth * 100), 1) if total_for_booth > 0 else 0.0
+
+        booth_stats.append({
+            "booth_number": b_num,
+            "booth_id": f"BOOTH-{b_num:02d}",
+            "total_slips": total_for_booth,
+            "used_slips": used_for_booth,
+            "unused_slips": unused_for_booth,
+            "current_voting_id": current_id,
+            "progress_rate": rate,
+        })
+        total_gen += total_for_booth
+        total_used += used_for_booth
+
+    total_unused = total_gen - total_used
+    overall_rate = round((total_used / total_gen * 100), 1) if total_gen > 0 else 0.0
+
+    return jsonify({
+        "election_id": election.id,
+        "election_title": election.title,
+        "total_booths": len(distinct_nums),
+        "total_generated": total_gen,
+        "total_used": total_used,
+        "total_unused": total_unused,
+        "completion_rate": overall_rate,
+        "booths": booth_stats,
+    }), 200
+
+
+@admin_bp.post("/booths/<int:booth_number>/generate-slips")
+@admin_required
+def generate_booth_slips(booth_number):
+    """
+    Generate sequential voting slips with cryptographically secure 4-digit PINs for a specific booth.
+    """
+    payload = request.get_json(silent=True) or {}
+    count = int(payload.get("count", 50))
+    election_id = payload.get("election_id")
+    election = db.session.get(Election, int(election_id)) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    if count <= 0 or count > 2000:
+        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
+
+    # Resolve kiosk if exists
+    kiosk = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_number).first()
+    booth_id = kiosk.id if kiosk else None
+
+    created = BoothSlip.generate_batch(
+        election_id=election.id,
+        booth_number=booth_number,
+        count=count,
+        booth_id=booth_id,
+    )
+
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()),
+        action="BOOTHSLIPS_GENERATED",
+        details=f"Generated {count} voting slips for Booth {booth_number} in “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id}).",
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "booth_number": booth_number,
+        "count_created": len(created),
+        "first_voting_id": created[0].voting_id,
+        "last_voting_id": created[-1].voting_id,
+        "message": f"Successfully generated {len(created)} voting slips for Booth {booth_number} (IDs {created[0].voting_id} – {created[-1].voting_id}).",
+    }), 201
+
+
+@admin_bp.post("/booths/generate-all-slips")
+@admin_required
+def generate_all_booth_slips():
+    """
+    Configures and generates voting slips for all active booths simultaneously.
+    """
+    payload = request.get_json(silent=True) or {}
+    count_per_booth = int(payload.get("count_per_booth", 50))
+    election_id = payload.get("election_id")
+    election = db.session.get(Election, int(election_id)) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    if count_per_booth <= 0 or count_per_booth > 2000:
+        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
+
+    kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+    # Default to Booths 1-4 if no kiosks activated yet
+    booth_numbers = sorted(list({k.number for k in kiosks})) if kiosks else [1, 2, 3, 4]
+
+    summary = []
+    total_created = 0
+    for b_num in booth_numbers:
+        kiosk = next((k for k in kiosks if k.number == b_num), None)
+        created = BoothSlip.generate_batch(
+            election_id=election.id,
+            booth_number=b_num,
+            count=count_per_booth,
+            booth_id=kiosk.id if kiosk else None,
+        )
+        if created:
+            total_created += len(created)
+            summary.append({
+                "booth_number": b_num,
+                "count": len(created),
+                "first_id": created[0].voting_id,
+                "last_id": created[-1].voting_id,
+            })
+
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()),
+        action="BOOTHSLIPS_BULK_GENERATED",
+        details=f"Generated {total_created} voting slips across {len(booth_numbers)} booths ({count_per_booth}/booth) for “{election.title}”.",
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "total_created": total_created,
+        "booth_count": len(booth_numbers),
+        "summary": summary,
+        "message": f"Successfully generated {total_created} slips across {len(booth_numbers)} booths.",
+    }), 201
+
+
+@admin_bp.get("/booths/<int:booth_number>/slips-pdf")
+@admin_required
+def download_booth_slips_pdf(booth_number):
+    """
+    Downloads printable A4 PDF voting slips for a specific booth (8 slips per page).
+    """
+    election_id = request.args.get("election_id", type=int)
+    election = db.session.get(Election, election_id) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    slips = (
+        BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_number)
+        .order_by(BoothSlip.sequence_number.asc())
+        .all()
+    )
+    if not slips:
+        return jsonify({"error": "No slips found", "message": f"No voting slips generated for Booth {booth_number} yet."}), 404
+
+    pdf_bytes = SlipPdfService.generate_slips_pdf(slips=slips, election=election)
+    filename = f"voting-slips-booth-{booth_number:02d}-{election.id}.pdf"
+
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_bp.get("/booths/all-slips-pdf")
+@admin_required
+def download_all_slips_pdf():
+    """
+    Downloads a single combined printable A4 PDF with slips for all booths.
+    """
+    election_id = request.args.get("election_id", type=int)
+    election = db.session.get(Election, election_id) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    slips = (
+        BoothSlip.query.filter_by(election_id=election.id)
+        .order_by(BoothSlip.booth_number.asc(), BoothSlip.sequence_number.asc())
+        .all()
+    )
+    if not slips:
+        return jsonify({"error": "No slips found", "message": "No voting slips generated for this election yet."}), 404
+
+    pdf_bytes = SlipPdfService.generate_slips_pdf(slips=slips, election=election)
+    filename = f"voting-slips-all-booths-election-{election.id}.pdf"
+
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
