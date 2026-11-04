@@ -91,6 +91,13 @@ def overview():
     )
     candidates = Candidate.query.filter_by(election_id=election.id).count() if election else 0
     desk_officers = User.query.filter_by(role="polling_officer").count()
+
+    from app.models.kiosk_device import KioskDevice
+    kiosks = KioskDevice.query.filter_by(election_id=election.id).all() if election else []
+    total_booths = len(kiosks)
+    online_booths = sum(1 for k in kiosks if k.online and k.is_active)
+    active_booths = sum(1 for k in kiosks if k.is_active)
+
     recent = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
     user_ids = {a.user_id for a in recent if a.user_id}
     actors = {u.id: u.name for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
@@ -103,12 +110,16 @@ def overview():
             "votes_cast": cast,
             "remaining_voters": max(voters - cast, 0),
             "turnout_percent": round(cast / voters * 100, 1) if voters else 0.0,
+            "voting_booths": total_booths,
+            "online_booths": online_booths,
+            "active_booths": active_booths,
         },
         "setup": {
             "programmes": Programme.query.filter_by(is_active=True).count(),
             "positions": len(election.positions) if election else 0,
             "candidates": candidates,
             "desk_officers": desk_officers,
+            "voting_booths": total_booths,
         },
         "recent_activity": [
             {

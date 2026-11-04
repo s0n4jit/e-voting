@@ -4,6 +4,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
+  ComputerDesktopIcon,
   IdentificationIcon,
   UserGroupIcon,
   UsersIcon,
@@ -53,7 +54,7 @@ export const AdminDashboard = () => {
   const todo = data && [
     { done: data.setup.programmes > 0, label: 'Add programmes or classes', to: '/admin/programmes' },
     { done: data.setup.candidates > 0, label: 'Add candidates for each position', to: '/admin/candidates' },
-    { done: data.setup.desk_officers > 0, label: 'Create desk officer accounts', to: '/admin/officers' },
+    { done: (data.setup.voting_booths || 0) > 0, label: 'Set up voting booths', to: '/admin/kiosks' },
   ];
   const pending = todo?.filter((t) => !t.done) || [];
 
@@ -90,7 +91,13 @@ export const AdminDashboard = () => {
         <StatCard loading={loading} label="Votes cast" value={s?.votes_cast} icon={CheckCircleIcon} />
         <StatCard loading={loading} label="Remaining voters" value={s?.remaining_voters} icon={UserGroupIcon} />
         <StatCard loading={loading} label="Turnout" value={s && `${s.turnout_percent}%`} icon={ClipboardDocumentCheckIcon} />
-        <StatCard loading={loading} label="Desk officers" value={s?.desk_officers} icon={IdentificationIcon} />
+        <StatCard
+          loading={loading}
+          label="Voting booths"
+          value={s ? `${s.online_booths || 0} online` : '—'}
+          hint={s ? `${s.voting_booths || 0} booths configured` : undefined}
+          icon={ComputerDesktopIcon}
+        />
         <StatCard loading={loading} label="Candidates" value={s?.candidates} icon={UserGroupIcon} />
         <div className="card card-body col-span-2 animate-slide-up">
           <p className="text-sm text-muted">Voting turnout</p>
