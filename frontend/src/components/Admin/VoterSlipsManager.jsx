@@ -30,7 +30,7 @@ export const VoterSlipsManager = () => {
 
   // Generation Modal & Form
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
-  const [targetBooth, setTargetBooth] = useState('all');
+  const [targetBooth, setTargetBooth] = useState('none');
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -79,13 +79,9 @@ export const VoterSlipsManager = () => {
     e.preventDefault();
     setGenerating(true);
     try {
-      if (targetBooth === 'all') {
-        const res = await adminApi.generateAllBoothSlips(Number(slipCount));
-        toast.success(res.message || `Generated ${res.total_created} slips across booths.`);
-      } else {
-        const res = await adminApi.generateBoothSlips(Number(targetBooth), Number(slipCount));
-        toast.success(res.message || `Generated ${res.count_created} slips for Booth ${targetBooth}.`);
-      }
+      const bNum = targetBooth === 'none' ? null : Number(targetBooth);
+      const res = await adminApi.generateSlips(Number(slipCount), bNum);
+      toast.success(res.message || `Generated ${res.count_created} voting slips.`);
       setGenerateModalOpen(false);
       setPage(1);
       await fetchMetrics();
@@ -137,10 +133,10 @@ export const VoterSlipsManager = () => {
     }
   };
 
-  // Compute calculated preview range for target booth
+  // Compute calculated preview range for target booth or pool
   const getPreviewRange = () => {
-    if (targetBooth === 'all') {
-      return `Generates ${slipCount} sequential slips for each active booth.`;
+    if (targetBooth === 'none') {
+      return `Generates ${slipCount} sequential slips for the unassigned pool (will be allotted when setting up booths).`;
     }
     const bNum = Number(targetBooth);
     const boothInfo = (metrics?.booths || []).find((b) => b.booth_number === bNum);
@@ -315,7 +311,11 @@ export const VoterSlipsManager = () => {
                       </span>
                     </td>
                     <td className="font-semibold text-fg">
-                      Booth {s.booth_number} (BOOTH-{String(s.booth_number).padStart(2, '0')})
+                      {s.booth_number ? (
+                        `Booth ${s.booth_number} (BOOTH-${String(s.booth_number).padStart(2, '0')})`
+                      ) : (
+                        <span className="text-muted font-normal text-xs italic">Unassigned (Pool)</span>
+                      )}
                     </td>
                     <td>
                       {s.booth_id ? (
@@ -325,7 +325,7 @@ export const VoterSlipsManager = () => {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-recessed text-muted border border-line">
-                          <span>Pending Setup</span>
+                          <span>Unallotted</span>
                         </span>
                       )}
                     </td>
@@ -396,7 +396,7 @@ export const VoterSlipsManager = () => {
       <Modal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        title={targetBooth === 'all' ? 'Generate Slips for All Booths' : `Generate Slips for Booth ${targetBooth}`}
+        title={targetBooth === 'none' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
       >
         <form onSubmit={handleGenerate} className="space-y-4">
           <p className="text-xs text-muted">
@@ -404,19 +404,24 @@ export const VoterSlipsManager = () => {
           </p>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-fg">Target Booth</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-fg">
+              Booth Assignment <span className="text-muted font-normal text-[11px]">(Optional)</span>
+            </label>
             <select
               value={targetBooth}
-              onChange={(e) => setTargetBooth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              onChange={(e) => setTargetBooth(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
             >
-              <option value="all">All Booths (Distribute equally)</option>
-              {(metrics?.booths || []).map((b) => (
-                <option key={b.booth_number} value={b.booth_number}>
-                  {b.booth_id} (Currently at {b.current_voting_id})
+              <option value="none">None / Unassigned Pool (Allot at Booth Setup)</option>
+              {[1, 2, 3, 4, 5, 6].map((num) => (
+                <option key={num} value={num}>
+                  Booth {num} (BOOTH-{String(num).padStart(2, '0')})
                 </option>
               ))}
             </select>
+            <p className="text-[11px] text-muted">
+              Slips created in the unassigned pool will be assigned to a specific booth when setting up booth machines.
+            </p>
           </div>
 
           <div className="space-y-1.5">
@@ -424,7 +429,7 @@ export const VoterSlipsManager = () => {
             <input
               type="number"
               min={1}
-              max={1000}
+              max={1500}
               value={slipCount}
               onChange={(e) => setSlipCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
               className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
@@ -453,7 +458,7 @@ export const VoterSlipsManager = () => {
               disabled={generating}
               className="btn-primary"
             >
-              {generating ? 'Generating…' : 'Generate Slips Batch'}
+              {generating ? 'Generating…' : 'Generate Slips'}
             </button>
           </div>
         </form>

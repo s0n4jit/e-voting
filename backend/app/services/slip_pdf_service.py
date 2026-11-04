@@ -142,7 +142,7 @@ class SlipPdfService:
         c.roundRect(ix, badge_y, iw, 14.0, 3, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 8)
-        booth_label = f"OFFICIAL VOTING SLIP  •  BOOTH {slip.booth_number}"
+        booth_label = f"OFFICIAL VOTING SLIP  •  BOOTH {slip.booth_number}" if slip.booth_number else "OFFICIAL VOTING SLIP"
         c.drawCentredString(ix + iw / 2.0, badge_y + 3.5, booth_label)
         c.restoreState()
 
@@ -202,7 +202,8 @@ class SlipPdfService:
         c.saveState()
         c.setFillColor(colors.HexColor("#475569"))
         c.setFont("Helvetica-Bold", 6.5)
-        c.drawCentredString(ix + iw / 2.0, footer_y + 12, f"Walk to Booth {slip.booth_number} and enter your 4-digit PIN.")
+        inst_text = f"Walk to Booth {slip.booth_number} and enter your 4-digit PIN." if slip.booth_number else "Walk to your assigned booth and enter your 4-digit PIN."
+        c.drawCentredString(ix + iw / 2.0, footer_y + 12, inst_text)
         c.setFont("Helvetica", 5.5)
         c.setFillColor(colors.HexColor("#64748b"))
         c.drawCentredString(

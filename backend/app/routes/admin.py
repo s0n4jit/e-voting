@@ -697,19 +697,46 @@ def get_next_available_booth():
     from app.models.booth_slip import BoothSlip
     max_b = max([4] + list(used_numbers))
     slip_summary = []
+
+    # Unassigned pool info
+    unassigned_slips = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.booth_number == None,
+        BoothSlip.booth_id == None,
+        BoothSlip.is_used == False
+    ).order_by(BoothSlip.sequence_number.asc()).all()
+
+    slip_summary.append({
+        "booth_number": None,
+        "booth_id": "Unassigned Pool",
+        "total_slips": len(unassigned_slips),
+        "unallotted_count": len(unassigned_slips),
+        "allotted_count": 0,
+        "used_count": 0,
+        "first_unallotted_id": unassigned_slips[0].voting_id if unassigned_slips else None,
+        "last_unallotted_id": unassigned_slips[-1].voting_id if unassigned_slips else None,
+    })
+
     for b_num in range(1, max_b + 2):
         slips_all = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num).order_by(BoothSlip.sequence_number.asc()).all()
         unallotted = [s for s in slips_all if s.booth_id is None and not s.is_used]
         allotted = [s for s in slips_all if s.booth_id is not None]
         used = [s for s in slips_all if s.is_used]
+
+        # If booth has no direct unallotted slips, include unassigned pool as fallback availability
+        avail_count = len(unallotted) if unallotted else len(unassigned_slips)
+        first_id = unallotted[0].voting_id if unallotted else (unassigned_slips[0].voting_id if unassigned_slips else None)
+        last_id = unallotted[-1].voting_id if unallotted else (unassigned_slips[-1].voting_id if unassigned_slips else None)
+
         slip_summary.append({
             "booth_number": b_num,
             "total_slips": len(slips_all),
-            "unallotted_count": len(unallotted),
+            "unallotted_count": avail_count,
+            "direct_unallotted_count": len(unallotted),
             "allotted_count": len(allotted),
             "used_count": len(used),
-            "first_unallotted_id": unallotted[0].voting_id if unallotted else None,
-            "last_unallotted_id": unallotted[-1].voting_id if unallotted else None,
+            "first_unallotted_id": first_id,
+            "last_unallotted_id": last_id,
         })
 
     return jsonify({
@@ -718,6 +745,7 @@ def get_next_available_booth():
         "total_active_booths": len([b for b in booths if b.is_active]),
         "existing_booth_numbers": sorted(list(used_numbers)),
         "available_slips_by_booth": slip_summary,
+        "unassigned_pool_count": len(unassigned_slips),
     }), 200
 
 
@@ -770,58 +798,53 @@ def create_booth_token():
         db.session.add(kiosk)
         db.session.flush()
 
-    # 2. Check available unallotted slips for this booth
-    unallotted_q = BoothSlip.query.filter_by(
+    # 2. Check available unallotted slips:
+    # First priority: slips already assigned to this booth_number but unallotted
+    # Second priority: unassigned pool slips (booth_number is None)
+    unallotted_for_booth = BoothSlip.query.filter_by(
         election_id=election.id,
         booth_number=booth_num,
         booth_id=None,
         is_used=False
-    ).order_by(BoothSlip.sequence_number.asc())
-    unallotted_count = unallotted_q.count()
+    ).order_by(BoothSlip.sequence_number.asc()).all()
 
-    # If slips_count is specified but not enough unallotted slips exist, auto-generate them
-    if slips_count > unallotted_count:
-        needed = slips_count - unallotted_count
-        BoothSlip.generate_batch(election.id, booth_number=booth_num, count=needed, booth_id=None)
+    unassigned_pool = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.booth_number == None,
+        BoothSlip.booth_id == None,
+        BoothSlip.is_used == False
+    ).order_by(BoothSlip.sequence_number.asc()).all()
+
+    available_candidates = unallotted_for_booth + unassigned_pool
+    available_count = len(available_candidates)
+
+    # If slips_count is specified but not enough unallotted slips exist, auto-generate them into pool
+    if slips_count > available_count:
+        needed = slips_count - available_count
+        BoothSlip.generate_batch(election.id, booth_number=None, count=needed, booth_id=None)
+        unassigned_pool = BoothSlip.query.filter(
+            BoothSlip.election_id == election.id,
+            BoothSlip.booth_number == None,
+            BoothSlip.booth_id == None,
+            BoothSlip.is_used == False
+        ).order_by(BoothSlip.sequence_number.asc()).all()
+        available_candidates = unallotted_for_booth + unassigned_pool
 
     # Select slips to allot to this kiosk machine
     slips_to_allot = []
     if from_slip_id and to_slip_id:
-        slips_to_allot = BoothSlip.query.filter(
-            BoothSlip.election_id == election.id,
-            BoothSlip.booth_number == booth_num,
-            BoothSlip.booth_id == None,
-            BoothSlip.is_used == False,
-            BoothSlip.voting_id >= from_slip_id,
-            BoothSlip.voting_id <= to_slip_id
-        ).order_by(BoothSlip.sequence_number.asc()).all()
+        slips_to_allot = [
+            s for s in available_candidates
+            if from_slip_id <= s.voting_id <= to_slip_id
+        ]
     elif slips_count > 0:
-        slips_to_allot = (
-            BoothSlip.query.filter_by(
-                election_id=election.id,
-                booth_number=booth_num,
-                booth_id=None,
-                is_used=False
-            )
-            .order_by(BoothSlip.sequence_number.asc())
-            .limit(slips_count)
-            .all()
-        )
+        slips_to_allot = available_candidates[:slips_count]
     else:
-        # Default: allot all unallotted slips for this booth
-        slips_to_allot = (
-            BoothSlip.query.filter_by(
-                election_id=election.id,
-                booth_number=booth_num,
-                booth_id=None,
-                is_used=False
-            )
-            .order_by(BoothSlip.sequence_number.asc())
-            .all()
-        )
+        slips_to_allot = available_candidates
 
-    # 3. Allot the slips to this booth machine
+    # 3. Allot the slips to this booth machine and assign booth_number
     for s in slips_to_allot:
+        s.booth_number = booth_num
         s.booth_id = kiosk.id
 
     from_id = slips_to_allot[0].voting_id if slips_to_allot else None
@@ -1090,6 +1113,31 @@ def get_booths_slips_metrics():
         total_gen += total_for_booth
         total_used += used_for_booth
 
+    # Include unassigned pool slips in metrics
+    unassigned_count = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.booth_number == None
+    ).count()
+
+    if unassigned_count > 0:
+        unassigned_used = BoothSlip.query.filter(
+            BoothSlip.election_id == election.id,
+            BoothSlip.booth_number == None,
+            BoothSlip.is_used == True
+        ).count()
+        booth_stats.insert(0, {
+            "booth_number": None,
+            "booth_id": "Unassigned Pool",
+            "total_slips": unassigned_count,
+            "used_slips": unassigned_used,
+            "unused_slips": unassigned_count - unassigned_used,
+            "current_voting_id": "Allot at booth setup",
+            "progress_rate": 0.0,
+        })
+
+    # Exact total from all slips
+    total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
+    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
     total_unused = total_gen - total_used
     overall_rate = round((total_used / total_gen * 100), 1) if total_gen > 0 else 0.0
 
@@ -1103,6 +1151,63 @@ def get_booths_slips_metrics():
         "completion_rate": overall_rate,
         "booths": booth_stats,
     }), 200
+
+
+@admin_bp.post("/slips/generate")
+@admin_required
+def generate_voter_slips():
+    """
+    Generate sequential voting slips with 4-digit PINs.
+    booth_number is optional: if omitted or null, slips are added to unassigned pool
+    and will be allotted when setting up booth machines.
+    """
+    payload = request.get_json(silent=True) or {}
+    count = int(payload.get("count", 50))
+    raw_b = payload.get("booth_number")
+    booth_number = None
+    if raw_b is not None and str(raw_b).strip() != "" and str(raw_b).lower() not in ("none", "null", "all"):
+        try:
+            booth_number = int(raw_b)
+        except (ValueError, TypeError):
+            booth_number = None
+
+    election_id = payload.get("election_id")
+    election = db.session.get(Election, int(election_id)) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 404
+
+    if count <= 0 or count > 2000:
+        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
+
+    created = BoothSlip.generate_batch(
+        election_id=election.id,
+        booth_number=booth_number,
+        count=count,
+        booth_id=None,
+    )
+
+    details = (
+        f"Generated {count} voting slips for Booth {booth_number} in “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id})."
+        if booth_number
+        else f"Generated {count} unassigned voting slips for “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id}) to be allotted on booth setup."
+    )
+
+    db.session.add(AuditLog(
+        user_id=int(get_jwt_identity()),
+        action="BOOTHSLIPS_GENERATED",
+        details=details,
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "booth_number": booth_number,
+        "count_created": len(created),
+        "first_voting_id": created[0].voting_id,
+        "last_voting_id": created[-1].voting_id,
+        "message": f"Successfully generated {len(created)} voting slips ({created[0].voting_id} – {created[-1].voting_id}).",
+    }), 201
 
 
 @admin_bp.post("/booths/<int:booth_number>/generate-slips")
@@ -1270,9 +1375,15 @@ def list_booth_slips():
 
     query = BoothSlip.query.filter_by(election_id=election.id)
 
-    booth_num = request.args.get("booth_number", type=int)
-    if booth_num:
-        query = query.filter_by(booth_number=booth_num)
+    booth_num_raw = request.args.get("booth_number")
+    if booth_num_raw in ("unassigned", "none", "0"):
+        query = query.filter(BoothSlip.booth_number == None)
+    elif booth_num_raw:
+        try:
+            b_val = int(booth_num_raw)
+            query = query.filter(BoothSlip.booth_number == b_val)
+        except ValueError:
+            pass
 
     is_used = request.args.get("is_used")
     if is_used is not None and is_used != "":

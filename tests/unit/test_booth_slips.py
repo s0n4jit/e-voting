@@ -72,6 +72,16 @@ class TestBoothSlipModel:
             b1_more = BoothSlip.generate_batch(test_election.id, booth_number=1, count=2)
             assert [s.voting_id for s in b1_more] == ["1005", "1006"]
 
+    def test_unassigned_pool_slips_generation(self, app, db_session, test_election):
+        """Verify slips can be generated without booth pre-assignment."""
+        with app.app_context():
+            pool_slips = BoothSlip.generate_batch(test_election.id, booth_number=None, count=4)
+            assert len(pool_slips) == 4
+            for s in pool_slips:
+                assert s.booth_number is None
+                assert s.booth_id is None
+            assert [s.voting_id for s in pool_slips] == ["1001", "1002", "1003", "1004"]
+
     def test_pin_verification_and_fernet_reveal(self, app, db_session, test_election):
         with app.app_context():
             slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=1)

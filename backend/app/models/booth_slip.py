@@ -41,7 +41,7 @@ class BoothSlip(db.Model):
         nullable=True,
         index=True,
     )
-    booth_number = db.Column(db.Integer, nullable=False, index=True)
+    booth_number = db.Column(db.Integer, nullable=True, index=True)
     sequence_number = db.Column(db.Integer, nullable=False)
     voting_id = db.Column(db.String(30), nullable=False, index=True)
     pin_hash = db.Column(db.String(255), nullable=False)
@@ -112,27 +112,45 @@ class BoothSlip(db.Model):
         )
 
     @classmethod
-    def generate_batch(cls, election_id: int, booth_number: int, count: int, booth_id: int = None):
+    def generate_batch(cls, election_id: int, booth_number: int = None, count: int = 50, booth_id: int = None):
         """
-        Generates 'count' sequential slips for the given booth and election.
-        If slips already exist, appends starting from (max_sequence + 1).
-        Returns a list of created BoothSlip instances (with temporary .raw_pin attribute attached).
+        Generates 'count' sequential slips for the given election.
+        booth_number is OPTIONAL:
+          - If provided (e.g. 1): IDs are {booth_number}{seq:03d} (1001, 1002...).
+          - If None: IDs are sequential across the election pool starting from max existing ID + 1 (or 1001).
         """
         if count <= 0:
             return []
 
-        # Find current max sequence
-        max_seq = (
-            db.session.query(db.func.max(cls.sequence_number))
-            .filter_by(election_id=election_id, booth_number=booth_number)
-            .scalar()
-            or 0
-        )
+        if booth_number is not None:
+            max_seq = (
+                db.session.query(db.func.max(cls.sequence_number))
+                .filter_by(election_id=election_id, booth_number=booth_number)
+                .scalar()
+                or 0
+            )
+        else:
+            max_seq = (
+                db.session.query(db.func.max(cls.sequence_number))
+                .filter(cls.election_id == election_id, cls.booth_number == None)
+                .scalar()
+                or 0
+            )
+
+        existing_numeric_ids = [
+            int(r[0]) for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all()
+            if r[0] and r[0].isdigit()
+        ]
+        base_id = max(existing_numeric_ids) if existing_numeric_ids else 1000
 
         created = []
         for i in range(1, count + 1):
             seq = max_seq + i
-            voting_id = f"{booth_number}{seq:03d}"
+            if booth_number is not None:
+                voting_id = f"{booth_number}{seq:03d}"
+            else:
+                voting_id = str(base_id + i)
+
             raw_pin = cls.generate_random_4digit_pin()
             pin_hash = cls.hash_pin(raw_pin)
             pin_enc = cls.seal_pin(raw_pin)
