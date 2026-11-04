@@ -74,12 +74,12 @@ class User(db.Model):
         except Exception:
             return False
 
-    def verify_otp(self, code: str) -> bool:
+    def verify_otp(self, code: str, valid_window: int = 1) -> bool:
         """Verify TOTP code using user's base-32 otp_secret."""
         if not self.otp_secret or not code:
             return False
         totp = pyotp.TOTP(self.otp_secret)
-        return bool(totp.verify(str(code).strip(), valid_window=1))
+        return bool(totp.verify(str(code).strip(), valid_window=valid_window))
 
     @staticmethod
     def hash_student_id(student_id: str) -> str:

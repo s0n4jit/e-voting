@@ -873,8 +873,12 @@ def create_booth_token():
     db.session.commit()
 
     from app.utils.timeutil import utc_iso
+    import pyotp
+    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
+
     return jsonify({
         "token": token,
+        "totp_code": totp_code,
         "expires_at": utc_iso(expires),
         "election_title": election.title,
         "booth_number": booth_num,
@@ -893,28 +897,252 @@ def list_kiosks():
     return jsonify([k.to_dict() for k in kiosks]), 200
 
 
-@admin_bp.delete("/kiosk/<int:kiosk_id>")
+@admin_bp.post("/kiosk/<int:kiosk_id>/revoke")
 @admin_required
-def delete_kiosk(kiosk_id):
-    """Revoke and delete a registered kiosk terminal."""
+def revoke_kiosk(kiosk_id):
+    """Revoke an active booth session, reset unused slips to pool, and issue a fresh setup token + TOTP."""
     kiosk = db.session.get(KioskDevice, kiosk_id)
     if not kiosk:
         return jsonify({"error": "Kiosk terminal not found."}), 404
 
-    # Unallot unused slips so they can be re-allotted to another booth session
+    officer_id = int(get_jwt_identity())
+    officer = db.session.get(User, officer_id)
+    election = kiosk.election or Election.current()
+
+    # 1. Unallot all unused slips for this kiosk and return them to the unassigned pool
     from app.models.booth_slip import BoothSlip
-    BoothSlip.query.filter_by(booth_id=kiosk.id, is_used=False).update(
-        {"booth_id": None}, synchronize_session=False
-    )
+    unallotted_count = BoothSlip.query.filter(
+        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
+        BoothSlip.is_used == False
+    ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
+
+    # 2. Invalidate active token and session on the booth machine
+    import secrets
+    kiosk.kiosk_token = f"revoked_{secrets.token_hex(16)}"
+    kiosk.is_active = False
+    kiosk.last_heartbeat = None
+
+    # 3. Generate a fresh one-time BoothCreateToken for this booth machine
+    token = new_create_token()
+    expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
+    db.session.add(BoothCreateToken(
+        token_hash=_hash(token.replace("-", "")),
+        election_id=election.id if election else None,
+        created_by=officer.id,
+        expires_at=expires,
+        booth_number=kiosk.number,
+        kiosk_id=kiosk.id,
+        from_slip_id=None,
+        to_slip_id=None,
+        slips_count=0,
+    ))
+
+    # 4. Generate current officer TOTP code
+    import pyotp
+    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
+
+    # 5. Audit log
+    db.session.add(AuditLog(
+        user_id=officer.id,
+        action="BOOTH_REVOKED",
+        details=f"Revoked booth session for {kiosk.device_name} (Booth {kiosk.number}). Session terminated on terminal; {unallotted_count} unused slip(s) returned to unassigned pool.",
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    from app.utils.timeutil import utc_iso
+    return jsonify({
+        "success": True,
+        "message": f"Booth {kiosk.device_name} session was revoked. The terminal session was terminated and {unallotted_count} unused slips returned to pool.",
+        "token": token,
+        "totp_code": totp_code,
+        "booth_id": kiosk.device_name,
+        "booth_number": kiosk.number,
+        "election_title": election.title if election else "",
+        "expires_at": utc_iso(expires),
+    }), 200
+
+
+@admin_bp.post("/kiosk/<int:kiosk_id>/setup-token")
+@admin_required
+def get_kiosk_setup_token(kiosk_id):
+    """Retrieve or generate a fresh setup token and TOTP for a booth without reconfiguring from scratch."""
+    kiosk = db.session.get(KioskDevice, kiosk_id)
+    if not kiosk:
+        return jsonify({"error": "Kiosk terminal not found."}), 404
+
+    officer_id = int(get_jwt_identity())
+    officer = db.session.get(User, officer_id)
+    election = kiosk.election or Election.current()
+
+    token = new_create_token()
+    expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
+    db.session.add(BoothCreateToken(
+        token_hash=_hash(token.replace("-", "")),
+        election_id=election.id if election else None,
+        created_by=officer.id,
+        expires_at=expires,
+        booth_number=kiosk.number,
+        kiosk_id=kiosk.id,
+        from_slip_id=None,
+        to_slip_id=None,
+        slips_count=0,
+    ))
+
+    import pyotp
+    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
+
+    db.session.add(AuditLog(
+        user_id=officer.id,
+        action="BOOTH_TOKEN_GENERATED",
+        details=f"Generated fresh setup token for {kiosk.device_name}.",
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    from app.utils.timeutil import utc_iso
+    return jsonify({
+        "success": True,
+        "token": token,
+        "totp_code": totp_code,
+        "booth_id": kiosk.device_name,
+        "booth_number": kiosk.number,
+        "election_title": election.title if election else "",
+        "expires_at": utc_iso(expires),
+    }), 200
+
+
+@admin_bp.post("/kiosk/<int:kiosk_id>/slips")
+@admin_required
+def manage_kiosk_slips(kiosk_id):
+    """Manage and adjust slips allotment for an existing booth machine post-setup."""
+    kiosk = db.session.get(KioskDevice, kiosk_id)
+    if not kiosk:
+        return jsonify({"error": "Kiosk terminal not found."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    action = payload.get("action", "update")
+    from app.models.booth_slip import BoothSlip
+    officer_id = int(get_jwt_identity())
+    election = kiosk.election or Election.current()
+    if not election:
+        return jsonify({"error": "No active election found."}), 400
+
+    if action == "return_unused":
+        unallotted_count = BoothSlip.query.filter(
+            (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
+            BoothSlip.is_used == False
+        ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
+
+        db.session.add(AuditLog(
+            user_id=officer_id,
+            action="BOOTH_SLIPS_RETURNED",
+            details=f"Returned {unallotted_count} unused slip(s) from {kiosk.device_name} (Booth {kiosk.number}) to unassigned pool.",
+            ip_address=request.remote_addr or "",
+        ))
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Returned {unallotted_count} unused slip(s) from {kiosk.device_name} to unassigned pool.",
+            "allotted_count": 0,
+            "from_slip_id": None,
+            "to_slip_id": None,
+        }), 200
+
+    # Action: update (re-allot specified count / range)
+    slips_count = max(1, int(payload.get("slips_count", 50)))
+    from_slip_id = str(payload.get("from_slip_id") or "").strip()
+    to_slip_id = str(payload.get("to_slip_id") or "").strip()
+
+    # 1. Unlink current unused slips for this booth first so candidate pool has them
+    BoothSlip.query.filter(
+        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
+        BoothSlip.is_used == False
+    ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
+
+    # 2. Get unassigned candidate slips
+    candidates = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.booth_id == None,
+        BoothSlip.booth_number == None,
+        BoothSlip.is_used == False,
+    ).order_by(BoothSlip.sequence_number.asc()).all()
+
+    slips_to_allot = []
+    if from_slip_id and to_slip_id:
+        slips_to_allot = [
+            s for s in candidates
+            if from_slip_id <= s.voting_id <= to_slip_id
+        ]
+    elif slips_count > 0:
+        slips_to_allot = candidates[:slips_count]
+    else:
+        slips_to_allot = candidates
+
+    # If pool doesn't have enough and user specified a count without fixed IDs, generate missing
+    needed = slips_count - len(slips_to_allot)
+    if needed > 0 and not (from_slip_id and to_slip_id):
+        new_slips = BoothSlip.generate_batch(election.id, count=needed, booth_number=kiosk.number, booth_id=kiosk.id)
+        for s in new_slips:
+            db.session.add(s)
+        slips_to_allot.extend(new_slips)
+
+    for s in slips_to_allot:
+        s.booth_id = kiosk.id
+        s.booth_number = kiosk.number
+
+    from_id = slips_to_allot[0].voting_id if slips_to_allot else None
+    to_id = slips_to_allot[-1].voting_id if slips_to_allot else None
+
+    used_count = BoothSlip.query.filter_by(
+        election_id=election.id,
+        booth_id=kiosk.id,
+        is_used=True
+    ).count()
+
+    db.session.add(AuditLog(
+        user_id=officer_id,
+        action="BOOTH_SLIPS_REALLOCATED",
+        details=f"Reallocated slips for {kiosk.device_name} (Booth {kiosk.number}): {len(slips_to_allot)} slip(s) allotted ({from_id or 'none'} to {to_id or 'none'}).",
+        ip_address=request.remote_addr or "",
+    ))
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Updated slips allotment for {kiosk.device_name}: {len(slips_to_allot)} slip(s) allotted ({from_id or 'none'} to {to_id or 'none'}).",
+        "allotted_count": len(slips_to_allot),
+        "from_slip_id": from_id,
+        "to_slip_id": to_id,
+        "used_count": used_count,
+        "booth_id": kiosk.device_name,
+        "booth_number": kiosk.number,
+    }), 200
+
+
+@admin_bp.delete("/kiosk/<int:kiosk_id>")
+@admin_required
+def delete_kiosk(kiosk_id):
+    """Revoke and delete a registered kiosk terminal, returning unused slips to unassigned pool."""
+    kiosk = db.session.get(KioskDevice, kiosk_id)
+    if not kiosk:
+        return jsonify({"error": "Kiosk terminal not found."}), 404
+
+    # Unallot unused slips so they return completely to the unassigned pool
+    from app.models.booth_slip import BoothSlip
+    BoothSlip.query.filter(
+        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
+        BoothSlip.is_used == False
+    ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
 
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()), action="BOOTH_REMOVED",
-        details=f"Deleted booth {kiosk.booth_id} (session {kiosk.ref}). Its token no longer works.",
+        details=f"Deleted booth {kiosk.booth_id} (session {kiosk.ref}). Its token no longer works and unused slips were returned to unassigned pool.",
         ip_address=request.remote_addr or "",
     ))
     db.session.delete(kiosk)
     db.session.commit()
-    return jsonify({"message": f"Booth {kiosk.booth_id} was deleted and signed out."}), 200
+    return jsonify({"message": f"Booth {kiosk.booth_id} was deleted and unused slips returned to pool."}), 200
 
 
 # ── Polling Desk Officers Management ──────────────────────────────────────────

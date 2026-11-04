@@ -75,7 +75,7 @@ def activate():
     officer = db.session.get(User, row.created_by) if row else None
     election = db.session.get(Election, row.election_id) if row else None
     if (not row or row.used_at or row.expired or not officer or officer.role != "admin" or not officer.is_active
-            or not officer.otp_enabled or not code or not officer.verify_otp(code)
+            or not officer.otp_enabled or not code or not officer.verify_otp(code, valid_window=3)
             or not election or election.effective_status == "archived"):
         return failure
 

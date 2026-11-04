@@ -9,6 +9,9 @@ import {
   TrashIcon,
   CheckCircleIcon,
   ClockIcon,
+  ArrowPathIcon,
+  AdjustmentsHorizontalIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, TableSkeleton, errorMessage } from '../ui';
@@ -34,6 +37,15 @@ export const KioskManager = () => {
 
   // Generated Token Result Modal
   const [issued, setIssued] = useState(null);
+
+  // Manage Slips Modal State
+  const [manageSlipsBooth, setManageSlipsBooth] = useState(null);
+  const [manageSlipsCount, setManageSlipsCount] = useState(50);
+  const [manageFromSlipId, setManageFromSlipId] = useState('');
+  const [manageToSlipId, setManageToSlipId] = useState('');
+
+  // Revoke Confirmation State
+  const [revokingBooth, setRevokingBooth] = useState(null);
 
   const loadBooths = useCallback(() => {
     adminApi.getKiosks().then(setBooths).catch((e) => {
@@ -210,6 +222,156 @@ export const KioskManager = () => {
     }
   };
 
+  // Open Manage Slips Modal for an existing booth
+  const openManageSlipsModal = (booth) => {
+    setManageSlipsBooth(booth);
+    const count = booth.allotted_count || 50;
+    setManageSlipsCount(count);
+    setManageFromSlipId(booth.from_slip_id || `${booth.number}001`);
+    setManageToSlipId(booth.to_slip_id || `${booth.number}${String(count).padStart(3, '0')}`);
+  };
+
+  const handleManageSlipsCountChange = (val) => {
+    setManageSlipsCount(val);
+    if (val === '') return;
+    const count = parseInt(val, 10);
+    if (!isNaN(count) && count > 0) {
+      const startNum = parseInt(manageFromSlipId, 10);
+      if (!isNaN(startNum)) {
+        const endNum = startNum + count - 1;
+        setManageToSlipId(String(endNum).padStart(manageFromSlipId.length, '0'));
+      }
+    }
+  };
+
+  const handleManageSlipsCountBlur = () => {
+    const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
+    setManageSlipsCount(count);
+    const startNum = parseInt(manageFromSlipId, 10);
+    if (!isNaN(startNum)) {
+      const endNum = startNum + count - 1;
+      setManageToSlipId(String(endNum).padStart(manageFromSlipId.length, '0'));
+    }
+  };
+
+  const handleManageFromSlipIdChange = (val) => {
+    setManageFromSlipId(val);
+    const fromNum = parseInt(val, 10);
+    const toNum = parseInt(manageToSlipId, 10);
+    if (!isNaN(fromNum)) {
+      if (!isNaN(toNum) && toNum >= fromNum && val.trim().length >= 3) {
+        setManageSlipsCount(toNum - fromNum + 1);
+      } else {
+        const count = parseInt(manageSlipsCount, 10) || 1;
+        setManageToSlipId(String(fromNum + count - 1).padStart(val.length, '0'));
+      }
+    }
+  };
+
+  const handleManageFromSlipIdBlur = () => {
+    const fromNum = parseInt(manageFromSlipId, 10);
+    const toNum = parseInt(manageToSlipId, 10);
+    if (isNaN(fromNum)) {
+      const fallback = `${manageSlipsBooth?.number || 1}001`;
+      setManageFromSlipId(fallback);
+      const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
+      setManageToSlipId(String(parseInt(fallback, 10) + count - 1).padStart(fallback.length, '0'));
+    } else if (!isNaN(toNum) && toNum >= fromNum) {
+      setManageSlipsCount(toNum - fromNum + 1);
+    } else {
+      const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
+      setManageToSlipId(String(fromNum + count - 1).padStart(manageFromSlipId.length, '0'));
+    }
+  };
+
+  const handleManageToSlipIdChange = (val) => {
+    setManageToSlipId(val);
+    const toNum = parseInt(val, 10);
+    const fromNum = parseInt(manageFromSlipId, 10);
+    if (!isNaN(toNum) && !isNaN(fromNum) && toNum >= fromNum) {
+      setManageSlipsCount(toNum - fromNum + 1);
+    }
+  };
+
+  const handleManageToSlipIdBlur = () => {
+    const toNum = parseInt(manageToSlipId, 10);
+    const fromNum = parseInt(manageFromSlipId, 10);
+    if (isNaN(toNum) || isNaN(fromNum) || toNum < fromNum) {
+      const startNum = !isNaN(fromNum) ? fromNum : parseInt(`${manageSlipsBooth?.number || 1}001`, 10);
+      const count = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
+      setManageToSlipId(String(startNum + count - 1).padStart(manageFromSlipId?.length || 4, '0'));
+    } else {
+      setManageSlipsCount(toNum - fromNum + 1);
+    }
+  };
+
+  const handleSaveManageSlips = async (e) => {
+    e.preventDefault();
+    if (!manageSlipsBooth) return;
+    setBusy(true);
+    try {
+      const finalCount = Math.max(1, parseInt(manageSlipsCount, 10) || 1);
+      const res = await adminApi.manageKioskSlips(manageSlipsBooth.id, {
+        action: 'update',
+        slips_count: finalCount,
+        from_slip_id: String(manageFromSlipId).trim(),
+        to_slip_id: String(manageToSlipId).trim(),
+      });
+      toast.success(res.message || 'Slips allotment updated successfully');
+      setManageSlipsBooth(null);
+      await loadBooths();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to update slips allotment'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReturnUnusedSlips = async () => {
+    if (!manageSlipsBooth) return;
+    setBusy(true);
+    try {
+      const res = await adminApi.manageKioskSlips(manageSlipsBooth.id, { action: 'return_unused' });
+      toast.success(res.message || 'Returned unused slips to pool');
+      setManageSlipsBooth(null);
+      await loadBooths();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to return slips'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Revoke active session on terminal and get fresh setup token
+  const handleExecuteRevoke = async () => {
+    if (!revokingBooth) return;
+    setBusy(true);
+    try {
+      const res = await adminApi.revokeKiosk(revokingBooth.id);
+      toast.success(res.message || `Session revoked for ${revokingBooth.booth_id}`);
+      setRevokingBooth(null);
+      setIssued(res);
+      await loadBooths();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to revoke booth session'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Retrieve current setup token + TOTP for a booth
+  const handleGetSetupCode = async (booth) => {
+    setBusy(true);
+    try {
+      const res = await adminApi.getKioskSetupToken(booth.id);
+      setIssued(res);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to fetch setup code'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const currentSummary = (setupOptions?.available_slips_by_booth || []).find(
     (s) => s.booth_number === Number(selectedBooth)
   );
@@ -347,14 +509,40 @@ export const KioskManager = () => {
                         <td className="text-xs text-muted">
                           {b.last_heartbeat ? formatDistanceToNow(new Date(b.last_heartbeat), { addSuffix: true }) : 'Never'}
                         </td>
-                        <td className="text-right">
-                          <button
-                            className="btn-ghost btn-sm text-bad"
-                            onClick={() => setRemoving(b)}
-                            title="Delete and revoke booth"
-                          >
-                            <TrashIcon className="w-4 h-4" /> Delete
-                          </button>
+                        <td className="text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              className="btn-ghost btn-sm text-brand"
+                              onClick={() => openManageSlipsModal(b)}
+                              title="Manage and adjust slip allotment for this booth"
+                            >
+                              <AdjustmentsHorizontalIcon className="w-4 h-4" /> Slips
+                            </button>
+
+                            <button
+                              className="btn-ghost btn-sm text-fg"
+                              onClick={() => handleGetSetupCode(b)}
+                              title="Get setup token and TOTP code for this booth"
+                            >
+                              <KeyIcon className="w-4 h-4" /> Code
+                            </button>
+
+                            <button
+                              className="btn-ghost btn-sm text-amber-500 hover:text-amber-600"
+                              onClick={() => setRevokingBooth(b)}
+                              title="Revoke active session on terminal and return unused slips to pool"
+                            >
+                              <ArrowPathIcon className="w-4 h-4" /> Revoke
+                            </button>
+
+                            <button
+                              className="btn-ghost btn-sm text-bad"
+                              onClick={() => setRemoving(b)}
+                              title="Permanently delete booth terminal"
+                            >
+                              <TrashIcon className="w-4 h-4" /> Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -481,39 +669,216 @@ export const KioskManager = () => {
         </form>
       </Modal>
 
-      {/* Token Ready Result Modal */}
-      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth Token Ready">
+      {/* Token Ready Result Modal with Both Token AND TOTP Code */}
+      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth Setup Codes Ready">
         {issued && (
-          <div className="space-y-4 text-center">
-            <div className="p-3 rounded-xl bg-ok-soft/30 border border-ok/20 text-xs text-ok font-medium">
-              ✓ Slips allotted: <strong>{issued.slips_count} votes</strong> ({issued.from_slip_id} – {issued.to_slip_id}) assigned to <strong>{issued.booth_id}</strong>
+          <div className="space-y-4">
+            {issued.slips_count > 0 && (
+              <div className="p-3 rounded-xl bg-ok-soft/30 border border-ok/20 text-xs text-ok font-medium text-center">
+                ✓ Slips allotted: <strong>{issued.slips_count} votes</strong> ({issued.from_slip_id || '—'} to {issued.to_slip_id || '—'}) assigned to <strong>{issued.booth_id}</strong>
+              </div>
+            )}
+
+            <p className="text-xs text-muted text-center">
+              On the booth computer, navigate to the setup screen. Enter the <strong>Booth Token</strong> and the <strong>Authenticator Code (TOTP)</strong> below to authorize the terminal.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Booth Token */}
+              <div className="p-3.5 rounded-xl bg-recessed/60 border border-line space-y-1 text-center">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted block">
+                  1. Booth Token
+                </span>
+                <p className="font-mono text-2xl font-black tracking-widest text-brand select-all py-1">
+                  {issued.token}
+                </p>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm text-xs inline-flex items-center gap-1 mx-auto text-muted hover:text-fg"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(issued.token);
+                    toast.success('Booth token copied to clipboard');
+                  }}
+                >
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy Token
+                </button>
+              </div>
+
+              {/* TOTP Code */}
+              <div className="p-3.5 rounded-xl bg-recessed/60 border border-line space-y-1 text-center">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted block">
+                  2. Officer Authenticator (TOTP)
+                </span>
+                <p className="font-mono text-2xl font-black tracking-widest text-fg select-all py-1">
+                  {issued.totp_code || '------'}
+                </p>
+                {issued.totp_code ? (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm text-xs inline-flex items-center gap-1 mx-auto text-muted hover:text-fg"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(issued.totp_code);
+                      toast.success('TOTP code copied to clipboard');
+                    }}
+                  >
+                    <ClipboardDocumentIcon className="w-3.5 h-3.5" /> Copy TOTP
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-muted block py-1">Use your authenticator app</span>
+                )}
+              </div>
             </div>
 
-            <p className="text-xs text-muted">
-              Enter this token on the booth computer for “{issued.election_title}”. Valid for 15 minutes.
-            </p>
-            <p className="font-mono text-4xl font-black tracking-widest select-all bg-recessed/60 py-3 rounded-xl border border-line text-brand">
-              {issued.token}
-            </p>
-            <p className="text-xs text-muted">
-              On the booth machine, open <span className="font-mono text-fg font-semibold">/kiosk/vote</span>. Enter this token and your 6-digit authenticator code.
-            </p>
-            <div className="flex justify-center gap-2 pt-1">
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  navigator.clipboard?.writeText(issued.token);
-                  toast.success('Token copied to clipboard');
-                }}
-              >
-                <ClipboardDocumentIcon className="w-4 h-4" /> Copy
-              </button>
+            <div className="p-2.5 rounded-xl bg-surface border border-line/60 text-[11px] text-muted space-y-0.5">
+              <p>• Valid for <strong>15 minutes</strong> for <strong>{issued.booth_id}</strong>.</p>
+              <p>• The terminal locks into secure kiosk mode immediately upon activation.</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-line">
               <button className="btn-primary" onClick={() => setIssued(null)}>
                 Done
               </button>
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Manage Slips Allotment Modal (Post-Setup) */}
+      <Modal
+        isOpen={Boolean(manageSlipsBooth)}
+        onClose={() => setManageSlipsBooth(null)}
+        title={`Manage Slips Allotment — ${manageSlipsBooth?.booth_id || 'Booth'}`}
+      >
+        {manageSlipsBooth && (
+          <form onSubmit={handleSaveManageSlips} className="space-y-4">
+            <p className="text-xs text-muted">
+              Adjust or expand the slips allotted to <strong>{manageSlipsBooth.booth_id}</strong>. Any unused slips can also be returned back to the unassigned pool.
+            </p>
+
+            <div className="p-3 rounded-xl bg-recessed/60 border border-line text-xs grid grid-cols-3 gap-2 text-center">
+              <div>
+                <span className="text-muted block text-[10px] uppercase font-bold">Total Allotted</span>
+                <span className="font-mono font-bold text-base text-fg">{manageSlipsBooth.allotted_count || 0}</span>
+              </div>
+              <div>
+                <span className="text-muted block text-[10px] uppercase font-bold">Votes Cast</span>
+                <span className="font-mono font-bold text-base text-ok">{manageSlipsBooth.used_count || 0}</span>
+              </div>
+              <div>
+                <span className="text-muted block text-[10px] uppercase font-bold">Unused Left</span>
+                <span className="font-mono font-bold text-base text-brand">{manageSlipsBooth.remaining_count || 0}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-fg">
+                Desired Slip Allotment Count
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={1500}
+                value={manageSlipsCount}
+                onChange={(e) => handleManageSlipsCountChange(e.target.value)}
+                onBlur={handleManageSlipsCountBlur}
+                className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-fg">From Slip ID</label>
+                <input
+                  type="text"
+                  value={manageFromSlipId}
+                  onChange={(e) => handleManageFromSlipIdChange(e.target.value)}
+                  onBlur={handleManageFromSlipIdBlur}
+                  placeholder={`${manageSlipsBooth.number}001`}
+                  className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-fg">To Slip ID</label>
+                <input
+                  type="text"
+                  value={manageToSlipId}
+                  onChange={(e) => handleManageToSlipIdChange(e.target.value)}
+                  onBlur={handleManageToSlipIdBlur}
+                  placeholder={`${manageSlipsBooth.number}050`}
+                  className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+                  required
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted flex items-center justify-between">
+              <span>Range matches slip count automatically.</span>
+              <span className="font-mono font-medium text-brand">
+                {manageFromSlipId && manageToSlipId ? `${manageFromSlipId} – ${manageToSlipId} (${Math.max(1, parseInt(manageSlipsCount, 10) || 1)} slips)` : ''}
+              </span>
+            </p>
+
+            <div className="pt-2 border-t border-line flex items-center justify-between gap-2">
+              <button
+                type="button"
+                className="btn-ghost text-xs text-amber-500 hover:text-amber-600"
+                disabled={busy || !manageSlipsBooth.allotted_count}
+                onClick={handleReturnUnusedSlips}
+              >
+                Return Unused Slips to Pool
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setManageSlipsBooth(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={busy}
+                >
+                  Save Slips Allotment
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Revoke Booth Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(revokingBooth)}
+        onClose={() => setRevokingBooth(null)}
+        title={`Revoke session for ${revokingBooth?.booth_id || 'Booth'}?`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Revoking immediately terminates the terminal session on this computer and returns all <strong>unused slips</strong> back to the unassigned pool.
+          </p>
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400 space-y-1">
+            <p className="font-bold">What happens next:</p>
+            <p>1. The booth terminal will automatically reset to the setup screen.</p>
+            <p>2. A fresh <strong>Booth Token & TOTP code</strong> will be generated immediately so you can re-authorize this booth whenever you are ready.</p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-line">
+            <button className="btn-ghost" onClick={() => setRevokingBooth(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn-primary bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={busy}
+              onClick={handleExecuteRevoke}
+            >
+              Confirm Revoke Session
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Delete Booth Confirmation Modal */}

@@ -143,6 +143,10 @@ export const adminApi = {
     return response.data;
   },
 
+  revokeKiosk: async (id) => (await apiClient.post(`/admin/kiosk/${id}/revoke`)).data,
+  getKioskSetupToken: async (id) => (await apiClient.post(`/admin/kiosk/${id}/setup-token`)).data,
+  manageKioskSlips: async (id, data) => (await apiClient.post(`/admin/kiosk/${id}/slips`, data)).data,
+
   // Polling Desk Officers
   getOfficers: async () => {
     const response = await apiClient.get('/admin/officers');
