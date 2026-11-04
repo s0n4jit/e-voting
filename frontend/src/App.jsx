@@ -24,6 +24,7 @@ import SystemPage from './components/Admin/SystemPage';
 import ReceiptManager from './components/Admin/ReceiptManager';
 import RegisterStudent from './components/Desk/RegisterStudent';
 import Registrations from './components/Desk/Registrations';
+import VoterSlipsManager from './components/Admin/VoterSlipsManager';
 import CheckIn from './components/Desk/CheckIn';
 import ProfilePage from './components/Profile/ProfilePage';
 import SecureAccount from './components/Profile/SecureAccount';
@@ -91,7 +92,8 @@ function AppRoutes() {
 
       {/* Desk Officers (and Election Officers) */}
       <Route path="/desk" element={page(STAFF, <RegisterStudent />)} />
-      <Route path="/desk/registrations" element={page(STAFF, <Registrations />)} />
+      <Route path="/desk/registrations" element={page(STAFF, <VoterSlipsManager />)} />
+      <Route path="/admin/slips" element={page(STAFF, <VoterSlipsManager />)} />
       <Route path="/desk/check-in" element={page(STAFF, <CheckIn />)} />
 
       {/* Election Officers */}

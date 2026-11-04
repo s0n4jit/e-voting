@@ -681,12 +681,35 @@ def get_desk_voters():
 
 # ── Voting booths (created on the booth itself, see routes/booth.py) ───────────────────────────────────────────
 
+@admin_bp.get("/booths/next-available")
+@admin_required
+def get_next_available_booth():
+    """Returns the next available booth number, active booth count, and existing booth numbers."""
+    election = Election.current()
+    if not election:
+        return jsonify({"next_booth_number": 1, "next_booth_id": "BOOTH-01", "total_active_booths": 0, "existing_booth_numbers": []}), 200
+    booths = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+    used_numbers = {b.number for b in booths}
+    n = 1
+    while n in used_numbers:
+        n += 1
+    return jsonify({
+        "next_booth_number": n,
+        "next_booth_id": f"BOOTH-{n:02d}",
+        "total_active_booths": len(booths),
+        "existing_booth_numbers": sorted(list(used_numbers)),
+    }), 200
+
+
 @admin_bp.post("/booth-tokens")
 @admin_required
 def create_booth_token():
-    """Generate a one-time token (shown once, valid 15 minutes) for setting up a voting booth."""
+    """
+    Generate a one-time token for setting up a voting booth with pre-allocated slips.
+    """
     from app.models.booth_create_token import TOKEN_LIFETIME, BoothCreateToken
     from app.routes.booth import _hash, new_create_token
+    from app.models.booth_slip import BoothSlip
 
     officer = db.session.get(User, int(get_jwt_identity()))
     election = Election.current()
@@ -695,15 +718,60 @@ def create_booth_token():
     if not officer.otp_enabled:
         return jsonify({"error": "Turn on two-step verification first; booths are approved with your authenticator code."}), 409
 
+    payload = request.get_json(silent=True) or {}
+    booth_num = payload.get("booth_number")
+    slips_count = int(payload.get("slips_count", 0) or 0)
+
+    if not booth_num:
+        used_nums = {k.number for k in KioskDevice.query.filter_by(election_id=election.id).all()}
+        n = 1
+        while n in used_nums:
+            n += 1
+        booth_num = n
+    else:
+        booth_num = int(booth_num)
+
+    from_id = None
+    to_id = None
+
+    if slips_count > 0:
+        existing_count = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).count()
+        if existing_count == 0:
+            created = BoothSlip.generate_batch(election.id, booth_number=booth_num, count=slips_count)
+            from_id = created[0].voting_id
+            to_id = created[-1].voting_id
+        else:
+            first_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.asc()).first()
+            last_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.desc()).first()
+            from_id = first_slip.voting_id if first_slip else None
+            to_id = last_slip.voting_id if last_slip else None
+            if slips_count > existing_count:
+                more = BoothSlip.generate_batch(election.id, booth_number=booth_num, count=slips_count - existing_count)
+                to_id = more[-1].voting_id
+    else:
+        first_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.asc()).first()
+        last_slip = BoothSlip.query.filter_by(election_id=election.id, booth_number=booth_num).order_by(BoothSlip.sequence_number.desc()).first()
+        from_id = first_slip.voting_id if first_slip else f"{booth_num}001"
+        to_id = last_slip.voting_id if last_slip else f"{booth_num}050"
+
     token = new_create_token()
     expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
     db.session.add(BoothCreateToken(token_hash=_hash(token.replace("-", "")), election_id=election.id,
                                     created_by=officer.id, expires_at=expires))
     db.session.add(AuditLog(user_id=officer.id, action="BOOTH_TOKEN_CREATED",
-                            details=f"Generated a booth token for \u201c{election.title}\u201d.", ip_address=request.remote_addr or ""))
+                            details=f"Generated a booth token for Booth {booth_num} ({election.title}), allocated {slips_count} slips ({from_id} to {to_id}).", ip_address=request.remote_addr or ""))
     db.session.commit()
     from app.utils.timeutil import utc_iso
-    return jsonify({"token": token, "expires_at": utc_iso(expires), "election_title": election.title}), 201
+    return jsonify({
+        "token": token,
+        "expires_at": utc_iso(expires),
+        "election_title": election.title,
+        "booth_number": booth_num,
+        "booth_id": f"BOOTH-{booth_num:02d}",
+        "slips_count": slips_count,
+        "from_slip_id": from_id,
+        "to_slip_id": to_id,
+    }), 201
 
 
 @admin_bp.get("/kiosk/list")
@@ -1100,3 +1168,53 @@ def download_all_slips_pdf():
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@admin_bp.get("/booths/slips")
+@admin_required
+def list_booth_slips():
+    """Paginated list of booth slips with filtering by booth, search by voting ID, and status."""
+    election_id = request.args.get("election_id", type=int)
+    election = db.session.get(Election, election_id) if election_id else Election.current()
+    if not election:
+        return jsonify({"items": [], "total": 0, "pages": 1, "page": 1}), 200
+
+    query = BoothSlip.query.filter_by(election_id=election.id)
+
+    booth_num = request.args.get("booth_number", type=int)
+    if booth_num:
+        query = query.filter_by(booth_number=booth_num)
+
+    is_used = request.args.get("is_used")
+    if is_used is not None and is_used != "":
+        used_bool = is_used.lower() in ("true", "1", "yes")
+        query = query.filter_by(is_used=used_bool)
+
+    search = request.args.get("search", "").strip()
+    if search:
+        query = query.filter(BoothSlip.voting_id.ilike(f"%{search}%"))
+
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(10, request.args.get("per_page", 50, type=int)))
+
+    pagination = query.order_by(BoothSlip.booth_number.asc(), BoothSlip.sequence_number.asc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    items = [s.to_dict(include_pin=False) for s in pagination.items]
+
+    total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
+    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
+
+    return jsonify({
+        "items": items,
+        "total": pagination.total,
+        "pages": pagination.pages,
+        "page": page,
+        "per_page": per_page,
+        "metrics": {
+            "total_generated": total_gen,
+            "total_used": total_used,
+            "total_unused": total_gen - total_used,
+        }
+    }), 200

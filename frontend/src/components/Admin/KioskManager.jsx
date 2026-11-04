@@ -26,6 +26,12 @@ export const KioskManager = () => {
   const [tab, setTab] = useState('booths'); // 'booths' | 'slips' | 'guide'
   const [issued, setIssued] = useState(null);
 
+  // New Booth Setup Modal state
+  const [setupBoothModalOpen, setSetupBoothModalOpen] = useState(false);
+  const [newBoothNumber, setNewBoothNumber] = useState(1);
+  const [newBoothVotes, setNewBoothVotes] = useState(100);
+  const [nextBoothData, setNextBoothData] = useState(null);
+
   // Slips state
   const [slipsMetrics, setSlipsMetrics] = useState(null);
   const [slipsLoading, setSlipsLoading] = useState(false);
@@ -59,12 +65,34 @@ export const KioskManager = () => {
   usePolling(loadBooths, 3000);
   usePolling(loadSlips, 4000);
 
-  const generate = async () => {
+  const openBoothSetupModal = async () => {
+    try {
+      const data = await adminApi.getNextAvailableBooth();
+      setNextBoothData(data);
+      setNewBoothNumber(data.next_booth_number || 1);
+      setNewBoothVotes(100);
+      setSetupBoothModalOpen(true);
+    } catch {
+      setNewBoothNumber(1);
+      setNewBoothVotes(100);
+      setSetupBoothModalOpen(true);
+    }
+  };
+
+  const handleConfirmCreateBooth = async (e) => {
+    e.preventDefault();
     setBusy(true);
     try {
-      setIssued(await adminApi.createBoothToken());
+      const result = await adminApi.createBoothToken({
+        booth_number: Number(newBoothNumber),
+        slips_count: Number(newBoothVotes),
+      });
+      setSetupBoothModalOpen(false);
+      setIssued(result);
+      await loadBooths();
+      await loadSlips();
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(errorMessage(err, 'Failed to create booth token'));
     } finally {
       setBusy(false);
     }
@@ -154,7 +182,7 @@ export const KioskManager = () => {
         subtitle="Manage authorized voting booth terminals, pre-generated slips, and 4-digit PIN credentials."
         actions={
           tab === 'booths' ? (
-            <button className="btn-primary" onClick={generate} disabled={busy}>
+            <button className="btn-primary" onClick={openBoothSetupModal} disabled={busy}>
               <KeyIcon className="w-4 h-4" /> Generate booth token
             </button>
           ) : tab === 'slips' ? (
@@ -391,22 +419,130 @@ export const KioskManager = () => {
         </>
       )}
 
-      {/* Generate Booth Token Modal */}
-      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth token">
+      {/* Configure New Voting Booth Modal */}
+      <Modal
+        isOpen={setupBoothModalOpen}
+        onClose={() => setSetupBoothModalOpen(false)}
+        title="Set up New Voting Booth"
+      >
+        <form onSubmit={handleConfirmCreateBooth} className="space-y-4">
+          <p className="text-xs text-muted">
+            Configure how many votes will be conducted at this booth and verify the allocated sequential slip ID range before generating the token.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-fg">Booth Number</label>
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={newBoothNumber}
+                onChange={(e) => setNewBoothNumber(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono font-bold text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+                required
+              />
+              <p className="text-[11px] text-muted">Identifier: BOOTH-{String(newBoothNumber).padStart(2, '0')}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-fg">Allocated Votes / Slips</label>
+              <input
+                type="number"
+                min={10}
+                max={2000}
+                value={newBoothVotes}
+                onChange={(e) => setNewBoothVotes(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg font-mono font-bold text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+                required
+              />
+              <p className="text-[11px] text-muted">Votes planned for this booth</p>
+            </div>
+          </div>
+
+          {/* Projected Slip Range Card */}
+          <div className="p-4 rounded-xl bg-recessed/70 border border-line space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-muted uppercase tracking-wider text-[10px]">Allocated Slip Range</span>
+              <span className="text-brand font-mono font-bold">{newBoothVotes} Slips</span>
+            </div>
+            <div className="flex items-center justify-between font-mono font-black text-sm text-fg bg-surface p-2.5 rounded-lg border border-line shadow-2xs">
+              <div className="text-center">
+                <span className="text-[10px] text-muted block uppercase">From Slip ID</span>
+                <span className="text-brand text-base">{newBoothNumber}001</span>
+              </div>
+              <span className="text-muted">➔</span>
+              <div className="text-center">
+                <span className="text-[10px] text-muted block uppercase">To Slip ID</span>
+                <span className="text-brand text-base">{newBoothNumber}{String(newBoothVotes).padStart(3, '0')}</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted">
+              Voters at BOOTH-{String(newBoothNumber).padStart(2, '0')} will enter PINs for slips {newBoothNumber}001 through {newBoothNumber}{String(newBoothVotes).padStart(3, '0')} in strict sequence.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setSetupBoothModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn-primary"
+            >
+              {busy ? 'Configuring…' : 'Allocate Slips & Generate Token'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Generated Booth Token Modal */}
+      <Modal isOpen={Boolean(issued)} onClose={() => setIssued(null)} title="Booth Token Ready">
         {issued && (
           <div className="space-y-4 text-center">
-            <p className="text-sm text-muted">Enter this on the booth computer for “{issued.election_title}”. It is shown only now.</p>
-            <p className="font-mono text-4xl font-semibold tracking-widest select-all">{issued.token}</p>
-            <p className="text-xs text-muted">Valid for 15 minutes, one booth only. You will also type your authenticator code on the booth.</p>
-            <div className="flex justify-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-brand-soft border border-brand/20 text-xs font-mono font-bold text-brand">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{issued.booth_id || `BOOTH-${String(issued.booth_number).padStart(2, '0')}`}</span>
+            </div>
+
+            <p className="text-xs text-muted">Enter this token on the booth machine for “{issued.election_title}”. Valid for 15 minutes.</p>
+
+            <p className="font-mono text-4xl font-black tracking-widest select-all bg-recessed/60 py-3 rounded-xl border border-line text-brand">
+              {issued.token}
+            </p>
+
+            {/* Allocated Slip Range Badge */}
+            {issued.from_slip_id && (
+              <div className="p-3 rounded-xl bg-surface border border-line text-xs font-mono space-y-1 text-left">
+                <div className="flex justify-between text-muted text-[11px]">
+                  <span>Allocated Slips:</span>
+                  <span className="font-bold text-fg">{issued.slips_count || 100} votes</span>
+                </div>
+                <div className="flex justify-between font-bold text-fg">
+                  <span>Voting ID Range:</span>
+                  <span className="text-brand font-black">{issued.from_slip_id} ➔ {issued.to_slip_id}</span>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[11px] text-muted">
+              On the kiosk machine, open <span className="font-mono text-fg font-bold">/kiosk/vote</span>. Enter this token and your authenticator code.
+            </p>
+
+            <div className="flex justify-center gap-2 pt-1">
               <button
                 className="btn-secondary"
                 onClick={() => {
                   navigator.clipboard?.writeText(issued.token);
-                  toast.success('Copied');
+                  toast.success('Token copied to clipboard');
                 }}
               >
-                <ClipboardDocumentIcon className="w-4 h-4" /> Copy
+                <ClipboardDocumentIcon className="w-4 h-4" /> Copy Token
               </button>
               <button className="btn-primary" onClick={() => setIssued(null)}>
                 Done

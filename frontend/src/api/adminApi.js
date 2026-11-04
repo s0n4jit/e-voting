@@ -169,7 +169,9 @@ export const adminApi = {
     });
     return response.data;
   },
-  createBoothToken: async () => (await apiClient.post('/admin/booth-tokens')).data,
+  createBoothToken: async (config = {}) => (await apiClient.post('/admin/booth-tokens', config)).data,
+  getNextAvailableBooth: async () => (await apiClient.get('/admin/booths/next-available')).data,
+  getBoothSlipsList: async (params = {}) => (await apiClient.get('/admin/booths/slips', { params })).data,
 
   getKiosks: async () => {
     const response = await apiClient.get('/admin/kiosk/list');

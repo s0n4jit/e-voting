@@ -36,7 +36,7 @@ const navFor = (role) => {
       { label: 'Overview', to: '/admin/dashboard', icon: ChartBarIcon },
       { label: 'Elections', to: '/admin/elections', icon: RectangleStackIcon },
       { label: 'Candidates', to: '/admin/candidates', icon: UserGroupIcon },
-      { label: 'Registrations', to: '/desk/registrations', icon: ClipboardDocumentListIcon },
+      { label: 'Voter slips', to: '/admin/slips', icon: TicketIcon },
       { label: 'Desk officers', to: '/admin/officers', icon: IdentificationIcon },
       { label: 'Programmes', to: '/admin/programmes', icon: AcademicCapIcon },
       { label: 'Voting booths', to: '/admin/kiosks', icon: ComputerDesktopIcon },
@@ -49,7 +49,7 @@ const navFor = (role) => {
   }
   return [
     { label: 'Register student', to: '/desk', icon: UserPlusIcon, end: true },
-    { label: 'Registrations', to: '/desk/registrations', icon: ClipboardDocumentListIcon },
+    { label: 'Voter slips', to: '/admin/slips', icon: TicketIcon },
     { label: 'Voter check-in', to: '/desk/check-in', icon: TicketIcon },
   ];
 };
