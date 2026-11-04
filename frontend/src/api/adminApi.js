@@ -67,50 +67,10 @@ export const adminApi = {
       election_id: electionId,
       name,
       department,
-
-  // Central Server Receipts & Audit
-  getReceipts: async (params = {}) => (await apiClient.get('/officer/receipts', { params })).data,
-  downloadReceiptPdf: async (slipId) => {
-    const res = await apiClient.get(`/officer/receipts/${encodeURIComponent(slipId)}/pdf`, { responseType: 'blob' });
-    return res.data;
-  },
-  downloadReceiptsZip: async (params = {}) => {
-    const res = await apiClient.get('/officer/receipts/export-zip', { params, responseType: 'blob' });
-    return res.data;
-  },
-
-  // Pre-generated Booth Slips & PDF Export
-  getBoothSlipsMetrics: async (electionId) => {
-    const params = electionId ? { election_id: electionId } : {};
-    return (await apiClient.get('/admin/booths/slips-metrics', { params })).data;
-  },
-
-  generateBoothSlips: async (boothNumber, count = 50, electionId = null) => {
-    return (await apiClient.post(`/admin/booths/${boothNumber}/generate-slips`, { count, election_id: electionId })).data;
-  },
-
-  generateAllBoothSlips: async (countPerBooth = 50, electionId = null) => {
-    return (await apiClient.post('/admin/booths/generate-all-slips', { count_per_booth: countPerBooth, election_id: electionId })).data;
-  },
-
-  downloadBoothSlipsPdf: async (boothNumber, electionId = null) => {
-    const params = electionId ? { election_id: electionId } : {};
-    const res = await apiClient.get(`/admin/booths/${boothNumber}/slips-pdf`, { params, responseType: 'blob' });
-    return res.data;
-  },
-
-  downloadAllSlipsPdf: async (electionId = null) => {
-    const params = electionId ? { election_id: electionId } : {};
-    const res = await apiClient.get('/admin/booths/all-slips-pdf', { params, responseType: 'blob' });
-    return res.data;
-  },
-
-  clearMockReceipts: async (params = {}) => (await apiClient.delete('/officer/receipts/mock', { params })).data,
     };
     const response = await apiClient.post('/admin/desk/issue-pin', payload);
     return response.data;
   },
-
   exportAuditLogsUrl: () => `/api/admin/audit-logs/export`,
 
   getDeskVoters: async (queryOrParams) => {
@@ -234,6 +194,10 @@ export const adminApi = {
     const params = electionId ? { election_id: electionId } : {};
     const res = await apiClient.get('/admin/booths/all-slips-pdf', { params, responseType: 'blob' });
     return res.data;
+  },
+
+    generateSlips: async (count = 50, boothNumber = null, electionId = null) => {
+    return (await apiClient.post('/admin/slips/generate', { count, booth_number: boothNumber, election_id: electionId })).data;
   },
 
   clearMockReceipts: async (params = {}) => (await apiClient.delete('/officer/receipts/mock', { params })).data,

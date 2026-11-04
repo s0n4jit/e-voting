@@ -79,7 +79,8 @@ export const VoterSlipsManager = () => {
     e.preventDefault();
     setGenerating(true);
     try {
-      const bNum = targetBooth === 'none' ? null : Number(targetBooth);
+      const isUnassigned = !targetBooth || targetBooth === 'none' || targetBooth === 'all';
+      const bNum = isUnassigned ? null : Number(targetBooth);
       const res = await adminApi.generateSlips(Number(slipCount), bNum);
       toast.success(res.message || `Generated ${res.count_created} voting slips.`);
       setGenerateModalOpen(false);
@@ -135,10 +136,13 @@ export const VoterSlipsManager = () => {
 
   // Compute calculated preview range for target booth or pool
   const getPreviewRange = () => {
-    if (targetBooth === 'none') {
-      return `Generates ${slipCount} sequential slips for the unassigned pool (will be allotted when setting up booths).`;
+    if (!targetBooth || targetBooth === 'none' || targetBooth === 'all') {
+      return `Generates ${slipCount} sequential slips for the unassigned pool (to be allotted when setting up booths).`;
     }
-    const bNum = Number(targetBooth);
+    const bNum = parseInt(targetBooth, 10);
+    if (isNaN(bNum)) {
+      return `Generates ${slipCount} sequential slips for the unassigned pool.`;
+    }
     const boothInfo = (metrics?.booths || []).find((b) => b.booth_number === bNum);
     const currentCount = boothInfo?.total_slips || 0;
     const startSeq = currentCount + 1;
@@ -165,7 +169,7 @@ export const VoterSlipsManager = () => {
             <button
               type="button"
               onClick={() => {
-                setTargetBooth('all');
+                setTargetBooth('none');
                 setSlipCount(50);
                 setGenerateModalOpen(true);
               }}
@@ -276,7 +280,10 @@ export const VoterSlipsManager = () => {
                 <p>Click the <strong>Generate Slips</strong> button above to pre-generate sequential voting credentials with 4-digit PINs.</p>
                 <div>
                   <button
-                    onClick={() => setGenerateModalOpen(true)}
+                    onClick={() => {
+                      setTargetBooth('none');
+                      setGenerateModalOpen(true);
+                    }}
                     className="btn-primary inline-flex items-center gap-1.5"
                   >
                     <PlusIcon className="w-4 h-4" />
@@ -396,7 +403,7 @@ export const VoterSlipsManager = () => {
       <Modal
         isOpen={generateModalOpen}
         onClose={() => setGenerateModalOpen(false)}
-        title={targetBooth === 'none' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
+        title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
       >
         <form onSubmit={handleGenerate} className="space-y-4">
           <p className="text-xs text-muted">
