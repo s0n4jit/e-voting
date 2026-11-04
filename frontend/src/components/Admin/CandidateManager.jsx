@@ -46,8 +46,10 @@ export const CandidateManager = () => {
   usePolling(() => (electionId ? adminApi.getElection(electionId).then(setElection).catch(() => {}) : null), 4000);
 
   const locked = election && LOCKED.includes(election.status);
-  const positions = election?.positions || [];
   const candidates = election?.candidates || [];
+  const positions = (election?.positions && election.positions.length > 0)
+    ? election.positions
+    : Array.from(new Set(candidates.map((c) => c.position).filter(Boolean)));
 
   const save = async (e) => {
     e.preventDefault();

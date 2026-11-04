@@ -166,7 +166,7 @@ class Election(db.Model):
             else self.STATUS_LABELS.get(self.effective_status, self.status),
             "voting_paused": bool(self.voting_paused),
             "is_mock": bool(self.is_mock),
-            "positions": [p.name for p in self.positions],
+            "positions": [p.name for p in self.positions] if self.positions else list(dict.fromkeys([c.position for c in self.candidates if c.position])),
             "is_ongoing": self.is_ongoing,
             "results_published": self.results_published,
             "created_by": self.created_by,
