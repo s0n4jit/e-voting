@@ -24,6 +24,8 @@ from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
 from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
 from app.models.kiosk_device import KioskDevice
+from app.models.booth_create_token import TOKEN_LIFETIME, BoothCreateToken
+from app.routes.booth import _hash, new_create_token
 from app.utils.decorators import admin_required, desk_required
 from app.audit_categories import ACTIONS, ALIASES, CATEGORIES, action_label, category_of
 from app.routes.manage import election_locked, transition
