@@ -17,7 +17,7 @@ from app.extensions import commit_or_flush, db, limiter
 from app.models.audit_log import AuditLog
 from app.models.booth_create_token import BoothCreateToken
 from app.models.election import Election
-from app.models.kiosk_device import KioskDevice
+from app.models.kiosk_device import KioskDevice, hash_token
 from app.models.booth_slip import BoothSlip
 from app.models.system_setting import SystemSetting
 from app.models.user import User
