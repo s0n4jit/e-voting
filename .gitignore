@@ -102,3 +102,7 @@ booth-app/dist/
 # Local scratch / temporary work directories
 scratch/
 **/scratch/
+
+
+# Demo candidate photos (local only, do not push to github)
+demo_candidate_photos/
