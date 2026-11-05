@@ -251,7 +251,7 @@ class SlipPdfService:
             c.roundRect(badge_x, badge_y, badge_w, badge_h, 3, fill=1, stroke=1)
             c.setFillColor(colors.HexColor("#334155"))
             c.setFont("Helvetica-Bold", 6.8)
-            c.drawCentredString(x + w / 2.0, badge_y + 3.5, f"VOTING BOOTH {slip.booth_number}")
+            c.drawCentredString(x + w / 2.0, badge_y + 3.5, f"BOOTH-{str(slip.booth_number).zfill(2)}")
             c.restoreState()
             id_header_y = badge_y - 18.0
         else:

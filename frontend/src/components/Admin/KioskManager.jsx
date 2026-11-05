@@ -632,7 +632,7 @@ export const KioskManager = () => {
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
                 <option key={num} value={num}>
-                  Booth {num} (BOOTH-{String(num).padStart(2, '0')})
+                  BOOTH-{String(num).padStart(2, '0')}
                 </option>
               ))}
             </select>

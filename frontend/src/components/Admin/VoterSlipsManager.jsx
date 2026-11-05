@@ -333,7 +333,7 @@ export const VoterSlipsManager = () => {
               <thead>
                 <tr>
                   <th>Voting ID</th>
-                  <th>Booth Number</th>
+                  <th>Booth</th>
                   <th>Machine Allotment</th>
                   <th>Sequence #</th>
                   <th>Status</th>
@@ -351,7 +351,7 @@ export const VoterSlipsManager = () => {
                     </td>
                     <td className="font-semibold text-fg">
                       {s.booth_number ? (
-                        `Booth ${s.booth_number} (BOOTH-${String(s.booth_number).padStart(2, '0')})`
+                        `BOOTH-${String(s.booth_number).padStart(2, '0')}`
                       ) : (
                         <span className="text-muted font-normal text-xs italic">Unassigned (Pool)</span>
                       )}
@@ -474,7 +474,7 @@ export const VoterSlipsManager = () => {
               <option value="none">None / Unassigned Pool (Allot at Booth Setup)</option>
               {[1, 2, 3, 4, 5, 6].map((num) => (
                 <option key={num} value={num}>
-                  Booth {num} (BOOTH-{String(num).padStart(2, '0')})
+                  BOOTH-{String(num).padStart(2, '0')}
                 </option>
               ))}
             </select>
