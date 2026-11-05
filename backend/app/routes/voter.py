@@ -47,12 +47,36 @@ def get_election_ballot(election_id):
     """
     Retrieve structured multi-position ballot with candidate lists and NOTA indicators.
     """
-    _, denied = require_booth(get_jwt(), election_id)
+    claims = get_jwt()
+    _, denied = require_booth(claims, election_id)
     if denied:
         return denied
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
+
+    # Check whether this voting slip or voter has already been used to vote!
+    slip_id = claims.get("slip_id")
+    if slip_id:
+        from app.models.booth_slip import BoothSlip
+        slip = db.session.get(BoothSlip, slip_id)
+        if not slip or slip.is_used:
+            return jsonify({
+                "error": "Already Voted",
+                "message": "This voting slip has already been used to cast a ballot.",
+                "already_voted": True,
+            }), 403
+    elif claims.get("student_id"):
+        from app.models.voting_token import VotingToken
+        token = VotingToken.query.filter_by(
+            student_id=claims.get("student_id"), election_id=election.id, is_used=True
+        ).first()
+        if token:
+            return jsonify({
+                "error": "Already Voted",
+                "message": "This voter has already cast their ballot.",
+                "already_voted": True,
+            }), 403
 
     candidates = Candidate.query.filter_by(election_id=election.id).order_by(Candidate.id.asc()).all()
 

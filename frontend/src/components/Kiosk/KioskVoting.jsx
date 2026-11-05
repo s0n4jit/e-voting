@@ -355,6 +355,7 @@ export const KioskVoting = () => {
   const activeBoothId = boothInfo?.booth_id || localStorage.getItem('kiosk_name') || localStorage.getItem('booth_id') || 'BOOTH-01';
 
   const [stage, setStage] = useState('loading'); // loading | error | intro | ballot | review | submitting | done
+  const [activeVotingId, setActiveVotingId] = useState(() => localStorage.getItem('voting_id') || '');
   const [error, setError] = useState('');
   const [election, setElection] = useState(null);
   const [positions, setPositions] = useState([]);
@@ -392,9 +393,19 @@ export const KioskVoting = () => {
   }, [boothInfo, finish]);
 
   useEffect(() => {
+    if (!localStorage.getItem('access_token')) {
+      navigate('/kiosk/vote', { replace: true });
+      return;
+    }
+
     voterApi
       .getElectionBallot(electionId)
       .then((data) => {
+        if (data.already_voted) {
+          ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
+          navigate('/kiosk/vote', { replace: true });
+          return;
+        }
         const list = (data.positions || []).filter((p) => p.candidates?.length);
         if (!list.length) {
           setError('There are no candidates on this ballot yet. Please speak to the desk.');
@@ -419,10 +430,16 @@ export const KioskVoting = () => {
         setStage('ballot');
       })
       .catch((err) => {
+        const msg = errorMessage(err, '');
+        if (/already voted|already been used/i.test(msg) || err?.response?.data?.already_voted) {
+          ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
+          navigate('/kiosk/vote', { replace: true });
+          return;
+        }
         setError(errorMessage(err, 'The ballot could not be loaded. Please speak to the desk.'));
         setStage('error');
       });
-  }, [electionId]);
+  }, [electionId, navigate]);
 
   // Suppress drag, text selection, and copy in kiosk browser sessions
   useEffect(() => {
@@ -604,6 +621,8 @@ export const KioskVoting = () => {
     const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
     try {
       await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
+      // Ballot safely recorded on server: clear voter session from storage immediately so refreshes never re-open ballot
+      ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
       const cachedBrand = (() => {
         try {
           return JSON.parse(localStorage.getItem('evote_branding') || '{}');
@@ -624,7 +643,7 @@ export const KioskVoting = () => {
         cachedBrand.institution_name ||
         '';
       setReceipt({
-        slip: voter.student_id,
+        slip: activeVotingId || voter.student_id,
         election: election.title,
         election_id: election.id,
         booth: activeBoothId,
@@ -666,10 +685,10 @@ export const KioskVoting = () => {
             <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-surface border border-line text-xs font-mono font-bold text-fg shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{activeBoothId}</span>
-              {localStorage.getItem('voting_id') && (
+              {activeVotingId && (
                 <>
                   <span className="text-muted/50">•</span>
-                  <span className="text-brand">ID: {localStorage.getItem('voting_id')}</span>
+                  <span className="text-brand">ID: {activeVotingId}</span>
                 </>
               )}
             </div>
