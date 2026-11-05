@@ -48,7 +48,7 @@ def get_election_ballot(election_id):
     Retrieve structured multi-position ballot with candidate lists and NOTA indicators.
     """
     claims = get_jwt()
-    _, denied = require_booth(claims, election_id)
+    booth, denied = require_booth(claims, election_id)
     if denied:
         return denied
     election = db.session.get(Election, election_id)
