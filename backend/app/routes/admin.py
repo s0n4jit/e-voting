@@ -1103,22 +1103,21 @@ def delete_kiosk(kiosk_id):
         return jsonify({"error": "Kiosk terminal not found."}), 404
 
     election = kiosk.election or Election.current()
-    if election and election.is_active:
+    if election and (election.is_active or election.effective_status in ("ready", "voting_active", "voting_paused", "voting_closed")):
         return jsonify({
             "error": "Election active",
-            "message": f"Voting booth {kiosk.device_name} cannot be deleted while an election is actively ongoing. Please conclude or pause the election first, or revoke the booth session instead."
+            "message": f"Voting booth {kiosk.device_name} cannot be deleted while the election is in '{election.effective_status}' stage. Use 'Revoke' to reset the booth terminal instead."
         }), 409
 
     from app.models.booth_slip import BoothSlip
-    used_slips_count = BoothSlip.query.filter_by(
-        election_id=kiosk.election_id,
-        booth_number=kiosk.number,
-        is_used=True
+    slips_count = BoothSlip.query.filter(
+        BoothSlip.election_id == kiosk.election_id,
+        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number)
     ).count()
-    if used_slips_count > 0:
+    if slips_count > 0:
         return jsonify({
-            "error": "Votes already recorded",
-            "message": f"Voting booth {kiosk.device_name} cannot be deleted because {used_slips_count} ballot(s) have already been cast at this booth."
+            "error": "Slips exist",
+            "message": f"Voting booth {kiosk.device_name} cannot be deleted because voter slips have already been generated for it. Use 'Revoke' to reset the booth terminal instead."
         }), 409
 
     # Unlink any unused slips from this kiosk device id

@@ -82,11 +82,11 @@ export const KioskManager = () => {
     }
   };
 
-  // Delete booth machine (blocked if election is active or votes exist)
+  // Delete booth machine (blocked if election is ready/active or slips exist)
   const remove = async () => {
     if (!removing) return;
-    if (removing.election_is_active || removing.used_count > 0 || !removing.can_delete) {
-      toast.error('Cannot delete booth while an election is active or after votes have been cast.');
+    if (removing.election_is_active || removing.allotted_count > 0 || removing.used_count > 0 || !removing.can_delete) {
+      toast.error('Cannot delete booth while an election is ready/active or after slips have been created.');
       setRemoving(null);
       return;
     }
@@ -195,7 +195,7 @@ export const KioskManager = () => {
                   </thead>
                   <tbody>
                     {booths.map((b) => {
-                      const isLocked = b.election_is_active || b.used_count > 0 || !b.can_delete;
+                      const isLocked = b.election_is_active || b.allotted_count > 0 || b.used_count > 0 || !b.can_delete;
                       return (
                         <tr key={b.id} className="hover:bg-recessed/40 transition-colors">
                           <td>
@@ -393,15 +393,17 @@ export const KioskManager = () => {
       >
         {removing && (
           <div className="space-y-4">
-            {removing.election_is_active || removing.used_count > 0 || !removing.can_delete ? (
-              <div className="p-3.5 rounded-xl bg-bad/10 border border-bad/20 text-bad text-xs space-y-1">
+            {removing.election_is_active || removing.allotted_count > 0 || removing.used_count > 0 || !removing.can_delete ? (
+              <div className="p-3.5 rounded-2xl bg-bad/10 border border-bad/20 text-bad text-xs space-y-1">
                 <p className="font-bold flex items-center gap-1.5">
                   <LockClosedIcon className="w-4 h-4" />
-                  <span>Cannot Delete Active Booth</span>
+                  <span>Cannot Delete Booth During Election</span>
                 </p>
                 <p>
                   {removing.election_is_active
-                    ? 'This election is currently active. Booth machines cannot be deleted during an active election. You can use Revoke Session instead if you need to reconfigure the computer.'
+                    ? 'This election is currently configured and active/ready. Booth machines cannot be deleted during the election. You can use Revoke Session instead if you need to reconfigure or reconnect the computer.'
+                    : removing.allotted_count > 0
+                    ? `This booth already has ${removing.allotted_count} voter slips generated for it. Booths with assigned slips cannot be deleted.`
                     : `This booth has ${removing.used_count} recorded ballot(s). Booths with recorded votes cannot be deleted.`}
                 </p>
                 <div className="flex justify-end pt-2">

@@ -136,9 +136,10 @@ class KioskDevice(db.Model):
             from_slip_id = slips[0].voting_id if slips else None
             to_slip_id = slips[-1].voting_id if slips else None
 
-        election = self.election
-        is_active_election = bool(election and election.is_active)
-        can_del = bool(not is_active_election and used_count == 0)
+        from app.models.election import Election
+        election = self.election or Election.current()
+        is_active_election = bool(election and (election.is_active or election.effective_status in ("ready", "voting_active", "voting_paused", "voting_closed")))
+        can_del = bool(not is_active_election and allotted_count == 0 and used_count == 0)
 
         return {
             "id": self.id,
