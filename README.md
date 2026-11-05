@@ -15,27 +15,37 @@
 
 Campus E-Voting runs a complete student-union election on campus hardware:
 
-1. An **Election Officer** installs the portal with a first-run wizard, configures the election, positions, programmes and candidates, and controls the election lifecycle.
-2. **Desk Officers** register students. Each student gets an automatically generated **Voter Slip ID** (for example `SUE26-E1-483920`) and, when they come to vote, a single-use **voting PIN**.
-3. Students vote on **locked-down Ubuntu booths** that can only open one page. Votes are accepted only from booths approved by the Election Officer.
-4. Results stay hidden for everyone until the Election Officer publishes them, can be revealed one position at a time on a projector, and can optionally be shared through a public link.
+1. **Election Officer** installs the portal with a first-run wizard, configures the election, positions, and candidates (with 1:1 square photo cropping and full detail editing), and controls the election lifecycle.
+2. **Polling & Desk Workflow**:
+   - Polling Officer 1 verifies the physical Student ID Card.
+   - Polling Officer 2 records the student's physical signature on the official voter roll.
+   - Polling Officer 3 / Desk Officer hands the pre-printed voter slip containing the **Voter Slip ID** (e.g. `SUE26-E3-1001`) and **4-digit Voting PIN** (printed in high-density 6-per-A4 sheets with cut guides).
+3. **Voting Booth Terminal**:
+   - The student voter walks to the designated booth machine where the sequential Slip ID is already prefilled.
+   - The voter enters the 4-digit PIN using the on-screen virtual numpad with mouse.
+   - The system verifies the credentials, opens the ballot, prompts for a final review of choices, and casts the vote.
+   - The booth prints the **VVPAT** slip (timestamp, booth no, slip ID, candidate choices) which the student drops into the sealed physical ballot box before walking out.
+4. **Results & Audit**:
+   - Results stay strictly hidden until the Election Officer publishes them.
+   - Projector reveal with confetti presentation and downloadable verified PDF sheets.
+   - Real-time audit log with dedicated **Security & Attacks** monitoring (wrong PIN attempts, tamper detection, brute-force alerts).
 
 | Role | Does |
 |---|---|
-| Election Officer | Installs, configures, runs and closes the election, approves booths, publishes results |
-| Desk Officer | Registers students, checks voters in, issues PINs |
-| Voter | Enters slip ID and PIN at a booth, chooses candidates, reviews and submits |
+| Election Officer | Installs, configures lifecycle, manages candidates & booths, generates printable slips, monitors audit & security attacks, publishes results |
+| Desk Officer | Verifies physical voter rolls, issues pre-printed 6-per-A4 voter slips with 4-digit PINs |
+| Voter | Confirms prefilled slip ID, enters 4-digit PIN via virtual numpad, selects candidates, reviews, submits, drops VVPAT into ballot box |
 
 ## Highlights
 
-- **First-run installation wizard** (like CTFd): institution, logo (also used as the favicon), first officer, mandatory two-step verification, first election.
-- **Secret ballot**: who voted and what was chosen live in separate tables with no link between them. Duplicate votes are blocked in a locked database transaction.
-- **Booth security**: booth set-up needs a one-time token from the officer panel *and* the officer's authenticator code. Booth tokens are stored hashed, can be revoked instantly, and a booth serves only its own election.
-- **Election lifecycle enforced by the server**: Setup → Registration → Ready → Voting active → Voting closed → Results published → Archived. One election at a time.
-- **Results kept secret** until published; projector reveal with confetti; public link created and deleted by the officer.
-- **Audit log** of every important action, including the booth and session of each ballot.
-- Light and dark themes, responsive, keyboard accessible, `prefers-reduced-motion` respected.
-- Runs with **Docker Compose** on your own server and your own PostgreSQL. No dependency on any hosting account.
+- **First-run installation wizard**: institution, logo branding, first officer account, mandatory two-step verification (TOTP), initial election.
+- **Physical Roll & Pre-issued Slips**: printable A4 sheets with 6 slips per page, featuring college header branding, voting date, booth number, voter slip ID, 4-digit PIN, and cutting guides.
+- **Secret ballot with VVPAT**: who authenticated and what was chosen live in separate decoupled tables. The booth prints a physical paper verification audit trail.
+- **Booth security & unified lifecycle**: single contextual action (*Setup Code* when inactive, *Revoke* when connected). Booth setup requires officer TOTP authentication.
+- **Real-time attack detection**: logs and flags unauthorized booth access, wrong booth PIN attempts, token tampering, and rate-limit violations.
+- **Election lifecycle enforced by server**: Setup → Review / Registration → Ready → Voting active (with Pause/Resume) → Voting closed → Results published → Archived.
+- **Projector Results Reveal**: one position at a time on projector with winner declarations and printable certified result sheets.
+- **Runs with Docker Compose**: fully self-hosted PostgreSQL, Python Flask API, and React frontend. Zero cloud dependencies.
 
 ## Quick start (self-hosting)
 

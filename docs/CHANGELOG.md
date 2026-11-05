@@ -3,36 +3,24 @@
 Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Each version is a git tag (`v1.0.0`),
 a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONTRIBUTING.md#releases-and-versions).
 
-## Unreleased
-- Student registration: optional "Roll or enrollment no." (register form, edit, student list column and search, CSV export, optional `roll_no` column in the student import, shown on the voter slip and on the booth check screen). It is unique within an election when given.
-- Typography and wording: one rule across the app, sentence case for headings, buttons, labels, tabs and menus ("Desk officers", "Total records", "Voter slip ID"; role names and "voter slip ID" are lower case inside a sentence), one small-label style, and the same wording in server messages. The Registrations page is titled "Registrations of voter students" and no longer says "updates live". Election, candidate, desk officer and programme lists and the mock election card now refresh by themselves every few seconds, like the registrations, results, overview, audit log and booths pages.
-- Voting booth: on-screen number pad next to the Voter slip ID and Voting PIN fields for booths with only a mouse or touch screen. It types into the field being filled, moves on to the PIN after the 6 slip digits, and has Clear and Delete keys. The physical keyboard still works.
-- Results (officer panel): new layout with the Print result sheet button first, a letterhead header with the logo, a declared-results board and a card per position with vote counts and NOTA. The printed sheet is now a letter on the college letterhead (logo, name, ruled lines, turnout box, declared results, votes by position, signature lines for the Election Officer, Returning Officer and Principal, and a footer on every page).
-- Officer panel (Voting booths → Setup guide): "Booth app" section with download buttons (Windows .exe, Ubuntu .deb, Linux AppImage) and the setup steps; the Booth app workflow publishes them as the release `booth-app-latest`.
-- Booth app (`booth-app/`) also saves every vote copy as a PDF and writes PDFs by itself for the "Microsoft Print to PDF" printer (no file-name prompt); "Open saved receipts" in the maintenance screen.
-- Booth app for Windows and Linux (`booth-app/`): setup screen for the portal address and printer, full-screen locked voting page, silent printing with the vote copy saved on the computer, and exit only with the Election Officer's authenticator code (Ctrl+Alt+Shift+Q). Built by the "Booth app" GitHub workflow. See docs/BOOTH_APP.md.
-- Lab PC installer fixes: the `evote` user is created reliably (the generated password no longer aborts the script), the browser lock applies to the `evote` user only (own profile with a proxy rule) so the administrator's Firefox is unrestricted, and a port in the portal address works.
-- Lab PC installer: no automatic sign-in by default (choose the user on the login screen; `AUTOLOGIN=yes` or `sudo evote autologin on` turns it on), the lock-down applies to the `evote` user only so the administrator keeps a normal desktop, and vote copies are saved in the administrator's private folder `~/.evote-receipts`.
-- The bootable Booth OS image was removed (the booth app and the lab-PC installer replace it).
-- Booth printing: after a vote the booth agent saves the receipt on the booth machine's disk and prints it silently through CUPS; officer settings for printing; `evote` maintenance commands (reboot, restart browser, network, printer, receipts); a setup page. See docs/BOOTH_PRINTING.md.
-- Results: each position lists every candidate with the actual vote count ("6 votes out of 12") and a NOTA row; no bars or percentages.
-- Mock election: the officer sees live results (counts per candidate) while the mock runs, and can close, publish and check the results before ending it.
-- Settings: "Mock election". With the election in the Ready stage the officer can start a mock (practice) run with the real set-up. Ending it ("RESET") deletes the ballots, PINs and audit entries recorded since it started, resets every voter and returns the election to Ready. A banner shows while a mock is running.
-- Voting booth: candidate cards read "Student of Department of ..., Semester ..." in bold; the Enter key moves to the next position once a choice is made (and opens the submit prompt on the review screen).
-- Voting booth: NOTA is a full-size card with an icon; candidate cards show department and semester (new optional "Semester / year" field for candidates) and line up evenly; "View profile" removed; the printed vote copy no longer shows the voter name.
-- Registrations: a student shows "Active" only while at a booth. "This is not me", the idle reset or leaving the booth sets the status back to "PIN issued"; the list refreshes every 2 seconds.
-- Voting booth: after the vote is recorded the booth prints a vote copy (Voter Slip ID, name and the choice for each position) for the voter to check and drop into the physical box.
-- PINs are no longer issued automatically (registering or importing students makes none). The officer issues them with "Issue PINs" (everyone) or "Issue PIN" (one student). Statuses: No PIN yet, PIN issued, Active (entered the PIN at a booth, not voted yet), Voted.
-- Registrations: "Issue PINs" gives every student without a PIN one and prints the slips of everyone who has not voted. Printing no longer includes the open dialog.
+## 1.4.0 — 2026-11-06
 
-- PINs have no time limit: a PIN stays valid until it is re-issued, the student votes, or voting closes (5 wrong entries at the booth still cancel it).
-- Registrations: clicking a student shows the details and PIN controls on the left and the printable voter slip on the right. "Issue PIN" creates the PIN and shows it; "Reissue new PIN" replaces it. Print only prints the slip.
-
-- Slips can be printed again with the student's current PIN (Registrations → student → Show voter slip). The PIN is kept encrypted and viewing it is audited; a used or locked PIN is not shown. At the booth, after the slip ID and PIN are accepted, the student's name, programme and semester are shown to confirm ("This is me" / "This is not me") before the ballot.
-- Printing: slips, slip sheets and results now print through one clean print layout (black on white, one page for one slip, no browser header or footer lines). A slip printed after **Issue new PIN** carries the PIN; slips for existing students cannot show a PIN that was issued earlier (PINs are stored hashed), so issue a new one to print it.
-- **Pre-issued voting PINs** (per Rajdeep Sir): every student gets a voting PIN when registered (desk, student-list import, or the installation wizard), printed on the slip together with the Voter Slip ID, valid until used or until voting closes (no 20-minute limit and no check-in step). Slips and PINs can be handed out before the election. Imports and the wizard offer **Print slips** and a CSV with the PINs; a lost PIN is replaced at the desk.
-- Registrations belong to the election: the Registrations list, its export, the duplicate check and student-list imports only look at the current election's students (slip IDs carry the election, e.g. SUE26-E1-). Before voting opens the Election Officer can **Remove all** students of the election (type DELETE).
-- Positions: President is added, and the standard list follows the 2026-27 Students' Union election notice (President, Vice President, General Secretary, Assistant General Secretary, Cultural Secretary, Magazine Secretary, Major Games Secretary, Minor Games Secretary, Boys' and Girls' Common Room Secretary). The installation wizard starts with this list. Positions can be added, removed and **reordered** (arrows) in the wizard and in Edit election; the ballot and the results follow that order.
+- **Physical Voter Roll & 6-per-A4 Printable Slips**:
+  - Pre-issued voter slip generator prints high-density sheets with 6 slips per A4 page (2 columns × 3 rows) with cutting guides.
+  - Each slip includes College name branding, Election title, Voting date, Booth number, Voter Slip ID, large 4-digit PIN, and revised voter instruction text: *"Keep this slip and the PIN secret. At the voting booth, enter the slip ID and this PIN to vote once."*
+  - Upper dropdown selector to download printable slips for `All Booths` or any specific `Booth`.
+- **Candidate Details Editing & 1:1 Cropper**:
+  - Full edit support for candidate name, position, department, semester, bio, and optional photo update.
+  - Image cropper modal locked to clean 1:1 square ratio (800×800 canvas) across candidate uploads.
+- **Unified Booth Setup & Revoke Lifecycle**:
+  - Merged separate setup code and revoke controls into a single contextual action: displays **Setup Code** when terminal is unconfigured, and **Revoke** when connected (revoking the active session and generating fresh setup credentials).
+- **Security & Tamper Attack Audit Logging**:
+  - Real-time attack detection logging for unauthorized booth access (`UNAUTHORIZED_BOOTH_ATTEMPT`), wrong booth PIN entries (`PIN_BRUTE_FORCE`), setup token failures (`BOOTH_SETUP_FAILED`), and session tampering (`TAMPER_DETECTED`).
+  - Redesigned Audit Log UI with a dedicated **Security & Attacks** metric card, rose badges, and tamper details inspection.
+  - Ballots cast metric on the audit log page strictly reflects live used slips in the current election.
+- **Workflow & UI Reorganization**:
+  - Reordered sidebar navigation to place Desk Officers immediately after Vote Receipts.
+  - Removed legacy student registration inputs in favor of official physical roll and pre-issued booth slips.
 
 ## 1.3.0 — 2026-11-01
 

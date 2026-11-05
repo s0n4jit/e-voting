@@ -11,34 +11,36 @@ This page describes what the system protects, how, and what is left to the opera
 
 ## How the ballot stays secret
 
-- `voter_records` says *who* has voted in an election (a SHA-256 hash derived from the voter slip ID, and a flag). It never references a candidate.
-- `ballot_entries` says *what* was chosen, under a random blind token, with no user id.
-- The ballot is written and the voter marked as having voted in **one transaction** with a row lock on the voter record, so two simultaneous submissions result in exactly one ballot (verified on PostgreSQL).
-- The audit log records that a ballot was cast, at which booth and session, never what was chosen.
+- `booth_slips` manages the physical voter slip credential (`voting_id`, salted hash of 4-digit PIN, booth association, status). It never references candidate choices.
+- `ballot_entries` stores the actual choices under a random blind token, with no voter identity or student name.
+- When a vote is submitted at a booth, the slip is marked as used and the ballot entries are written in **one locked database transaction**.
+- The audit log records that a ballot was cast at the designated booth and session, never what was chosen.
+- A physical paper **VVPAT** (Voter Verifiable Paper Audit Trail) slip is printed and dropped into a locked ballot box for auditability and manual recount verification.
 
-Known limitation: a ballot row carries the time the ballot was cast, and the voter's record carries the same time. Someone with direct database access could correlate them. Restrict database access and backups accordingly.
+## Authentication, Tamper & Attack Detection
 
-## Authentication and sessions
-
-- Staff sign in with email or username and a password (bcrypt). **Two-step verification (TOTP) is mandatory for Election Officers** and optional for Desk Officers.
-- Staff sessions: a 15-minute access token that the app renews silently while the person is working, a **15-minute idle sign-out** with a one-minute warning, and a **12-hour hard cap** (then sign in again). Signing out revokes both tokens, and the list of revoked tokens is stored in the database, so a server restart does not bring them back. Deactivating or deleting an account ends its sessions on the next request.
-- Rate limits: sign-in 10/min, voter PIN login 30/min, booth set-up 5/min, password change 5/min, per address. A voter's PIN is cancelled after 5 wrong entries. PINs are created with the slip, hashed (bcrypt; a lower cost for bulk imports so a large list stays quick) and valid until used or until voting closes, so slips can be handed out before the election; a copy of the PIN is also kept encrypted (key derived from `SECRET_KEY`) so that the desk can print the slip again until the PIN is used. Viewing it is recorded in the audit log, and it is no longer available once the PIN is used or locked, or if the secret key is changed.
-- Passwords can be changed in the profile with the current password, or reset with an authenticator code. If an account has no two-step verification, an Election Officer resets a Desk Officer's password, and the operator can run `python backend/manage.py set-password <username>`. A lost authenticator is reset by the operator with `python backend/manage.py reset-2fa <username>`.
+- Staff sign in with email or username and password (bcrypt). **Two-step verification (TOTP) is mandatory for Election Officers**.
+- Staff sessions: 15-minute access token silently renewed, **15-minute idle sign-out** with warning, and a **12-hour hard cap**.
+- **Real-Time Attack Logging**:
+  - `UNAUTHORIZED_BOOTH_ATTEMPT`: Triggered when an unauthenticated device attempts to call booth endpoints without an authorized token.
+  - `PIN_BRUTE_FORCE`: Recorded when an incorrect 4-digit PIN is entered at a booth terminal (logged with terminal name and source IP).
+  - `BOOTH_SETUP_FAILED`: Flagged when an invalid setup token or wrong officer TOTP code is entered during terminal configuration.
+  - `TAMPER_DETECTED` & `TAMPERED_BALLOT_REJECTED`: Detects altered ballot signatures, mismatching terminal session tokens, or replay attempts.
+- **Audit Categorization**: Audit logs are grouped into `Security & Tamper Attacks`, `Ballots Cast`, `Voter Slips & Credentials`, `Booths & Terminals`, `Election Lifecycle`, `Sign-ins & 2FA`, and `Admin & Settings`.
 
 ## Who can do what
 
 | Action | Election Officer | Desk Officer | Voter |
 |---|---|---|---|
-| Install, configure, lifecycle, candidates, programmes, booths, results, audit | yes | no | no |
-| Register students, check in, issue PIN slips | yes | yes | no |
-| Cast a ballot | no | no | yes, only at an authorised booth |
+| Install, configure lifecycle, candidates, booths, slips, audit, security alerts, results | yes | no | no |
+| Issue pre-printed slips, verify physical voter roll | yes | yes | no |
+| Cast a ballot | no | no | yes, only at an authorized booth terminal |
 
 ## Voting booths
 
-- A booth is set up with a one-time token from the officer panel **and** the officer's authenticator code. Only a hash of the booth token is stored.
-- PIN login, loading the ballot and casting it all require a valid booth token; the voting session must have started at that same booth; the booth must belong to the election.
-- Deleting a booth revokes it immediately. A booth stops working when its election is archived.
-- The booth browser is locked by an enterprise policy that allows only `/kiosk/vote…`.
+- A booth is set up with a one-time setup code generated from the officer panel **and** the officer's live TOTP authenticator code.
+- Booth Manager provides a single merged action: displays **Setup Code** when disconnected, and **Revoke** when connected (which revokes active credentials and immediately generates fresh pairing tokens).
+- The booth terminal operates in full-screen lockdown mode with on-screen virtual numpad and sequential slip progression.
 
 ## Results
 
