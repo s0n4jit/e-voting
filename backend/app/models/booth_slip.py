@@ -101,16 +101,19 @@ class BoothSlip(db.Model):
             return False
 
     @classmethod
-    def get_current_slip(cls, election_id: int, booth_number: int):
+    def get_current_slip(cls, election_id: int, booth_number: int = None, booth_id: int = None):
         """
         Retrieves the earliest unused sequential voting slip for a specific booth.
         Returns None if all slips for this booth are exhausted.
         """
-        return (
-            cls.query.filter_by(election_id=election_id, booth_number=booth_number, is_used=False)
-            .order_by(cls.sequence_number.asc())
-            .first()
-        )
+        q = cls.query.filter_by(election_id=election_id, is_used=False)
+        if booth_id is not None and booth_number is not None:
+            q = q.filter((cls.booth_id == booth_id) | (cls.booth_number == booth_number))
+        elif booth_id is not None:
+            q = q.filter_by(booth_id=booth_id)
+        elif booth_number is not None:
+            q = q.filter_by(booth_number=booth_number)
+        return q.order_by(cls.sequence_number.asc()).first()
 
     @classmethod
     def generate_batch(cls, election_id: int, booth_number: int = None, count: int = 50, booth_id: int = None):

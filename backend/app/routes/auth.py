@@ -598,10 +598,10 @@ def voter_session_end():
 
 
 @auth_bp.post("/voter-verify-slip")
-@limiter.exempt
+@limiter.limit("30 per minute")
 def voter_verify_slip():
     """
-    Silent real-time verification of a voter slip ID at the booth.
+    Real-time verification of a voter slip ID at an authorized booth.
     Checks whether the voter slip exists, belongs to the election, has not already voted,
     and has an active voting PIN.
     """
@@ -610,21 +610,17 @@ def voter_verify_slip():
     election_id = payload.get("election_id")
     kiosk_token = sanitize_input(payload.get("kiosk_token") or request.headers.get("X-Kiosk-Token"))
 
+    if not kiosk_token:
+        return jsonify({"valid": False, "reason": "unauthorized", "message": "Booth authorization required."}), 403
+
+    is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
+    if not is_kiosk_valid or not kiosk_device:
+        return jsonify({"valid": False, "reason": "unauthorized", "message": "Invalid or revoked booth token."}), 403
+
     if not student_id:
         return jsonify({"valid": False, "reason": "empty"}), 400
 
-    # Resolve election
-    election = None
-    if kiosk_token:
-        is_kiosk_valid, kiosk_device = KioskDevice.verify_token(kiosk_token)
-        if is_kiosk_valid and kiosk_device and kiosk_device.election:
-            election = kiosk_device.election
-
-    if not election and election_id:
-        election = db.session.get(Election, election_id)
-    if not election:
-        election = Election.current()
-
+    election = kiosk_device.election or (db.session.get(Election, election_id) if election_id else Election.current())
     if not election:
         return jsonify({"valid": False, "reason": "no_election"}), 400
 
@@ -857,7 +853,13 @@ def booth_pin_login():
         return jsonify({"error": "Voting paused", "message": "Voting is temporarily paused. Please wait for the election officer."}), 403
 
     # Resolve active sequential slip for this booth
-    current_slip = BoothSlip.get_current_slip(election.id, kiosk_device.number)
+    current_slip = (
+        BoothSlip.query.filter_by(election_id=election.id, booth_id=kiosk_device.id, is_used=False)
+        .order_by(BoothSlip.sequence_number.asc())
+        .first()
+    )
+    if not current_slip:
+        current_slip = BoothSlip.get_current_slip(election.id, kiosk_device.number, booth_id=kiosk_device.id)
     if not current_slip:
         return jsonify({
             "error": "Slips exhausted",

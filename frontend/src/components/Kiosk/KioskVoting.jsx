@@ -216,7 +216,7 @@ const VoteReceipt = ({ receipt }) => {
                   display: 'block',
                 }}
               >
-                Voter Slip ID
+                Ballot Ref
               </span>
               <span
                 className="receipt-slip-id"
@@ -228,7 +228,7 @@ const VoteReceipt = ({ receipt }) => {
                   color: '#0f172a',
                 }}
               >
-                {receipt.slip}
+                {receipt.receipt_ref || receipt.slip}
               </span>
             </div>
             <div style={{ color: '#475569', fontWeight: 500 }}>
@@ -670,7 +670,7 @@ export const KioskVoting = () => {
     });
     const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
     try {
-      await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
+      const [castRes] = await Promise.all([voterApi.castMultiPositionBallot(electionId, selections, kioskToken), minimum]);
       // Ballot safely recorded on server: clear voter session from storage immediately so refreshes never re-open ballot
       ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
       const cachedBrand = (() => {
@@ -692,8 +692,15 @@ export const KioskVoting = () => {
         branding.institution_name ||
         cachedBrand.institution_name ||
         '';
+      const ballotRef =
+        castRes?.receipt_ref ||
+        castRes?.data?.receipt_ref ||
+        (castRes?.blind_token ? `VOTE-${castRes.blind_token.slice(0, 8).toUpperCase()}` : '') ||
+        (castRes?.data?.blind_token ? `VOTE-${castRes.data.blind_token.slice(0, 8).toUpperCase()}` : '') ||
+        'VERIFIED';
       setReceipt({
-        slip: activeVotingId || voter.student_id,
+        slip: ballotRef,
+        receipt_ref: ballotRef,
         election: election.title,
         election_id: election.id,
         booth: activeBoothId,
@@ -741,6 +748,18 @@ export const KioskVoting = () => {
         <div className="max-w-6xl mx-auto px-4 h-12 sm:h-14 flex items-center justify-between gap-4">
           <BrandMark />
           <div className="flex items-center gap-3">
+            {isMock && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-xs tracking-wider uppercase select-none"
+                title="Mock election is running. All test ballots are purged when the mock ends."
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+                <span className="font-extrabold">Mock Election</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-surface border border-line text-xs font-mono font-bold text-fg shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{activeBoothId}</span>

@@ -52,6 +52,7 @@ export const KioskLogin = () => {
   const boothId = info?.booth_id || localStorage.getItem('kiosk_name') || `BOOTH-${String(boothNumber).padStart(2, '0')}`;
   const currentVotingId = info?.current_voting_id || null;
   const isExhausted = Boolean(info?.is_exhausted);
+  const isMock = Boolean(info?.is_mock || election?.is_mock);
 
   const submitWithPin = useCallback(async (pinValue) => {
     if (!pinValue || pinValue.length !== 4 || busy) return;
@@ -137,6 +138,18 @@ export const KioskLogin = () => {
       <header className="flex items-center justify-between px-6 py-4">
         <BrandMark />
         <div className="flex items-center gap-3">
+          {isMock && (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-xs tracking-wider uppercase select-none"
+              title="Mock election is running. All test ballots are purged when the mock ends."
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              <span className="font-extrabold">Mock Election</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-surface border border-line text-xs font-mono font-bold text-fg shadow-2xs">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-brand font-black">{boothId}</span>
@@ -151,6 +164,12 @@ export const KioskLogin = () => {
         <div className="w-full max-w-4xl animate-page-in">
           {/* Election Title */}
           <div className="mb-6 text-center">
+            {isMock && (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 mb-2.5 uppercase tracking-widest shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Mock Election · Practice Run
+              </div>
+            )}
             <h1 className="text-3xl font-black tracking-tight text-fg">Enter Voting PIN</h1>
             {election === undefined ? (
               <div className="skeleton h-5 w-56 mx-auto mt-3" />
@@ -186,8 +205,8 @@ export const KioskLogin = () => {
                 {election && !open && (
                   <p className="text-sm text-warn bg-warn-soft rounded-xl px-3.5 py-2.5 font-medium" role="status">
                     {election.paused
-                      ? 'Voting is paused for a short while. Please wait for the officer to resume it.'
-                      : 'Voting is not open at the moment. Please check with the desk.'}
+                      ? (isMock ? 'Mock election voting is paused. Please wait for the officer to resume it.' : 'Voting is paused for a short while. Please wait for the officer to resume it.')
+                      : (isMock ? 'Mock election is not currently open for voting. Please check with the desk.' : 'Voting is not open at the moment. Please check with the desk.')}
                   </p>
                 )}
 
@@ -197,7 +216,7 @@ export const KioskLogin = () => {
                     Your Voting ID
                   </span>
                   <div className="font-mono text-3xl font-black text-brand tracking-wider">
-                    {currentVotingId || 'Loading…'}
+                    {currentVotingId || (booth === 'ready' ? (isExhausted ? 'All Slips Used' : (info?.has_slips === false ? 'No Slips Available' : 'Waiting for Slip…')) : 'Loading…')}
                   </div>
                   <p className="text-[11px] text-muted mt-1.5">
                     Verify that your paper slip displays this exact ID.
