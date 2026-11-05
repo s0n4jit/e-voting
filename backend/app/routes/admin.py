@@ -435,10 +435,16 @@ def get_audit_logs():
     actor_ids = {log.user_id for log in logs if log.user_id}
     actors = {u.id: u for u in User.query.filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
 
-    # Calculate summary metrics
+    # Calculate summary metrics (ballots cast matches actual used voter slips for current election)
+    cur_election = Election.current()
+    if cur_election:
+        actual_ballots = BoothSlip.query.filter_by(election_id=cur_election.id, is_used=True).count()
+    else:
+        actual_ballots = BoothSlip.query.filter_by(is_used=True).count()
+
     stats = {
         "total_records": AuditLog.query.count(),
-        "ballots_cast": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("ballot", []))).count(),
+        "ballots_cast": actual_ballots,
         "pins_issued": AuditLog.query.filter(AuditLog.action.in_(["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"])).count(),
         "security_alerts": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("security", []))).count(),
         "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("booth", []))).count(),

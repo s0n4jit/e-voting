@@ -171,7 +171,7 @@ const ReceiptManager = () => {
         <div>
           <h2 className="text-2xl font-black text-fg tracking-tight flex items-center gap-2">
             <CheckBadgeIcon className="w-7 h-7 text-brand" />
-            Vote Receipts & Audit
+            Vote Receipts
           </h2>
           <p className="text-xs text-muted mt-1">
             Centrally stored voter receipts received in real-time from all voting booth terminals.

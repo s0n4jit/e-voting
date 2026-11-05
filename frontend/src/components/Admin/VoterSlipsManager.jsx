@@ -39,6 +39,7 @@ export const VoterSlipsManager = () => {
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadBoothTarget, setDownloadBoothTarget] = useState('all');
   const [cancellingSlip, setCancellingSlip] = useState(null);
   const [cancellingBusy, setCancellingBusy] = useState(false);
 
@@ -264,19 +265,42 @@ export const VoterSlipsManager = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Voter Slips & Credentials"
+        title="Voter Slips"
         subtitle="Generate and manage pre-issued voter slips, sequential IDs, and printable A4 PDF sheets for each booth."
         actions={
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              disabled={downloadingPdf || !metrics?.total_generated}
-              onClick={handleDownloadAllPdf}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <ArrowDownTrayIcon className="w-4 h-4" />
-              <span>{downloadingPdf ? 'Building PDF…' : 'Download All Slips PDF'}</span>
-            </button>
+            <div className="inline-flex items-center">
+              <select
+                aria-label="Select booth to download slips"
+                value={downloadBoothTarget}
+                onChange={(e) => setDownloadBoothTarget(e.target.value)}
+                className="input input-sm py-1.5 pl-2.5 pr-8 text-xs font-semibold rounded-r-none border-r-0 bg-surface focus:z-10"
+                disabled={downloadingPdf || !metrics?.total_generated}
+              >
+                <option value="all">All Booths (All Slips)</option>
+                {availableBooths.map((b) => (
+                  <option key={b.id || b.number} value={b.number}>
+                    {b.booth_id || `Booth ${b.number}`}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={downloadingPdf || !metrics?.total_generated}
+                onClick={() => {
+                  if (downloadBoothTarget === 'all') {
+                    handleDownloadAllPdf();
+                  } else {
+                    handleDownloadBoothPdf(Number(downloadBoothTarget));
+                  }
+                }}
+                className="btn-secondary btn-sm rounded-l-none flex items-center gap-1.5 shrink-0"
+                title="Download printable slips PDF for selected booth or all booths"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4" />
+                <span>{downloadingPdf ? 'Building PDF…' : 'Download Slips PDF'}</span>
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -516,16 +540,6 @@ export const VoterSlipsManager = () => {
                           <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                           <span>Slip PDF</span>
                         </button>
-                        {s.booth_number ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadBoothPdf(s.booth_number)}
-                            className="btn-ghost btn-sm text-muted hover:text-fg flex items-center gap-1"
-                            title={`Download printable PDF for Booth ${s.booth_number}`}
-                          >
-                            <span>Booth PDF</span>
-                          </button>
-                        ) : null}
                       </div>
                     </td>
                   </tr>
