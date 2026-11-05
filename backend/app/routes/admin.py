@@ -1748,3 +1748,23 @@ def list_booth_slips():
             "total_unused": total_unused,
         }
     }), 200
+
+
+@admin_bp.delete("/booths/slips")
+@admin_required
+def purge_all_booth_slips():
+    """Purge all generated booth slips for the election."""
+    election_id = request.args.get("election_id", type=int)
+    election = db.session.get(Election, election_id) if election_id else Election.current()
+    if not election:
+        return jsonify({"error": "No election found."}), 404
+
+    # Disallow purging slips if voting is actively running and not a mock run
+    if election.is_active and not election.is_mock:
+        return jsonify({"error": "Cannot purge slips while real election voting is actively open."}), 409
+
+    from app.models.booth_slip import BoothSlip
+    count = BoothSlip.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+    _audit("SLIPS_PURGED", f"Purged all {count} voter slips for election '{election.title}'.")
+    db.session.commit()
+    return jsonify({"message": f"Successfully purged {count} voter slips.", "deleted_count": count}), 200

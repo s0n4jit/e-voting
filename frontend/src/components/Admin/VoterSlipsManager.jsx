@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   TicketIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, TableSkeleton, errorMessage } from '../ui';
@@ -37,6 +38,22 @@ export const VoterSlipsManager = () => {
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
+
+  const handlePurgeAllSlips = async () => {
+    setPurging(true);
+    try {
+      const res = await adminApi.purgeBoothSlips();
+      toast.success(res.message || 'All voter slips purged successfully.', { id: 'purge-slips' });
+      setPurgeModalOpen(false);
+      await Promise.all([fetchMetrics(), fetchSlips(false)]);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to purge slips.'), { id: 'purge-slips' });
+    } finally {
+      setPurging(false);
+    }
+  };
 
   const fetchKiosks = useCallback(async () => {
     try {
@@ -249,6 +266,17 @@ export const VoterSlipsManager = () => {
         subtitle="Generate and manage pre-issued voter slips, sequential IDs, and printable A4 PDF sheets for each booth."
         actions={
           <div className="flex items-center gap-2.5">
+            {metrics?.total_generated > 0 && (
+              <button
+                type="button"
+                onClick={() => setPurgeModalOpen(true)}
+                className="btn-danger flex items-center gap-1.5"
+                title="Purge all generated voter slips"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>Purge Slips</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={downloadingPdf || !metrics?.total_generated}
@@ -527,6 +555,41 @@ export const VoterSlipsManager = () => {
           </div>
         )}
       </div>
+
+      {/* Purge Confirmation Modal */}
+      <Modal
+        isOpen={purgeModalOpen}
+        onClose={() => !purging && setPurgeModalOpen(false)}
+        title="Purge All Voter Slips?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-fg">
+            Are you sure you want to purge all <strong>{metrics?.total_generated || 0}</strong> voter slips generated for this election?
+          </p>
+          <p className="text-xs text-muted">
+            This will permanently remove all unused and used slips, resetting booth slip counts. You can regenerate new batches of slips afterwards.
+          </p>
+          <div className="flex justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={purging}
+              onClick={() => setPurgeModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-danger flex items-center gap-1.5"
+              disabled={purging}
+              onClick={handlePurgeAllSlips}
+            >
+              <TrashIcon className="w-4 h-4" />
+              <span>{purging ? 'Purging…' : 'Yes, Purge Slips'}</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal for Slips Generation */}
       <Modal

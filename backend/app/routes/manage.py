@@ -220,8 +220,9 @@ def start_mock(election_id):
 @manage_bp.post("/elections/<int:election_id>/mock/end")
 @admin_required
 def end_mock(election_id):
-    """End the mock: remove its ballots, PINs and log entries, reset every voter, and return to Ready."""
+    """End the mock: remove its ballots, PINs, voter slips and log entries, reset every voter, and return to Ready."""
     from app.models.ballot_entry import BallotEntry
+    from app.models.booth_slip import BoothSlip
 
     election = db.session.get(Election, election_id)
     if not election:
@@ -233,6 +234,7 @@ def end_mock(election_id):
     ballots = BallotEntry.query.filter_by(election_id=election.id).delete(synchronize_session=False)
     voted = VoterRecord.query.filter_by(election_id=election.id).update({"has_voted": False, "voted_at": None})
     pins = VotingToken.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+    slips = BoothSlip.query.filter_by(election_id=election.id).delete(synchronize_session=False)
     try:
         from app.services.receipt_service import ReceiptService
         ReceiptService.clear_mock_receipts(election_id=election.id)
@@ -244,7 +246,7 @@ def end_mock(election_id):
     election.mock_started_at = None
     election.public_token = None
     # one line is kept so the dry run itself stays accountable; nothing of what it recorded remains
-    _audit("MOCK_RESET", f"A mock election was run and reset: {ballots} ballot rows, {pins} PINs and {logs} log entries removed; {voted} voters reset.")
+    _audit("MOCK_RESET", f"A mock election was run and reset: {ballots} ballot rows, {pins} PINs, {slips} voter slips and {logs} log entries removed; {voted} voters reset.")
     db.session.commit()
     return jsonify(election.to_dict()), 200
 

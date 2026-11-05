@@ -59,7 +59,7 @@ export default function MockElection() {
       )}
       <Modal isOpen={ending} onClose={() => setEnding(false)} title="End the mock election?">
         <div className="space-y-4">
-          <p className="text-sm">This deletes all mock ballots, PINs issued and log entries since the mock started, and returns the election to Ready. Students stay registered but must be given new PINs. This cannot be undone.</p>
+          <p className="text-sm">This deletes all mock ballots, PINs, voter slips, and log entries since the mock started, and returns the election to Ready. Students stay registered but must be given new PINs. This cannot be undone.</p>
           <input className="input" placeholder="Type RESET" value={word} onChange={(e) => setWord(e.target.value)} aria-label="Type RESET to confirm" />
           <div className="flex justify-end gap-2">
             <button className="btn-ghost" onClick={() => setEnding(false)}>Cancel</button>
