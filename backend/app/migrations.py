@@ -38,6 +38,7 @@ _COLUMNS = [
     ("booth_create_tokens", "from_slip_id", "VARCHAR(30)"),
     ("booth_create_tokens", "to_slip_id", "VARCHAR(30)"),
     ("booth_create_tokens", "slips_count", "INTEGER"),
+    ("booth_slips", "authenticated_at", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 

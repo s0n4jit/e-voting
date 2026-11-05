@@ -1328,10 +1328,34 @@ def get_booths_slips_metrics():
             "total_booths": 0,
             "total_generated": 0,
             "total_used": 0,
+            "total_active": 0,
             "total_unused": 0,
             "completion_rate": 0.0,
             "booths": [],
         }), 200
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    # Active kiosks and active slips
+    active_kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+    active_booth_numbers = {k.number for k in active_kiosks if k.number is not None}
+    active_slip_ids = set()
+    for k in active_kiosks:
+        cur = BoothSlip.get_current_slip(election.id, k.number)
+        if cur:
+            active_slip_ids.add(cur.id)
+
+    recent_auth_slips = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.is_used == False,
+        BoothSlip.authenticated_at != None,
+    ).all()
+    for s in recent_auth_slips:
+        if s.authenticated_at:
+            auth_t = s.authenticated_at if s.authenticated_at.tzinfo else s.authenticated_at.replace(tzinfo=timezone.utc)
+            if (now - auth_t).total_seconds() < 20 * 60:
+                active_slip_ids.add(s.id)
 
     # Get all booth numbers from registered kiosks and existing booth slips
     kiosk_numbers = {k.number for k in KioskDevice.query.filter_by(election_id=election.id).all() if k.number is not None}
@@ -1354,10 +1378,13 @@ def get_booths_slips_metrics():
         slips_query = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num)
         total_for_booth = slips_query.count()
         used_for_booth = slips_query.filter_by(is_used=True).count()
-        unused_for_booth = total_for_booth - used_for_booth
 
-        current_slip = BoothSlip.get_current_slip(election.id, b_num)
-        current_id = current_slip.voting_id if current_slip else ("Exhausted" if total_for_booth > 0 else "None")
+        cur_slip = BoothSlip.get_current_slip(election.id, b_num)
+        cur_id = cur_slip.voting_id if cur_slip else ("Exhausted" if total_for_booth > 0 else "None")
+
+        is_b_active = b_num in active_booth_numbers
+        active_for_booth = 1 if (is_b_active and cur_slip and cur_slip.id in active_slip_ids) else 0
+        unused_for_booth = max(0, total_for_booth - used_for_booth - active_for_booth)
 
         rate = round((used_for_booth / total_for_booth * 100), 1) if total_for_booth > 0 else 0.0
 
@@ -1366,8 +1393,9 @@ def get_booths_slips_metrics():
             "booth_id": f"BOOTH-{b_num:02d}",
             "total_slips": total_for_booth,
             "used_slips": used_for_booth,
+            "active_slips": active_for_booth,
             "unused_slips": unused_for_booth,
-            "current_voting_id": current_id,
+            "current_voting_id": cur_id,
             "progress_rate": rate,
         })
         total_gen += total_for_booth
@@ -1390,6 +1418,7 @@ def get_booths_slips_metrics():
             "booth_id": "Unassigned Pool",
             "total_slips": unassigned_count,
             "used_slips": unassigned_used,
+            "active_slips": 0,
             "unused_slips": unassigned_count - unassigned_used,
             "current_voting_id": "Allot at booth setup",
             "progress_rate": 0.0,
@@ -1398,7 +1427,8 @@ def get_booths_slips_metrics():
     # Exact total from all slips
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
     total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
-    total_unused = total_gen - total_used
+    total_active = len(active_slip_ids)
+    total_unused = max(0, total_gen - total_used - total_active)
     overall_rate = round((total_used / total_gen * 100), 1) if total_gen > 0 else 0.0
 
     return jsonify({
@@ -1407,6 +1437,7 @@ def get_booths_slips_metrics():
         "total_booths": len(distinct_nums),
         "total_generated": total_gen,
         "total_used": total_used,
+        "total_active": total_active,
         "total_unused": total_unused,
         "completion_rate": overall_rate,
         "booths": booth_stats,
@@ -1660,6 +1691,28 @@ def list_booth_slips():
     if not election:
         return jsonify({"items": [], "total": 0, "pages": 1, "page": 1}), 200
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    # Active kiosks and active slips
+    active_kiosks = KioskDevice.query.filter_by(election_id=election.id, is_active=True).all()
+    active_slip_ids = set()
+    for k in active_kiosks:
+        cur = BoothSlip.get_current_slip(election.id, k.number)
+        if cur:
+            active_slip_ids.add(cur.id)
+
+    recent_auth_slips = BoothSlip.query.filter(
+        BoothSlip.election_id == election.id,
+        BoothSlip.is_used == False,
+        BoothSlip.authenticated_at != None,
+    ).all()
+    for s in recent_auth_slips:
+        if s.authenticated_at:
+            auth_t = s.authenticated_at if s.authenticated_at.tzinfo else s.authenticated_at.replace(tzinfo=timezone.utc)
+            if (now - auth_t).total_seconds() < 20 * 60:
+                active_slip_ids.add(s.id)
+
     query = BoothSlip.query.filter_by(election_id=election.id)
 
     booth_num_raw = request.args.get("booth_number")
@@ -1672,8 +1725,20 @@ def list_booth_slips():
         except ValueError:
             pass
 
+    status_filter = request.args.get("status") or request.args.get("statusFilter")
     is_used = request.args.get("is_used")
-    if is_used is not None and is_used != "":
+    if status_filter:
+        sf = status_filter.lower().strip()
+        if sf == "used":
+            query = query.filter(BoothSlip.is_used == True)
+        elif sf == "active":
+            query = query.filter(BoothSlip.is_used == False, BoothSlip.id.in_(list(active_slip_ids) if active_slip_ids else [-1]))
+        elif sf == "unused":
+            if active_slip_ids:
+                query = query.filter(BoothSlip.is_used == False, ~BoothSlip.id.in_(list(active_slip_ids)))
+            else:
+                query = query.filter(BoothSlip.is_used == False)
+    elif is_used is not None and is_used != "":
         used_bool = is_used.lower() in ("true", "1", "yes")
         query = query.filter_by(is_used=used_bool)
 
@@ -1688,10 +1753,22 @@ def list_booth_slips():
         page=page, per_page=per_page, error_out=False
     )
 
-    items = [s.to_dict(include_pin=False) for s in pagination.items]
+    items = []
+    for s in pagination.items:
+        d = s.to_dict(include_pin=False)
+        if s.is_used:
+            d["status"] = "used"
+        elif s.id in active_slip_ids:
+            d["status"] = "active"
+        else:
+            d["status"] = "unused"
+        d["is_active"] = (d["status"] == "active")
+        items.append(d)
 
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
     total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
+    total_active = len(active_slip_ids)
+    total_unused = max(0, total_gen - total_used - total_active)
 
     return jsonify({
         "items": items,
@@ -1702,6 +1779,7 @@ def list_booth_slips():
         "metrics": {
             "total_generated": total_gen,
             "total_used": total_used,
-            "total_unused": total_gen - total_used,
+            "total_active": total_active,
+            "total_unused": total_unused,
         }
     }), 200

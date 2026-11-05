@@ -579,6 +579,10 @@ def voter_session_end():
 
         # Only record an audit log if the voter left WITHOUT casting their ballot!
         if not has_voted:
+            if claims.get("slip_id"):
+                slip = db.session.get(BoothSlip, claims["slip_id"])
+                if slip:
+                    slip.authenticated_at = None
             from app.models.voting_token import VotingToken
             VotingToken.query.filter_by(
                 student_id=claims.get("student_id"), election_id=election_id, is_used=False
@@ -882,6 +886,9 @@ def booth_pin_login():
             "error": "Incorrect PIN",
             "message": "Incorrect PIN. Please check your voting slip and try again."
         }), 401
+
+    current_slip.authenticated_at = datetime.now(timezone.utc)
+    db.session.commit()
 
     # Issued JWT for anonymous ballot casting
     access_token = create_access_token(

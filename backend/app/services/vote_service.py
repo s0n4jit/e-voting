@@ -713,6 +713,7 @@ class VoteService:
         # 5. Atomically mark BoothSlip as USED
         booth_slip.is_used = True
         booth_slip.used_at = now
+        booth_slip.authenticated_at = None
 
         # 6. Blind token for anonymous ballot entries
         blind_seed = uuid.uuid4().hex.encode("utf-8")

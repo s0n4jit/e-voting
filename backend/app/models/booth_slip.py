@@ -47,6 +47,7 @@ class BoothSlip(db.Model):
     pin_hash = db.Column(db.String(255), nullable=False)
     pin_enc = db.Column(db.Text, nullable=True)  # Fernet encrypted for PDF export
     is_used = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    authenticated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     used_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
@@ -186,6 +187,7 @@ class BoothSlip(db.Model):
             "sequence_number": self.sequence_number,
             "voting_id": self.voting_id,
             "is_used": self.is_used,
+            "authenticated_at": self.authenticated_at.isoformat() if self.authenticated_at else None,
             "used_at": self.used_at.isoformat() if self.used_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

@@ -52,8 +52,7 @@ export const VoterSlipsManager = () => {
         per_page: 50,
       };
       if (boothFilter) params.booth_number = boothFilter;
-      if (statusFilter === 'unused') params.is_used = false;
-      if (statusFilter === 'used') params.is_used = true;
+      if (statusFilter) params.status = statusFilter;
       if (search.trim()) params.search = search.trim();
 
       const data = await adminApi.getBoothSlipsList(params);
@@ -72,8 +71,8 @@ export const VoterSlipsManager = () => {
     fetchSlips(false);
   }, [fetchMetrics, fetchSlips]);
 
-  usePolling(fetchMetrics, 3000);
-  usePolling(() => fetchSlips(true), 4000);
+  usePolling(fetchMetrics, 2000);
+  usePolling(() => fetchSlips(true), 2500);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -211,26 +210,27 @@ export const VoterSlipsManager = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Unused Slips</p>
+          <p className="text-2xl font-black text-fg mt-1">{metrics?.total_unused ?? (total || 0)}</p>
+          <p className="text-[11px] text-muted mt-1">Available in queue</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-brand">Active Slips</p>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+            </span>
+          </div>
+          <p className="text-2xl font-black text-brand mt-1">{metrics?.total_active ?? 0}</p>
+          <p className="text-[11px] text-muted mt-1">At voting booths</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
           <p className="text-[11px] font-bold uppercase tracking-wider text-ok">Used Slips (Votes Cast)</p>
           <p className="text-2xl font-black text-ok mt-1">{metrics?.total_used ?? 0}</p>
           <p className="text-[11px] text-muted mt-1">{metrics?.completion_rate ?? 0}% completed</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-brand">Unused Slips Remaining</p>
-          <p className="text-2xl font-black text-brand mt-1">{metrics?.total_unused ?? (total || 0)}</p>
-          <p className="text-[11px] text-muted mt-1">Available for voters</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-surface border border-line shadow-card">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Completion Rate</p>
-          <p className="text-2xl font-black text-fg mt-1">{metrics?.completion_rate ?? 0}%</p>
-          <div className="w-full bg-recessed rounded-full h-1.5 mt-2 overflow-hidden">
-            <div
-              className="bg-brand h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, metrics?.completion_rate || 0)}%` }}
-            />
-          </div>
         </div>
       </div>
 
@@ -241,21 +241,33 @@ export const VoterSlipsManager = () => {
           <div className="flex flex-wrap items-center gap-2">
             {/* Status Tabs */}
             {[
-              ['', 'All Slips'],
-              ['unused', 'Unused Only'],
-              ['used', 'Used (Voted)'],
-            ].map(([val, lbl]) => (
+              ['', 'All Slips', metrics?.total_generated ?? total],
+              ['unused', 'Unused', metrics?.total_unused],
+              ['active', 'Active', metrics?.total_active],
+              ['used', 'Used', metrics?.total_used],
+            ].map(([val, lbl, count]) => (
               <button
                 key={val}
                 type="button"
                 onClick={() => { setStatusFilter(val); setPage(1); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                   statusFilter === val
                     ? 'bg-brand text-white shadow-2xs'
                     : 'bg-surface text-muted border border-line hover:bg-recessed hover:text-fg'
                 }`}
               >
-                {lbl}
+                {val === 'active' && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                )}
+                <span>{lbl}</span>
+                {count !== undefined && count !== null && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${statusFilter === val ? 'bg-white/20 text-white' : 'bg-recessed text-muted'}`}>
+                    {count}
+                  </span>
+                )}
               </button>
             ))}
 
@@ -358,15 +370,23 @@ export const VoterSlipsManager = () => {
                     </td>
                     <td className="text-muted font-mono text-xs">#{s.sequence_number}</td>
                     <td>
-                      {s.is_used ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok-soft text-ok">
+                      {s.status === 'used' || s.is_used ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok-soft text-ok border border-ok/20">
                           <CheckCircleIcon className="w-3.5 h-3.5" />
                           <span>Used</span>
                         </span>
+                      ) : s.status === 'active' || s.is_active ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-soft text-brand border border-brand/20">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+                          </span>
+                          <span>Active</span>
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-soft text-brand-fg">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>Unused (Active)</span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-recessed text-muted border border-line">
+                          <ClockIcon className="w-3.5 h-3.5 text-muted" />
+                          <span>Unused</span>
                         </span>
                       )}
                     </td>
