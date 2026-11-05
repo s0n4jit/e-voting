@@ -23,7 +23,7 @@ class Election(db.Model):
     )
     STATUS_LABELS = {
         "setup": "Setup",
-        "registration": "Registration",
+        "registration": "Nomination & Roll Review",
         "ready": "Ready",
         "voting_active": "Voting Active",
         "voting_closed": "Voting Closed",

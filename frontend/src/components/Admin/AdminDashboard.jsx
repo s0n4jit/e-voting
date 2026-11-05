@@ -21,7 +21,7 @@ import { usePolling } from '../../hooks/usePolling';
 
 const STAGES = [
   ['setup', 'Setup'],
-  ['registration', 'Registration'],
+  ['registration', 'Review'],
   ['ready', 'Ready'],
   ['voting_active', 'Voting'],
   ['voting_closed', 'Closed'],

@@ -12,8 +12,8 @@ import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const ORDER = ['setup', 'registration', 'ready', 'voting_active', 'voting_closed', 'results_published', 'archived'];
 const NEXT = {
-  setup: ['registration', 'Open registration', null],
-  registration: ['ready', 'Mark ready', null],
+  setup: ['registration', 'Open review & nomination', 'Moves to official review stage for finalizing candidate nominations and verifying physical voter rolls.'],
+  registration: ['ready', 'Finalize & Mark ready', 'Confirms candidate nominations and rolls are finalized. Moves to Ready stage to set up booths and pre-generate voter slips.'],
   ready: ['voting_active', 'Open voting', 'Booths accept votes right away and keep accepting them until you close voting. You can pause for a break and resume. The scheduled date and time is for information only. Positions and candidates are locked from this point.'],
   voting_active: ['voting_closed', 'Close voting', 'No further ballots will be accepted, even if the scheduled time has not ended. This cannot be undone.'],
   voting_closed: ['results_published', 'Publish results', 'Unlocks the results for you: the projector reveal, the report and the public link on the Results page. Until you publish, nobody can see the counts. This does not make them public. This cannot be undone.'],
