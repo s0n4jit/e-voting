@@ -789,79 +789,133 @@ export const KioskVoting = () => {
     <>
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
-          <div key="review" className={`${animation} max-w-5xl mx-auto w-full space-y-3.5`}>
-            {/* Header: centered & prominent */}
-            <div className="bg-surface rounded-2xl border border-line p-4 shadow-2xs text-center">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-brand">Final Step</span>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-fg mt-0.5">Review your choices</h1>
-              <p className="text-xs sm:text-sm text-muted mt-1">
-                Please check each post and your chosen candidate below. You can change any vote before final submission.
+          <div key="review" className={`${animation} max-w-5xl mx-auto w-full space-y-3`}>
+            <div className="flex items-center justify-between pb-1 border-b border-line">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-brand">Final step</p>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-fg">Review your choices</h1>
+              </div>
+              <p className="text-xs text-muted hidden sm:block">
+                Check each choice. You can change any of them before submitting.
               </p>
             </div>
 
-            {/* Position Cards Grid: Centered post names, candidate names, and badges */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 w-full">
-              {positions.map((p, i) => {
-                const c = choices[p.position];
-                const isNota = c === 'NOTA';
-                return (
-                  <div
-                    key={p.position}
-                    className="p-4 rounded-2xl border-2 border-line bg-surface shadow-xs flex flex-col items-center text-center transition-all hover:border-brand/40"
-                  >
-                    {/* Post Name (Position) - Centered & prominent */}
-                    <div className="w-full pb-2 mb-2 border-b border-line/60 text-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted block">
-                        Post / Position
-                      </span>
-                      <h2 className="text-base sm:text-lg font-black text-brand tracking-tight">
-                        {p.position}
-                      </h2>
-                    </div>
+            {/* Clean list layout just like the old design, arranged in 2 columns if > 4 positions to fit in one screen */}
+            {positions.length > 4 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                <ul className="card divide-y divide-line">
+                  {positions.slice(0, Math.ceil(positions.length / 2)).map((p, i) => {
+                    const c = choices[p.position];
+                    const isNota = c === 'NOTA';
+                    return (
+                      <li key={p.position} className="flex items-center gap-3 px-3.5 py-2.5">
+                        {isNota ? (
+                          <div className="w-9 h-9 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                            NOTA
+                          </div>
+                        ) : c ? (
+                          <Avatar candidate={c} size="w-9 h-9" rounded="rounded-xl" text="text-xs" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                            ?
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-semibold text-muted uppercase tracking-wider truncate">
+                            {p.position}
+                          </p>
+                          <p className="text-sm font-bold text-fg truncate">
+                            {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-2.5 py-1 text-xs shrink-0"
+                          onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                        >
+                          Change
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
 
-                    {/* Avatar / NOTA Badge - Centered */}
-                    <div className="my-1 flex items-center justify-center">
+                <ul className="card divide-y divide-line">
+                  {positions.slice(Math.ceil(positions.length / 2)).map((p, idx) => {
+                    const i = idx + Math.ceil(positions.length / 2);
+                    const c = choices[p.position];
+                    const isNota = c === 'NOTA';
+                    return (
+                      <li key={p.position} className="flex items-center gap-3 px-3.5 py-2.5">
+                        {isNota ? (
+                          <div className="w-9 h-9 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                            NOTA
+                          </div>
+                        ) : c ? (
+                          <Avatar candidate={c} size="w-9 h-9" rounded="rounded-xl" text="text-xs" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                            ?
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-semibold text-muted uppercase tracking-wider truncate">
+                            {p.position}
+                          </p>
+                          <p className="text-sm font-bold text-fg truncate">
+                            {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-2.5 py-1 text-xs shrink-0"
+                          onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                        >
+                          Change
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <ul className="card divide-y divide-line max-w-2xl mx-auto w-full">
+                {positions.map((p, i) => {
+                  const c = choices[p.position];
+                  const isNota = c === 'NOTA';
+                  return (
+                    <li key={p.position} className="flex items-center gap-3 px-4 py-3">
                       {isNota ? (
-                        <div className="w-14 h-14 rounded-xl bg-recessed border-2 border-line flex items-center justify-center font-black text-xs text-muted">
+                        <div className="w-10 h-10 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
                           NOTA
                         </div>
                       ) : c ? (
-                        <Avatar candidate={c} size="w-14 h-14" rounded="rounded-xl shadow-xs" text="text-xl" />
+                        <Avatar candidate={c} size="w-10 h-10" rounded="rounded-xl" text="text-xs" />
                       ) : (
-                        <div className="w-14 h-14 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-sm">
+                        <div className="w-10 h-10 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
                           ?
                         </div>
                       )}
-                    </div>
-
-                    {/* Candidate Name - Centered & Big */}
-                    <div className="w-full my-1.5 text-center flex-1 flex flex-col justify-center">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted block">
-                        Your Vote
-                      </span>
-                      <p className="text-base sm:text-lg font-black text-fg leading-snug">
-                        {isNota ? 'NOTA' : c ? c.name : 'Not selected'}
-                      </p>
-                      {!isNota && c && formatCandidateClass(c.department, c.semester) && (
-                        <p className="text-[11px] text-muted font-medium mt-0.5">
-                          {formatCandidateClass(c.department, c.semester)}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-muted uppercase tracking-wider truncate">
+                          {p.position}
                         </p>
-                      )}
-                    </div>
-
-                    {/* Change Button - Centered */}
-                    <button
-                      type="button"
-                      className="btn-secondary btn-xs text-xs font-bold mt-2 px-3.5 py-1 text-brand hover:border-brand/50 flex items-center gap-1.5"
-                      onClick={() => { setFromReview(true); go(i, 'prev'); }}
-                    >
-                      <ArrowPathIcon className="w-3.5 h-3.5" />
-                      <span>Change vote</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                        <p className="text-base font-bold text-fg truncate">
+                          {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-3 py-1 text-xs shrink-0"
+                        onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                      >
+                        Change
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
             {submitError && (
               <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2 mt-2 animate-pop-in text-center" role="alert">
@@ -870,7 +924,7 @@ export const KioskVoting = () => {
             )}
 
             {/* Bottom Actions Bar */}
-            <div className="flex items-center justify-between pt-3 border-t border-line">
+            <div className="flex items-center justify-between pt-2 border-t border-line">
               <button
                 type="button"
                 className="btn-secondary btn-md flex items-center gap-1.5"
@@ -882,7 +936,7 @@ export const KioskVoting = () => {
               <button
                 ref={submitBtnRef}
                 type="button"
-                className="btn-primary btn-lg shadow-md px-8 py-3 text-base font-black flex items-center gap-2"
+                className="btn-primary btn-lg shadow-md px-8 py-2.5 text-base font-black flex items-center gap-2"
                 disabled={answered < total}
                 onClick={() => setConfirmOpen(true)}
               >
