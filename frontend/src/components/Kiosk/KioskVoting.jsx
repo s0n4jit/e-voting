@@ -51,7 +51,7 @@ const formatTerm = (val) => {
   return str;
 };
 
-const RESET_AFTER_VOTE_S = 10;
+const RESET_AFTER_VOTE_S = 5;
 
 /** The paper copy of the vote: the voter checks it and drops it into the box at the booth.
  * Laid out on A4 paper, positioned at the top center with college logo and clear VVPAT structure. */
@@ -543,6 +543,7 @@ export const KioskVoting = () => {
 
   useEffect(() => {
     if (stage !== 'done') return undefined;
+    setCountdown(RESET_AFTER_VOTE_S);
     const t = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(t);
   }, [stage]);
@@ -774,7 +775,7 @@ export const KioskVoting = () => {
         {receipt && ['printed', 'browser'].includes(printState) && <p className="text-sm mt-4">Your vote copy has been printed. Check it and drop it into the box.</p>}
         {receipt && printState === 'failed' && <p className="text-sm mt-4 text-bad">The vote copy could not be printed. Your vote is recorded. Please tell the desk.</p>}
         <div className="flex gap-3 mt-10">
-          <button className="btn-primary btn-lg" onClick={finish}>Finish</button>
+          <button className="btn-primary btn-lg min-w-36" onClick={finish}>Finish ({Math.max(countdown, 0)}s)</button>
         </div>
         {receipt && <VoteReceipt receipt={receipt} />}
         <p className="text-xs text-muted mt-4">This screen clears itself in {Math.max(countdown, 0)}s for the next voter.</p>
