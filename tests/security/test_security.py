@@ -342,3 +342,79 @@ class TestJWTSecurity:
         """Protected endpoints reject requests missing the Authorization header."""
         resp = client.get("/api/voter/elections/active")
         assert resp.status_code == 401
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  6. Audit Remediation Security Tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestAuditSecurityFixes:
+    """Verifies that audit vulnerabilities (upload auth, path traversal, PII scraping, secrecy) are resolved."""
+
+    def test_booth_receipt_upload_requires_valid_booth_token(self, client):
+        """Unauthenticated clients without a kiosk token cannot upload receipts."""
+        resp = client.post("/api/booth/receipt-upload", data={"slip_id": "TEST-SLIP-01"})
+        assert resp.status_code == 403
+
+    def test_booth_receipt_upload_path_traversal_blocked(self, client):
+        """Path traversal characters in slip_id are rejected."""
+        resp = client.post(
+            "/api/booth/receipt-upload",
+            data={"slip_id": "../../etc/evil", "kiosk_token": "invalid_fake_token"},
+            headers={"X-Kiosk-Token": "invalid_fake_token"},
+        )
+        assert resp.status_code in [400, 403]
+
+    def test_voter_verify_slip_requires_kiosk_token(self, client):
+        """Unauthenticated public queries to verify slips without kiosk tokens are blocked."""
+        resp = client.post("/api/auth/voter-verify-slip", json={"student_id": "SUE26-E1-000001"})
+        assert resp.status_code == 403
+
+    def test_receipt_secrecy_decoupling(self, app, db):
+        """Server-side receipts must be filed under anonymous blind refs, never the voter's student_id."""
+        from app.models.vote_receipt import VoteReceipt
+        with app.app_context():
+            now = datetime.now(timezone.utc)
+            election = Election(
+                title="Secrecy Audit Election",
+                start_time=now - timedelta(hours=1),
+                end_time=now + timedelta(hours=5),
+                is_active=True,
+            )
+            db.session.add(election)
+            db.session.flush()
+
+            cand = Candidate(election_id=election.id, name="Candidate Alpha", position="General Secretary")
+            db.session.add(cand)
+            db.session.flush()
+
+            student_id = f"SEC_SECRECY_{datetime.now().microsecond}"
+            user = User(student_id=student_id, name="Secret Voter", email=f"{student_id}@uni.edu")
+            user.set_password("SecurePass123!")
+            db.session.add(user)
+            db.session.flush()
+
+            voter_hash = User.hash_student_id(student_id)
+            voter_record = VoterRecord(election_id=election.id, voter_hash=voter_hash, has_voted=False)
+            db.session.add(voter_record)
+            db.session.commit()
+
+            selections = [{"position": "General Secretary", "candidate_id": cand.id, "is_nota": False}]
+
+            result = VoteService.cast_multi_position_vote(
+                user=user,
+                election_id=election.id,
+                selections=selections,
+                db=db,
+            )
+            assert result["success"] is True
+
+            # Ensure no receipt exists under the voter's actual student_id!
+            receipt_with_student_id = VoteReceipt.query.filter_by(slip_id=user.student_id).first()
+            assert receipt_with_student_id is None, "Ballot secrecy violated: VoteReceipt linked directly to voter student_id!"
+
+            # Ensure receipt exists under the blind ballot ref
+            expected_ref = f"VOTE-{result['blind_token'][:8].upper()}"
+            receipt = VoteReceipt.query.filter_by(slip_id=expected_ref).first()
+            assert receipt is not None
+            assert receipt.election_id == election.id

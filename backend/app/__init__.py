@@ -207,11 +207,13 @@ def _register_jwt_callbacks(app: Flask) -> None:
 
         if db.session.get(RevokedToken, jwt_payload.get("jti")):
             return True
-        # A deactivated or removed account loses its session on the very next request.
+        if jwt_payload.get("role") == "voter":
+            return False
+        # A deactivated or removed staff account loses its session on the very next request.
         from app.models.user import User
 
         sub = str(jwt_payload.get("sub", ""))
-        if not sub.isdigit():  # booth maintenance sessions are not user accounts
+        if not sub.isdigit():
             return False
         user = db.session.get(User, int(sub))
         return user is None or not user.is_active

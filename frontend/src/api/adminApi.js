@@ -209,10 +209,7 @@ export const adminApi = {
     return (await apiClient.post('/admin/slips/generate', { count, booth_number: boothNumber, election_id: electionId })).data;
   },
 
-  purgeBoothSlips: async (electionId = null) => {
-    const params = electionId ? { election_id: electionId } : {};
-    return (await apiClient.delete('/admin/booths/slips', { params })).data;
-  },
+  cancelSlip: async (slipId) => (await apiClient.post(`/admin/slips/${slipId}/cancel`)).data,
   clearMockReceipts: async (params = {}) => (await apiClient.delete('/officer/receipts/mock', { params })).data,
 };
 

@@ -1750,21 +1750,28 @@ def list_booth_slips():
     }), 200
 
 
-@admin_bp.delete("/booths/slips")
+@admin_bp.post("/slips/<int:slip_id>/cancel")
 @admin_required
-def purge_all_booth_slips():
-    """Purge all generated booth slips for the election."""
-    election_id = request.args.get("election_id", type=int)
-    election = db.session.get(Election, election_id) if election_id else Election.current()
-    if not election:
-        return jsonify({"error": "No election found."}), 404
-
-    # Disallow purging slips if voting is actively running and not a mock run
-    if election.is_active and not election.is_mock:
-        return jsonify({"error": "Cannot purge slips while real election voting is actively open."}), 409
-
+def cancel_booth_slip(slip_id):
+    """Cancel / void an individual voter slip (e.g. damaged or misprinted) so it cannot be cast."""
     from app.models.booth_slip import BoothSlip
-    count = BoothSlip.query.filter_by(election_id=election.id).delete(synchronize_session=False)
-    _audit("SLIPS_PURGED", f"Purged all {count} voter slips for election '{election.title}'.")
+    slip = db.session.get(BoothSlip, slip_id)
+    if not slip:
+        return jsonify({"error": "Voter slip not found."}), 404
+
+    if slip.is_used and not slip.is_cancelled:
+        return jsonify({"error": "Cannot cancel a slip that has already been cast."}), 400
+
+    if slip.is_cancelled:
+        return jsonify({"error": "This slip has already been cancelled."}), 400
+
+    now = datetime.now(timezone.utc)
+    slip.is_used = True
+    slip.is_cancelled = True
+    slip.used_at = now
+    slip.cancelled_at = now
+
+    _audit("SLIP_CANCELLED", f"Voter slip {slip.voting_id} (Booth {slip.booth_number or 'unassigned'}) was cancelled/voided by Election Authority.")
     db.session.commit()
-    return jsonify({"message": f"Successfully purged {count} voter slips.", "deleted_count": count}), 200
+    return jsonify({"message": f"Voter slip {slip.voting_id} has been cancelled.", "slip": slip.to_dict()}), 200
+

@@ -11,6 +11,7 @@ import {
   PlusIcon,
   TicketIcon,
   TrashIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, TableSkeleton, errorMessage } from '../ui';
@@ -38,20 +39,21 @@ export const VoterSlipsManager = () => {
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
-  const [purging, setPurging] = useState(false);
+  const [cancellingSlip, setCancellingSlip] = useState(null);
+  const [cancellingBusy, setCancellingBusy] = useState(false);
 
-  const handlePurgeAllSlips = async () => {
-    setPurging(true);
+  const handleCancelSlip = async () => {
+    if (!cancellingSlip) return;
+    setCancellingBusy(true);
     try {
-      const res = await adminApi.purgeBoothSlips();
-      toast.success(res.message || 'All voter slips purged successfully.', { id: 'purge-slips' });
-      setPurgeModalOpen(false);
+      await adminApi.cancelSlip(cancellingSlip.id);
+      toast.success(`Slip ${cancellingSlip.voting_id} marked as cancelled/void.`);
+      setCancellingSlip(null);
       await Promise.all([fetchMetrics(), fetchSlips(false)]);
     } catch (err) {
-      toast.error(errorMessage(err, 'Failed to purge slips.'), { id: 'purge-slips' });
+      toast.error(errorMessage(err, 'Failed to cancel slip.'));
     } finally {
-      setPurging(false);
+      setCancellingBusy(false);
     }
   };
 
@@ -266,17 +268,6 @@ export const VoterSlipsManager = () => {
         subtitle="Generate and manage pre-issued voter slips, sequential IDs, and printable A4 PDF sheets for each booth."
         actions={
           <div className="flex items-center gap-2.5">
-            {metrics?.total_generated > 0 && (
-              <button
-                type="button"
-                onClick={() => setPurgeModalOpen(true)}
-                className="btn-danger flex items-center gap-1.5"
-                title="Purge all generated voter slips"
-              >
-                <TrashIcon className="w-4 h-4" />
-                <span>Purge Slips</span>
-              </button>
-            )}
             <button
               type="button"
               disabled={downloadingPdf || !metrics?.total_generated}
@@ -475,7 +466,12 @@ export const VoterSlipsManager = () => {
                     </td>
                     <td className="text-muted font-mono text-xs">#{s.sequence_number}</td>
                     <td>
-                      {s.status === 'used' || s.is_used ? (
+                      {s.is_cancelled ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-bad-soft text-bad border border-bad/20">
+                          <XCircleIcon className="w-3.5 h-3.5" />
+                          <span>Cancelled</span>
+                        </span>
+                      ) : s.status === 'used' || s.is_used ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok-soft text-ok border border-ok/20">
                           <CheckCircleIcon className="w-3.5 h-3.5" />
                           <span>Used</span>
@@ -500,6 +496,17 @@ export const VoterSlipsManager = () => {
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {!s.is_used && !s.is_cancelled && (
+                          <button
+                            type="button"
+                            onClick={() => setCancellingSlip(s)}
+                            className="btn-ghost btn-sm text-bad hover:bg-bad/10 flex items-center gap-1"
+                            title={`Cancel and void slip ${s.voting_id}`}
+                          >
+                            <XCircleIcon className="w-3.5 h-3.5" />
+                            <span>Cancel</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDownloadSinglePdf(s)}
@@ -556,39 +563,41 @@ export const VoterSlipsManager = () => {
         )}
       </div>
 
-      {/* Purge Confirmation Modal */}
+      {/* Cancel Individual Voter Slip Confirmation Modal */}
       <Modal
-        isOpen={purgeModalOpen}
-        onClose={() => !purging && setPurgeModalOpen(false)}
-        title="Purge All Voter Slips?"
+        isOpen={Boolean(cancellingSlip)}
+        onClose={() => !cancellingBusy && setCancellingSlip(null)}
+        title={`Cancel Voter Slip ${cancellingSlip?.voting_id || ''}?`}
       >
-        <div className="space-y-4">
-          <p className="text-sm text-fg">
-            Are you sure you want to purge all <strong>{metrics?.total_generated || 0}</strong> voter slips generated for this election?
-          </p>
-          <p className="text-xs text-muted">
-            This will permanently remove all unused and used slips, resetting booth slip counts. You can regenerate new batches of slips afterwards.
-          </p>
-          <div className="flex justify-end gap-2.5 pt-2">
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={purging}
-              onClick={() => setPurgeModalOpen(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-danger flex items-center gap-1.5"
-              disabled={purging}
-              onClick={handlePurgeAllSlips}
-            >
-              <TrashIcon className="w-4 h-4" />
-              <span>{purging ? 'Purging…' : 'Yes, Purge Slips'}</span>
-            </button>
+        {cancellingSlip && (
+          <div className="space-y-4">
+            <p className="text-sm text-fg leading-relaxed">
+              Are you sure you want to void and cancel slip <strong className="font-mono text-brand font-black">{cancellingSlip.voting_id}</strong>?
+            </p>
+            <p className="text-xs text-muted leading-relaxed">
+              This will mark the slip as spoiled/void. The booth terminal will automatically advance to the next valid sequential voting slip. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={cancellingBusy}
+                onClick={() => setCancellingSlip(null)}
+              >
+                Keep Slip
+              </button>
+              <button
+                type="button"
+                className="btn-danger flex items-center gap-1.5"
+                disabled={cancellingBusy}
+                onClick={handleCancelSlip}
+              >
+                <XCircleIcon className="w-4 h-4" />
+                <span>{cancellingBusy ? 'Cancelling…' : 'Confirm Void & Cancel'}</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </Modal>
 
       {/* Modal for Slips Generation */}

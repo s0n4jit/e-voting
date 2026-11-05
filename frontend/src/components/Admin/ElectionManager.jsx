@@ -12,9 +12,9 @@ import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const ORDER = ['setup', 'registration', 'ready', 'voting_active', 'voting_closed', 'results_published', 'archived'];
 const NEXT = {
-  setup: ['registration', 'Open review & nomination', 'Moves to official review stage for finalizing candidate nominations and verifying physical voter rolls.'],
-  registration: ['ready', 'Finalize & Mark ready', 'Confirms candidate nominations and rolls are finalized. Moves to Ready stage to set up booths and pre-generate voter slips.'],
-  ready: ['voting_active', 'Open voting', 'Booths accept votes right away and keep accepting them until you close voting. You can pause for a break and resume. The scheduled date and time is for information only. Positions and candidates are locked from this point.'],
+  setup: ['registration', 'Proceed to Review', 'Moves to Nomination & Roll Review. Requires candidate nominations, voting booths, and voter slips to be configured.'],
+  registration: ['ready', 'Lock & Finalize Ready', 'Finalizes review and locks election configuration. Only mock elections and booth terminal setup are allowed in Ready stage.'],
+  ready: ['voting_active', 'Open live voting', 'Opens live voting on all authorized booths. Candidates and settings cannot be changed. Mock elections must be ended before opening live voting.'],
   voting_active: ['voting_closed', 'Close voting', 'No further ballots will be accepted, even if the scheduled time has not ended. This cannot be undone.'],
   voting_closed: ['results_published', 'Publish results', 'Unlocks the results for you: the projector reveal, the report and the public link on the Results page. Until you publish, nobody can see the counts. This does not make them public. This cannot be undone.'],
   results_published: ['archived', 'Archive election', 'Archived elections are read-only.'],
@@ -51,6 +51,25 @@ export const ElectionManager = () => {
   usePolling(() => adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {}), 2000);
 
   const move = async (election, status) => {
+    if (status === 'registration') {
+      if (!election.positions || election.positions.length === 0) {
+        toast.error('Setup incomplete: Add at least one position before proceeding to review.');
+        setConfirm(null);
+        return;
+      }
+      if (!election.candidates || election.candidates.length === 0) {
+        toast.error('Setup incomplete: Fill in candidate nominations before proceeding to review.');
+        setConfirm(null);
+        return;
+      }
+    }
+    if (status === 'voting_active') {
+      if (election.is_mock) {
+        toast.error('Mock election is currently active. End the mock run before opening live voting.');
+        setConfirm(null);
+        return;
+      }
+    }
     setBusy(true);
     try {
       await adminApi.setElectionStatus(election.id, status);
@@ -109,7 +128,7 @@ export const ElectionManager = () => {
     const { election, form } = editor;
     setBusy(true);
     setFormError('');
-    const locked = election && ORDER.indexOf(election.status) >= ORDER.indexOf('voting_active');
+    const locked = election && ORDER.indexOf(election.status) >= ORDER.indexOf('ready');
     const start = new Date(form.start_time);
     const end = new Date(form.end_time);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
@@ -156,7 +175,7 @@ export const ElectionManager = () => {
 
   const busyElection = (elections || []).some((e) => e.status !== 'archived');
   const editing = editor?.election;
-  const lockedEditing = editing && ORDER.indexOf(editing.status) >= ORDER.indexOf('voting_active');
+  const lockedEditing = editing && ORDER.indexOf(editing.status) >= ORDER.indexOf('ready');
 
   return (
     <div>
@@ -224,7 +243,17 @@ export const ElectionManager = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-line">
                   <Link to={`/admin/candidates?election=${e.id}`} className="btn-secondary btn-sm">Candidates</Link>
-                  <button className="btn-secondary btn-sm" onClick={() => openEditor(e)}>Edit details</button>
+                  {ORDER.indexOf(e.status) < ORDER.indexOf('ready') ? (
+                    <button className="btn-secondary btn-sm" onClick={() => openEditor(e)}>Edit details</button>
+                  ) : (
+                    <button
+                      className="btn-secondary btn-sm opacity-50 cursor-not-allowed"
+                      disabled
+                      title="Configuration and dates are locked once election reaches Ready stage."
+                    >
+                      Locked
+                    </button>
+                  )}
                   <Link to={`/admin/results?election=${e.id}`} className="btn-secondary btn-sm">Results</Link>
                   <button
                     className="btn-secondary btn-sm"

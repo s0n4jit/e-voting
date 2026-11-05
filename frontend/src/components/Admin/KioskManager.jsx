@@ -65,6 +65,25 @@ export const KioskManager = () => {
     }
   };
 
+  // Get setup code for an existing booth
+  const handleGetSetupCode = async (booth) => {
+    setBusy(true);
+    try {
+      const res = await adminApi.getKioskSetupToken(booth.id);
+      setIssued({
+        create_token: res.create_token,
+        booth_id: res.booth_id || booth.booth_id,
+        current_totp: res.current_totp,
+        expires_at: res.expires_at,
+      });
+      toast.success(`Setup code generated for ${booth.booth_id || 'Booth'}`);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to generate setup code.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Revoke an active booth session and get a fresh setup token
   const handleExecuteRevoke = async () => {
     if (!revokingBooth) return;
@@ -238,6 +257,17 @@ export const KioskManager = () => {
                           </td>
                           <td className="text-right">
                             <div className="inline-flex items-center gap-1.5 justify-end">
+                              {/* Setup Code Button */}
+                              <button
+                                type="button"
+                                className="btn-primary btn-sm flex items-center gap-1.5"
+                                onClick={() => handleGetSetupCode(b)}
+                                title="Get or generate setup code to connect or reconnect this terminal"
+                              >
+                                <KeyIcon className="w-3.5 h-3.5" />
+                                <span>Setup Code</span>
+                              </button>
+
                               {/* Revoke Button */}
                               <button
                                 type="button"

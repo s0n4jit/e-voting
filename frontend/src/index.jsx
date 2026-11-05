@@ -9,15 +9,16 @@ import { BrandProvider } from './context/BrandContext';
 
 /**
  * Ensures toasts never stack infinitely into the upper header/tabs.
- * Caps visible toasts to a clean, manageable limit (default: 3).
+ * Caps visible toasts to a clean, manageable limit (default: 2).
+ * Dismisses oldest visible toasts when new ones arrive.
  */
-function ToastLimiter({ max = 3 }) {
+function ToastLimiter({ max = 2 }) {
   const { toasts } = useToasterStore();
   useEffect(() => {
-    toasts
-      .filter((t) => t.visible)
-      .filter((_, i) => i >= max)
-      .forEach((t) => toast.dismiss(t.id));
+    const visibleToasts = toasts.filter((t) => t.visible);
+    if (visibleToasts.length > max) {
+      visibleToasts.slice(0, visibleToasts.length - max).forEach((t) => toast.dismiss(t.id));
+    }
   }, [toasts, max]);
   return null;
 }
@@ -27,7 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrandProvider>
       <ThemeProvider>
         <BrowserRouter>
-          <ToastLimiter max={3} />
+          <ToastLimiter max={2} />
           <Toaster
             position="bottom-right"
             containerStyle={{
@@ -35,9 +36,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               right: 24,
               zIndex: 9999,
             }}
-            gutter={8}
+            gutter={10}
             toastOptions={{
-              duration: 3500,
+              duration: 3200,
             }}
           >
             {(t) => (
@@ -45,7 +46,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 toast={t}
                 style={{
                   ...t.style,
-                  background: 'rgba(var(--surface), 0.88)',
+                  background: 'rgba(var(--surface), 0.92)',
                   backdropFilter: 'blur(16px)',
                   WebkitBackdropFilter: 'blur(16px)',
                   color: 'rgb(var(--fg))',

@@ -47,8 +47,10 @@ class BoothSlip(db.Model):
     pin_hash = db.Column(db.String(255), nullable=False)
     pin_enc = db.Column(db.Text, nullable=True)  # Fernet encrypted for PDF export
     is_used = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    is_cancelled = db.Column(db.Boolean, default=False, nullable=False, server_default=db.false(), index=True)
     authenticated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    cancelled_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -106,7 +108,7 @@ class BoothSlip(db.Model):
         Retrieves the earliest unused sequential voting slip for a specific booth.
         Returns None if all slips for this booth are exhausted.
         """
-        q = cls.query.filter_by(election_id=election_id, is_used=False)
+        q = cls.query.filter_by(election_id=election_id, is_used=False, is_cancelled=False)
         if booth_id is not None and booth_number is not None:
             q = q.filter((cls.booth_id == booth_id) | (cls.booth_number == booth_number))
         elif booth_id is not None:
@@ -208,8 +210,10 @@ class BoothSlip(db.Model):
             "sequence_number": self.sequence_number,
             "voting_id": self.voting_id,
             "is_used": self.is_used,
+            "is_cancelled": bool(self.is_cancelled),
             "authenticated_at": self.authenticated_at.isoformat() if self.authenticated_at else None,
             "used_at": self.used_at.isoformat() if self.used_at else None,
+            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_pin:

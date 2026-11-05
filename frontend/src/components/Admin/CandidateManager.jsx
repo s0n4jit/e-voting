@@ -10,7 +10,7 @@ import Modal from '../common/Modal';
 import ImageCropperModal from '../common/ImageCropperModal';
 import StatusBadge from '../common/StatusBadge';
 
-const LOCKED = ['voting_active', 'voting_closed', 'results_published', 'archived'];
+const LOCKED = ['ready', 'voting_active', 'voting_closed', 'results_published', 'archived'];
 const blank = (position = '') => ({ name: '', position, department: '', semester: '', bio: '', photo: null });
 const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_PHOTO = 2 * 1024 * 1024;

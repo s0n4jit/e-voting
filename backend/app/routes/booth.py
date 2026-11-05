@@ -129,7 +129,11 @@ def get_current_slip():
     if not ok:
         return jsonify({"error": "Unauthorized booth"}), 403
 
-    election = device.election or Election.current()
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and (not device.election_id or device.election_id == active_mock.id):
+        election = active_mock
+    else:
+        election = device.election or Election.current()
     if not election:
         return jsonify({
             "booth_id": device.booth_id,
@@ -180,17 +184,16 @@ def status():
     if not ok:
         return jsonify({"valid": False}), 200
     commit_or_flush()  # keeps the "last seen" time
-    election = device.election or Election.current()
-    if not election:
-        active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-        if active_mock:
-            election = active_mock
-
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and (not device.election_id or device.election_id == active_mock.id):
+        election = active_mock
+    else:
+        election = device.election or Election.current()
     data = election.to_dict() if election else None
 
     # Retrieve current slip info for this booth
     current_slip = (
-        BoothSlip.query.filter_by(election_id=election.id, booth_id=device.id, is_used=False)
+        BoothSlip.query.filter_by(election_id=election.id, booth_id=device.id, is_used=False, is_cancelled=False)
         .order_by(BoothSlip.sequence_number.asc())
         .first()
     ) if election else None

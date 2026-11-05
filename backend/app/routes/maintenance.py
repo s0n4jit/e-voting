@@ -50,9 +50,7 @@ PERMITTED_ACTIONS = {
 
 
 def _get_client_ip() -> str:
-    """Resolve real client IP handling proxies."""
-    if request.headers.get("X-Forwarded-For"):
-        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    """Resolve client IP safely via WSGI environment (ProxyFix handled)."""
     return request.remote_addr or "127.0.0.1"
 
 

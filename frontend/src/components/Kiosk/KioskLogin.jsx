@@ -215,8 +215,8 @@ export const KioskLogin = () => {
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted block mb-1">
                     Your Voting ID
                   </span>
-                  <div className="font-mono text-3xl font-black text-brand tracking-wider">
-                    {currentVotingId || (booth === 'ready' ? (isExhausted ? 'All Slips Used' : (info?.has_slips === false ? 'No Slips Available' : 'Waiting for Slip…')) : 'Loading…')}
+                  <div className="font-mono text-2xl sm:text-3xl font-black text-brand tracking-wider">
+                    {currentVotingId || (info?.total_slips === 0 || info?.has_slips === false ? 'No Slips Available' : isExhausted ? 'All Slips Used' : 'Waiting for Slip…')}
                   </div>
                   <p className="text-[11px] text-muted mt-1.5">
                     Verify that your paper slip displays this exact ID.

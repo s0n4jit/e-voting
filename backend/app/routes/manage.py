@@ -65,6 +65,8 @@ def transition(election, target):
         return f"An election cannot move from {Election.STATUS_LABELS[cur]} to {Election.STATUS_LABELS[target]}."
 
     if target == "voting_active":
+        if election.is_mock:
+            return "A mock election is currently active. Please end the mock election and reset before opening live voting."
         names = [p.name for p in election.positions]
         if not names:
             return "Add at least one position before opening voting."

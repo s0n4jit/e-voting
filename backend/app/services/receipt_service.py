@@ -305,7 +305,7 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
         <div class="banner">
           <div class="side">Booth: {booth}</div>
           <div class="slip">
-            <span class="slip-lbl">VOTER SLIP ID</span>
+            <span class="slip-lbl">BALLOT REF</span>
             <span class="slip-id">{slip}</span>
           </div>
           <div class="side">Time: {time_str}</div>
@@ -404,10 +404,10 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     c.setFillColor(colors.HexColor("#475569"))
     c.drawString(card_x + 10.0, banner_y + 4.0, f"Booth: {data.get('booth', 'BOOTH-01')}")
 
-    # Center Slip ID
+    # Center Blind Ballot Reference
     c.setFont("Helvetica-Bold", 5.2)
     c.setFillColor(colors.HexColor("#64748b"))
-    c.drawCentredString(width / 2.0, banner_y + 11.0, "VOTER SLIP ID")
+    c.drawCentredString(width / 2.0, banner_y + 11.0, "BALLOT REF")
     c.setFont("Courier-Bold", 10.5)
     c.setFillColor(colors.HexColor("#0f172a"))
     c.drawCentredString(width / 2.0, banner_y + 1.0, str(data.get("slip", "VOTER-SLIP")))

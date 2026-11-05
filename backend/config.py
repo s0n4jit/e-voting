@@ -60,8 +60,7 @@ class Config:
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
     RATELIMIT_DEFAULT: str = os.environ.get("RATELIMIT_DEFAULT", "30000 per hour")
-    RATELIMIT_STORAGE_URL: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
-    RATELIMIT_STORAGE_URI: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")  # name Flask-Limiter 3 reads
+    RATELIMIT_STORAGE_URI: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")  # Flask-Limiter 3.x storage URI
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list = [
