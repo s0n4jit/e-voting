@@ -3,7 +3,7 @@ import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { useSelectedElection } from '../../hooks/useSelectedElection';
 import { toast } from 'react-hot-toast';
-import { PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { ElectionPicker, EmptyState, Field, PageHeader, TableSkeleton, errorMessage, photoSrc } from '../ui';
 import Modal from '../common/Modal';
@@ -53,23 +53,43 @@ export const CandidateManager = () => {
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.photo) {
+    if (!form.id && !form.photo) {
       setPhotoError('Upload a photo of the candidate.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await adminApi.addCandidate(electionId, form);
-      toast.success('Candidate added');
+      if (form.id) {
+        await adminApi.updateCandidate(form.id, electionId, form);
+        toast.success('Candidate updated');
+      } else {
+        await adminApi.addCandidate(electionId, form);
+        toast.success('Candidate added');
+      }
       setForm(null);
       load();
     } catch (err) {
       setError(errorMessage(err));
-      set('photo', null); // the server keeps nothing from a failed save; choose the photo again
+      if (!form.id) set('photo', null); // the server keeps nothing from a failed save; choose the photo again
     } finally {
       setBusy(false);
     }
+  };
+
+  const openEdit = (c) => {
+    setError('');
+    setPhotoError('');
+    setPreview(photoSrc(c.photo_url));
+    setForm({
+      id: c.id,
+      name: c.name || '',
+      position: c.position || positions[0] || '',
+      department: c.department || '',
+      semester: c.semester || '',
+      bio: c.bio || '',
+      photo: null,
+    });
   };
 
   const remove = async () => {
@@ -107,11 +127,14 @@ export const CandidateManager = () => {
   };
 
   useEffect(() => {
-    if (!form?.photo) return setPreview('');
+    if (!form?.photo) {
+      if (!form?.id) setPreview('');
+      return;
+    }
     const url = URL.createObjectURL(form.photo);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [form?.photo]);
+  }, [form?.photo, form?.id]);
 
   return (
     <div>
@@ -169,9 +192,28 @@ export const CandidateManager = () => {
                           <p className="font-medium truncate">{c.name}</p>
                           <p className="text-xs text-muted truncate">{c.department}</p>
                         </div>
-                        <button className="btn-ghost btn-sm text-bad" onClick={() => setRemoving(c)} disabled={locked} aria-label={`Remove ${c.name}`}>
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm text-brand"
+                            onClick={() => openEdit(c)}
+                            disabled={locked}
+                            aria-label={`Edit ${c.name}`}
+                            title="Edit candidate details"
+                          >
+                            <PencilSquareIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm text-bad"
+                            onClick={() => setRemoving(c)}
+                            disabled={locked}
+                            aria-label={`Remove ${c.name}`}
+                            title="Remove candidate"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -182,7 +224,7 @@ export const CandidateManager = () => {
         </div>
       )}
 
-      <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title="Add candidate" maxWidth="max-w-xl">
+      <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form?.id ? 'Edit candidate' : 'Add candidate'} maxWidth="max-w-xl">
         {form && (
           <form onSubmit={save} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
@@ -218,7 +260,9 @@ export const CandidateManager = () => {
             {error && <p className="error-text" role="alert">{error}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>Cancel</button>
-              <button className="btn-primary" disabled={busy}>Add candidate</button>
+              <button className="btn-primary" disabled={busy}>
+                {busy ? 'Saving…' : form?.id ? 'Save changes' : 'Add candidate'}
+              </button>
             </div>
           </form>
         )}

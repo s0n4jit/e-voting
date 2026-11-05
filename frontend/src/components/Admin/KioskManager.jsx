@@ -257,27 +257,28 @@ export const KioskManager = () => {
                           </td>
                           <td className="text-right">
                             <div className="inline-flex items-center gap-1.5 justify-end">
-                              {/* Setup Code Button */}
-                              <button
-                                type="button"
-                                className="btn-primary btn-sm flex items-center gap-1.5"
-                                onClick={() => handleGetSetupCode(b)}
-                                title="Get or generate setup code to connect or reconnect this terminal"
-                              >
-                                <KeyIcon className="w-3.5 h-3.5" />
-                                <span>Setup Code</span>
-                              </button>
-
-                              {/* Revoke Button */}
-                              <button
-                                type="button"
-                                className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-600 hover:text-amber-700"
-                                onClick={() => setRevokingBooth(b)}
-                                title="Revoke session and generate fresh setup token"
-                              >
-                                <ArrowPathIcon className="w-3.5 h-3.5" />
-                                <span>Revoke</span>
-                              </button>
+                              {/* Merged Setup Code / Revoke contextual action */}
+                              {b.is_active ? (
+                                <button
+                                  type="button"
+                                  className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-600 hover:text-amber-700"
+                                  onClick={() => setRevokingBooth(b)}
+                                  title="Revoke session and generate fresh setup token"
+                                >
+                                  <ArrowPathIcon className="w-3.5 h-3.5" />
+                                  <span>Revoke</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn-primary btn-sm flex items-center gap-1.5"
+                                  onClick={() => handleGetSetupCode(b)}
+                                  title="Get setup code to activate this booth"
+                                >
+                                  <KeyIcon className="w-3.5 h-3.5" />
+                                  <span>Setup Code</span>
+                                </button>
+                              )}
 
                               {/* Delete Button (disabled during active election or when votes cast) */}
                               <button

@@ -301,6 +301,53 @@ def add_candidate(election_id):
     return jsonify(candidate.to_dict()), 201
 
 
+@admin_bp.put("/elections/<int:election_id>/candidates/<int:candidate_id>")
+@admin_required
+def update_candidate(election_id, candidate_id):
+    """Update candidate details (name, position, department, semester, bio, optional photo)."""
+    candidate = db.session.get(Candidate, candidate_id)
+    if not candidate or candidate.election_id != election_id:
+        return jsonify({"error": "Candidate not found in this election."}), 404
+    if election_locked(candidate.election):
+        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
+
+    payload = request.form
+    name = sanitize_input(payload.get("name"))
+    position = sanitize_input(payload.get("position", candidate.position))
+    department = str(payload.get("department") or "").strip()
+    semester = sanitize_input(payload.get("semester", ""))[:30]
+    bio = sanitize_input(payload.get("bio", ""))
+    upload = request.files.get("photo")
+
+    if not name:
+        return jsonify({"error": "Candidate name is required."}), 400
+
+    allowed = [p.name for p in candidate.election.positions]
+    if allowed and position not in allowed:
+        return jsonify({"error": "Choose one of the election's positions."}), 400
+
+    if upload and getattr(upload, "filename", None):
+        photo, photo_error = read_photo(upload)
+        if photo_error:
+            return jsonify({"error": photo_error}), 400
+        if candidate.photo:
+            candidate.photo.content_type = photo[0]
+            candidate.photo.data = photo[1]
+        else:
+            candidate.photo = CandidatePhoto(candidate_id=candidate.id, content_type=photo[0], data=photo[1])
+        candidate.photo_url = f"/api/photos/{candidate.id}"
+
+    candidate.name = name
+    candidate.position = position
+    candidate.department = department
+    candidate.semester = semester or None
+    candidate.bio = bio
+
+    _audit("CANDIDATE_UPDATED", f"Updated details for candidate {name} ({position}) in \u201c{candidate.election.title}\u201d.")
+    commit_or_flush()
+    return jsonify(candidate.to_dict()), 200
+
+
 @admin_bp.delete("/elections/<int:election_id>/candidates/<int:candidate_id>")
 @admin_required
 def delete_candidate(election_id, candidate_id):

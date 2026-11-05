@@ -28,8 +28,21 @@ export const adminApi = {
   addCandidate: async (electionId, candidateData) => {
     // multipart: the photo file travels with the fields in one request, so a failure stores nothing
     const form = new FormData();
-    Object.entries(candidateData).forEach(([k, v]) => form.append(k, v));
+    Object.entries(candidateData).forEach(([k, v]) => {
+      if (v !== null && v !== undefined) form.append(k, v);
+    });
     const response = await apiClient.post(`/admin/elections/${electionId}/candidates`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  updateCandidate: async (candidateId, electionId, candidateData) => {
+    const form = new FormData();
+    Object.entries(candidateData).forEach(([k, v]) => {
+      if (v !== null && v !== undefined) form.append(k, v);
+    });
+    const response = await apiClient.put(`/admin/elections/${electionId}/candidates/${candidateId}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;

@@ -907,7 +907,7 @@ def booth_pin_login():
         try:
             db.session.add(AuditLog(
                 action="PIN_BRUTE_FORCE",
-                details=f"Incorrect PIN submitted for voting slip {current_slip.voting_id} at {kiosk_device.device_name} (IP: {request.remote_addr}).",
+                details=f"Wrong voting PIN entered for slip {current_slip.voting_id} at {kiosk_device.device_name} (IP: {request.remote_addr}).",
                 ip_address=request.remote_addr or "",
                 user_agent=(request.user_agent.string or "")[:255],
             ))

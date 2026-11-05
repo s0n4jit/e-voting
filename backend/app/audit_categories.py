@@ -6,8 +6,9 @@ app/audit_categories.py — Groups of audit actions shown as filters on the Audi
 CATEGORIES = [
     ("security", "Security & Tamper Attacks", [
         "SECURITY_ALERT", "TAMPER_DETECTED", "UNAUTHORIZED_BOOTH_ATTEMPT",
-        "TAMPERED_BALLOT_REJECTED", "PIN_BRUTE_FORCE", "TAMPERED_SESSION_REJECTED",
-        "INVALID_TOKEN_ATTEMPT", "SUSPICIOUS_PAYLOAD", "RATE_LIMIT_EXCEEDED", "LOGIN_FAILED",
+        "TAMPERED_BALLOT_REJECTED", "PIN_BRUTE_FORCE", "BOOTH_SETUP_FAILED",
+        "TAMPERED_SESSION_REJECTED", "INVALID_TOKEN_ATTEMPT", "SUSPICIOUS_PAYLOAD",
+        "RATE_LIMIT_EXCEEDED", "LOGIN_FAILED",
     ]),
     ("ballot", "Ballots Cast", [
         "VOTE_CAST", "VOTE_CAST_BOOTH", "BALLOT_CAST", "RECEIPT_ARCHIVED",
@@ -24,7 +25,7 @@ CATEGORIES = [
     ("election", "Election Lifecycle", [
         "ELECTION_CREATED", "ELECTION_UPDATED", "ELECTION_DELETED", "ELECTION_STATUS_CHANGED",
         "VOTING_PAUSED", "VOTING_RESUMED", "MOCK_STARTED", "MOCK_RESET", "POSITIONS_UPDATED",
-        "CANDIDATE_ADDED", "CANDIDATE_REMOVED", "CANDIDATE_RESTORED", "REPORT_GENERATED",
+        "CANDIDATE_ADDED", "CANDIDATE_UPDATED", "CANDIDATE_REMOVED", "CANDIDATE_RESTORED", "REPORT_GENERATED",
         "PUBLIC_LINK_CREATED", "PUBLIC_LINK_DELETED", "MOCK_RECEIPTS_CLEARED",
     ]),
     ("auth", "Sign-ins & 2FA", [
@@ -57,14 +58,16 @@ def action_label(action: str) -> str:
         "UNAUTHORIZED_BOOTH_ATTEMPT": "Unauthorized Booth Access Attempt",
         "TAMPER_DETECTED": "Tampering Attempt Detected",
         "TAMPERED_BALLOT_REJECTED": "Tampered Ballot Rejected",
-        "PIN_BRUTE_FORCE": "PIN Guessing / Brute Force",
-        "SECURITY_ALERT": "Security Alert",
+        "PIN_BRUTE_FORCE": "Wrong Voting PIN Entered at Booth",
+        "SECURITY_ALERT": "Security Alert / Wrong Credentials",
+        "BOOTH_SETUP_FAILED": "Wrong PIN / Code in Booth Setup",
         "RATE_LIMIT_EXCEEDED": "Rate Limit Exceeded",
         "LOGIN_FAILED": "Failed Sign-in Attempt",
         "SLIPS_GENERATED": "Voter Slips Generated",
         "SLIP_CANCELLED": "Voter Slip Voided / Cancelled",
         "BOOTH_PIN_LOGIN": "Booth PIN Verified",
         "BOOTH_TOKEN_GENERATED": "Booth Setup Code Generated",
+        "CANDIDATE_UPDATED": "Candidate Details Updated",
         "CANDIDATE_RESTORED": "Candidate Restored",
     }
     if action in labels:

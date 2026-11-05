@@ -107,6 +107,16 @@ def activate():
     if (not row or row.used_at or row.expired or not officer or officer.role != "admin" or not officer.is_active
             or not officer.otp_enabled or not code or not officer.verify_otp(code, valid_window=3)
             or not election or election.effective_status == "archived"):
+        try:
+            db.session.add(AuditLog(
+                action="BOOTH_SETUP_FAILED",
+                details=f"Wrong PIN or invalid setup code entered during booth setup from IP {request.remote_addr}.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return failure
 
     # single use: only one request can flip used_at from NULL
