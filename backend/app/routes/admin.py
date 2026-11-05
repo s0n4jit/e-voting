@@ -38,6 +38,10 @@ from app.utils.validators import (
 
 admin_bp = Blueprint("admin", __name__)
 
+def _csv_safe(value):
+    s = str(value if value is not None else "")
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
 def _audit(action, details):
     ident = get_jwt_identity()
     db.session.add(AuditLog(
@@ -462,14 +466,14 @@ def export_audit_logs():
         writer.writerow([
             log.id,
             log.created_at.isoformat() if log.created_at else "",
-            log.action,
+            _csv_safe(log.action),
             log.user_id or "SYSTEM",
-            actor.name if actor else "SYSTEM/ANONYMOUS",
-            actor.student_id if actor else "",
-            actor.role if actor else "system",
-            log.details or "",
-            log.ip_address or "",
-            log.user_agent or "",
+            _csv_safe(actor.name if actor else "SYSTEM/ANONYMOUS"),
+            _csv_safe(actor.student_id if actor else ""),
+            _csv_safe(actor.role if actor else "system"),
+            _csv_safe(log.details or ""),
+            _csv_safe(log.ip_address or ""),
+            _csv_safe(log.user_agent or ""),
         ])
 
     csv_data = output.getvalue()
@@ -785,9 +789,6 @@ def create_booth_token():
 
     payload = request.get_json(silent=True) or {}
     booth_num = payload.get("booth_number")
-    slips_count = int(payload.get("slips_count", 0) or 0)
-    from_slip_id = str(payload.get("from_slip_id") or "").strip()
-    to_slip_id = str(payload.get("to_slip_id") or "").strip()
 
     if not booth_num:
         used_nums = {k.number for k in KioskDevice.query.filter_by(election_id=election.id).all()}
@@ -812,71 +813,14 @@ def create_booth_token():
         db.session.add(kiosk)
         db.session.flush()
 
-    # 2. Check available unallotted slips:
-    # First priority: slips already assigned to this booth_number but unallotted
-    # Second priority: unassigned pool slips (booth_number is None)
-    unallotted_for_booth = BoothSlip.query.filter_by(
+    # Link any slips that already exist for this booth_num to this kiosk device
+    BoothSlip.query.filter_by(
         election_id=election.id,
         booth_number=booth_num,
-        booth_id=None,
-        is_used=False
-    ).order_by(BoothSlip.sequence_number.asc()).all()
+        booth_id=None
+    ).update({"booth_id": kiosk.id}, synchronize_session=False)
 
-    unassigned_pool = BoothSlip.query.filter(
-        BoothSlip.election_id == election.id,
-        BoothSlip.booth_number == None,
-        BoothSlip.booth_id == None,
-        BoothSlip.is_used == False
-    ).order_by(BoothSlip.sequence_number.asc()).all()
-
-    available_candidates = unallotted_for_booth + unassigned_pool
-    available_count = len(available_candidates)
-
-    # If slips_count is specified but not enough unallotted slips exist, auto-generate them into pool
-    if slips_count > available_count:
-        needed = slips_count - available_count
-        BoothSlip.generate_batch(election.id, booth_number=booth_num, count=needed, booth_id=kiosk.id)
-        unassigned_pool = BoothSlip.query.filter(
-            BoothSlip.election_id == election.id,
-            BoothSlip.booth_number == None,
-            BoothSlip.booth_id == None,
-            BoothSlip.is_used == False
-        ).order_by(BoothSlip.sequence_number.asc()).all()
-        available_candidates = unallotted_for_booth + unassigned_pool
-
-    # Select slips to allot to this kiosk machine
-    slips_to_allot = []
-    def _extract_num(vid):
-        digits = "".join(filter(str.isdigit, str(vid).split("-")[-1]))
-        return int(digits) if digits else 0
-
-    if from_slip_id and to_slip_id:
-        f_num = _extract_num(from_slip_id)
-        t_num = _extract_num(to_slip_id)
-        if f_num and t_num and t_num >= f_num:
-            slips_to_allot = [
-                s for s in available_candidates
-                if f_num <= _extract_num(s.voting_id) <= t_num
-            ]
-        else:
-            slips_to_allot = [
-                s for s in available_candidates
-                if from_slip_id <= s.voting_id <= to_slip_id
-            ]
-    elif slips_count > 0:
-        slips_to_allot = available_candidates[:slips_count]
-    else:
-        slips_to_allot = available_candidates
-
-    # 3. Allot the slips to this booth machine and assign booth_number
-    for s in slips_to_allot:
-        s.booth_number = booth_num
-        s.booth_id = kiosk.id
-
-    from_id = slips_to_allot[0].voting_id if slips_to_allot else None
-    to_id = slips_to_allot[-1].voting_id if slips_to_allot else None
-
-    # 4. Create one-time booth activation token
+    # 2. Create one-time booth activation token
     token = new_create_token()
     expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
     db.session.add(BoothCreateToken(
@@ -886,14 +830,14 @@ def create_booth_token():
         expires_at=expires,
         booth_number=booth_num,
         kiosk_id=kiosk.id,
-        from_slip_id=from_id,
-        to_slip_id=to_id,
-        slips_count=len(slips_to_allot),
+        from_slip_id=None,
+        to_slip_id=None,
+        slips_count=0,
     ))
     db.session.add(AuditLog(
         user_id=officer.id,
         action="BOOTH_TOKEN_CREATED",
-        details=f"Generated a booth token for Booth {booth_num} ({election.title}), allotted {len(slips_to_allot)} slips ({from_id or 'none'} to {to_id or 'none'}) to {kiosk.device_name}.",
+        details=f"Generated a booth token for Booth {booth_num} ({election.title}) for machine {kiosk.device_name}.",
         ip_address=request.remote_addr or ""
     ))
     db.session.commit()
@@ -909,14 +853,11 @@ def create_booth_token():
         "election_title": election.title,
         "booth_number": booth_num,
         "booth_id": kiosk.device_name,
-        "slips_count": len(slips_to_allot),
-        "from_slip_id": from_id,
-        "to_slip_id": to_id,
     }), 201
 
 
 @admin_bp.get("/kiosk/list")
-@admin_required
+@desk_required
 def list_kiosks():
     """List all registered computer lab kiosk terminals."""
     kiosks = KioskDevice.query.order_by(KioskDevice.created_at.desc()).all()
@@ -1156,26 +1097,46 @@ def manage_kiosk_slips(kiosk_id):
 @admin_bp.delete("/kiosk/<int:kiosk_id>")
 @admin_required
 def delete_kiosk(kiosk_id):
-    """Revoke and delete a registered kiosk terminal, returning unused slips to unassigned pool."""
+    """Revoke and delete a registered kiosk terminal."""
     kiosk = db.session.get(KioskDevice, kiosk_id)
     if not kiosk:
         return jsonify({"error": "Kiosk terminal not found."}), 404
 
-    # Unallot unused slips so they return completely to the unassigned pool
+    election = kiosk.election or Election.current()
+    if election and election.is_active:
+        return jsonify({
+            "error": "Election active",
+            "message": f"Voting booth {kiosk.device_name} cannot be deleted while an election is actively ongoing. Please conclude or pause the election first, or revoke the booth session instead."
+        }), 409
+
     from app.models.booth_slip import BoothSlip
-    BoothSlip.query.filter(
-        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number),
-        BoothSlip.is_used == False
-    ).update({"booth_id": None, "booth_number": None}, synchronize_session=False)
+    used_slips_count = BoothSlip.query.filter_by(
+        election_id=kiosk.election_id,
+        booth_number=kiosk.number,
+        is_used=True
+    ).count()
+    if used_slips_count > 0:
+        return jsonify({
+            "error": "Votes already recorded",
+            "message": f"Voting booth {kiosk.device_name} cannot be deleted because {used_slips_count} ballot(s) have already been cast at this booth."
+        }), 409
+
+    # Unlink any unused slips from this kiosk device id
+    BoothSlip.query.filter_by(
+        election_id=kiosk.election_id,
+        booth_id=kiosk.id,
+        is_used=False
+    ).update({"booth_id": None}, synchronize_session=False)
 
     db.session.add(AuditLog(
-        user_id=int(get_jwt_identity()), action="BOOTH_REMOVED",
-        details=f"Deleted booth {kiosk.booth_id} (session {kiosk.ref}). Its token no longer works and unused slips were returned to unassigned pool.",
+        user_id=int(get_jwt_identity()),
+        action="BOOTH_REMOVED",
+        details=f"Deleted booth {kiosk.device_name} (session {kiosk.ref}).",
         ip_address=request.remote_addr or "",
     ))
     db.session.delete(kiosk)
     db.session.commit()
-    return jsonify({"message": f"Booth {kiosk.booth_id} was deleted and unused slips returned to pool."}), 200
+    return jsonify({"message": f"Booth {kiosk.device_name} was deleted successfully."}), 200
 
 
 # ── Polling Desk Officers Management ──────────────────────────────────────────
@@ -1318,7 +1279,7 @@ def update_officer(officer_id):
 # ── Booth Slips & Printable Credentials Endpoints ─────────────────────────
 
 @admin_bp.get("/booths/slips-metrics")
-@admin_required
+@desk_required
 def get_booths_slips_metrics():
     """Returns real-time slip inventory and progress metrics across all voting booths."""
     election_id = request.args.get("election_id", type=int)
@@ -1603,7 +1564,7 @@ def generate_all_booth_slips():
 
 
 @admin_bp.get("/booths/<int:booth_number>/slips-pdf")
-@admin_required
+@desk_required
 def download_booth_slips_pdf(booth_number):
     """
     Downloads printable A4 PDF voting slips for a specific booth (8 slips per page).
@@ -1632,7 +1593,7 @@ def download_booth_slips_pdf(booth_number):
 
 
 @admin_bp.get("/slips/<int:slip_id>/pdf")
-@admin_required
+@desk_required
 def download_single_slip_pdf(slip_id):
     """
     Downloads an individual voter slip PDF for printing.
@@ -1659,7 +1620,7 @@ def download_single_slip_pdf(slip_id):
 
 
 @admin_bp.get("/booths/all-slips-pdf")
-@admin_required
+@desk_required
 def download_all_slips_pdf():
     """
     Downloads a single combined printable A4 PDF with slips for all booths.
@@ -1688,7 +1649,7 @@ def download_all_slips_pdf():
 
 
 @admin_bp.get("/booths/slips")
-@admin_required
+@desk_required
 def list_booth_slips():
     """Paginated list of booth slips with filtering by booth, search by voting ID, and status."""
     election_id = request.args.get("election_id", type=int)

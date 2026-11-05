@@ -121,15 +121,24 @@ class KioskDevice(db.Model):
         db.session.flush()
         return KioskVerifyResult(True, device)
 
-    def to_dict(self) -> dict:
+    def to_dict(self, stats=None) -> dict:
         from app.utils.timeutil import utc_iso
         from app.models.booth_slip import BoothSlip
 
-        slips_q = BoothSlip.query.filter_by(election_id=self.election_id, booth_id=self.id)
-        allotted_count = slips_q.count()
-        used_count = slips_q.filter_by(is_used=True).count()
-        first_slip = slips_q.order_by(BoothSlip.sequence_number.asc()).first()
-        last_slip = slips_q.order_by(BoothSlip.sequence_number.desc()).first()
+        if stats and self.id in stats:
+            s = stats[self.id]
+            allotted_count, used_count = s.get("allotted_count", 0), s.get("used_count", 0)
+            from_slip_id, to_slip_id = s.get("from_slip_id"), s.get("to_slip_id")
+        else:
+            slips = BoothSlip.query.filter_by(election_id=self.election_id, booth_id=self.id).order_by(BoothSlip.sequence_number.asc()).all()
+            allotted_count = len(slips)
+            used_count = sum(1 for slip in slips if slip.is_used)
+            from_slip_id = slips[0].voting_id if slips else None
+            to_slip_id = slips[-1].voting_id if slips else None
+
+        election = self.election
+        is_active_election = bool(election and election.is_active)
+        can_del = bool(not is_active_election and used_count == 0)
 
         return {
             "id": self.id,
@@ -138,6 +147,8 @@ class KioskDevice(db.Model):
             "number": self.number,
             "election_id": self.election_id,
             "election_title": self.election.title if self.election else None,
+            "election_is_active": is_active_election,
+            "can_delete": can_del,
             "device_name": self.device_name,
             "session_ref": self.ref,
             "ip_address": self.ip_address,
@@ -146,8 +157,8 @@ class KioskDevice(db.Model):
             "allotted_count": allotted_count,
             "used_count": used_count,
             "remaining_count": max(0, allotted_count - used_count),
-            "from_slip_id": first_slip.voting_id if first_slip else None,
-            "to_slip_id": last_slip.voting_id if last_slip else None,
+            "from_slip_id": from_slip_id,
+            "to_slip_id": to_slip_id,
             "created_at": utc_iso(self.created_at),
             "last_heartbeat": utc_iso(self.last_heartbeat),
         }

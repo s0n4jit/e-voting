@@ -255,9 +255,10 @@ class VoteService:
                 for entry in validated_entries
             ]
             booth_name = getattr(booth, "booth_id", None) or getattr(booth, "device_name", None) or getattr(booth, "name", None) or "BOOTH-01"
+            receipt_ref = f"VOTE-{blind_token[:8].upper()}"
             ReceiptService.record_receipt(
                 election_id=election.id,
-                slip_id=voter_user.student_id,
+                slip_id=receipt_ref,
                 choices=choices_list,
                 booth_name=booth_name,
                 is_mock=bool(election.is_mock),
@@ -275,6 +276,7 @@ class VoteService:
             success=True,
             message="Multi-position ballot successfully cast and recorded anonymously.",
             blind_token=blind_token,
+            receipt_ref=f"VOTE-{blind_token[:8].upper()}",
             election_id=election.id,
             positions_voted=len(validated_entries),
         )
@@ -745,8 +747,8 @@ class VoteService:
         )
         session.add(audit_entry)
 
-        # 8. Server-side receipt
-        slip_record_id = str(booth_slip.voting_id)
+        # 8. Server-side receipt (stored anonymously under a blind ballot ref, preserving secrecy)
+        slip_record_id = f"VOTE-{blind_token[:8].upper()}"
         try:
             from app.services.receipt_service import ReceiptService
             from app.models.system_setting import SystemSetting
@@ -783,6 +785,7 @@ class VoteService:
             message="Your ballot has been cast successfully.",
             data={
                 "blind_token": blind_token,
+                "receipt_ref": slip_record_id,
                 "voting_id": booth_slip.voting_id,
                 "next_voting_id": next_voting_id,
                 "positions_count": len(validated_entries),
