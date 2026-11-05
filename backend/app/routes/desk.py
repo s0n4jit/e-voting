@@ -119,9 +119,14 @@ def _of_election(query, election):
     return query
 
 
-def _find_voter(slip):
-    slip = (slip or "").strip().upper()
-    return User.query.filter(func.upper(User.student_id) == slip, User.role == "voter").first()
+def _find_voter(term):
+    clean = (term or "").strip()
+    if not clean:
+        return None
+    return User.query.filter(
+        User.role == "voter",
+        (func.upper(User.student_id) == clean.upper()) | (func.lower(User.roll_no) == clean.lower())
+    ).first()
 
 
 def _check_term(programme, semester):

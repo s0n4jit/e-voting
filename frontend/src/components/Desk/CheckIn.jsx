@@ -23,9 +23,9 @@ export default function CheckIn() {
     setError('');
     setStudent(null);
     try {
-      setStudent(await deskApi.get(slip.trim(), { checkin: 1 })); // the Verify button is recorded in the audit log
+      setStudent(await deskApi.get(slip.trim(), { checkin: 1 })); // recorded in audit log
     } catch (err) {
-      setError(errorMessage(err, 'No registration found for this slip ID.'));
+      setError(errorMessage(err, 'No voter record found for this Roll Number or Student ID.'));
     } finally {
       setBusy(false);
     }
@@ -33,14 +33,17 @@ export default function CheckIn() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="Voter check-in" subtitle="Verify a voter's slip, check whether they have voted, and issue a voting PIN." />
+      <PageHeader
+        title="Voter Check-in & ID Verification"
+        subtitle="Verify the student's ID card and register eligibility before taking their signature on the roll."
+      />
       <form onSubmit={lookup} className="card card-body flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="flex-1">
-          <Field label="Voter slip ID" htmlFor="slip" error={error}>
+          <Field label="Student Roll No. or ID Card" htmlFor="slip" error={error}>
             <input
               id="slip"
               className={`input font-mono uppercase ${error ? 'input-error' : ''}`}
-              placeholder="SUE26-E1-000000"
+              placeholder="Enter Roll No. or Student ID"
               value={slip}
               onChange={(e) => {
                 setSlip(e.target.value);
@@ -52,7 +55,7 @@ export default function CheckIn() {
           </Field>
         </div>
         <button className="btn-primary" disabled={busy || !slip.trim()}>
-          {busy ? 'Checking…' : 'Verify'}
+          {busy ? 'Checking…' : 'Verify ID'}
         </button>
       </form>
 

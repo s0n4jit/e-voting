@@ -47,9 +47,7 @@ const navFor = (role) => {
     ];
   }
   return [
-    { label: 'Register student', to: '/desk', icon: UserPlusIcon, end: true },
-    { label: 'Voter slips', to: '/admin/slips', icon: TicketIcon },
-    { label: 'Voter check-in', to: '/desk/check-in', icon: TicketIcon },
+    { label: 'Voter Slips & Booths', to: '/desk', icon: TicketIcon, end: true },
   ];
 };
 

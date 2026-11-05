@@ -21,10 +21,7 @@ import OfficerManager from './components/Admin/OfficerManager';
 import SettingsPage from './components/Admin/SettingsPage';
 import SystemPage from './components/Admin/SystemPage';
 import ReceiptManager from './components/Admin/ReceiptManager';
-import RegisterStudent from './components/Desk/RegisterStudent';
-import Registrations from './components/Desk/Registrations';
 import VoterSlipsManager from './components/Admin/VoterSlipsManager';
-import CheckIn from './components/Desk/CheckIn';
 import ProfilePage from './components/Profile/ProfilePage';
 import SecureAccount from './components/Profile/SecureAccount';
 import KioskLogin from './components/Kiosk/KioskLogin';
@@ -89,11 +86,11 @@ function AppRoutes() {
       <Route path="/secure-account" element={<ProtectedRoute allowedRoles={ADMIN}><SecureAccount /></ProtectedRoute>} />
       <Route path="/profile" element={page(STAFF, <ProfilePage />)} />
 
-      {/* Desk Officers (and Election Officers) */}
-      <Route path="/desk" element={page(STAFF, <RegisterStudent />)} />
-      <Route path="/desk/registrations" element={page(STAFF, <VoterSlipsManager />)} />
+      {/* Desk Officers (and Election Officers): Voter Slips & Booth Monitoring */}
+      <Route path="/desk" element={page(STAFF, <VoterSlipsManager />)} />
+      <Route path="/desk/registrations" element={<Navigate to="/desk" replace />} />
+      <Route path="/desk/check-in" element={<Navigate to="/desk" replace />} />
       <Route path="/admin/slips" element={page(STAFF, <VoterSlipsManager />)} />
-      <Route path="/desk/check-in" element={page(STAFF, <CheckIn />)} />
 
       {/* Election Officers */}
       <Route path="/admin/dashboard" element={page(ADMIN, <AdminDashboard />)} />
