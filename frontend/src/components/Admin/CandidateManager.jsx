@@ -61,10 +61,10 @@ export const CandidateManager = () => {
     setError('');
     try {
       if (form.id) {
-        await adminApi.updateCandidate(form.id, electionId, form);
+        await adminApi.updateCandidate(form.id, electionId || election?.id, form);
         toast.success('Candidate updated');
       } else {
-        await adminApi.addCandidate(electionId, form);
+        await adminApi.addCandidate(electionId || election?.id, form);
         toast.success('Candidate added');
       }
       setForm(null);

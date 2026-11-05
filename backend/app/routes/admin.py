@@ -301,23 +301,24 @@ def add_candidate(election_id):
     return jsonify(candidate.to_dict()), 201
 
 
-@admin_bp.put("/elections/<int:election_id>/candidates/<int:candidate_id>")
+@admin_bp.route("/elections/<int:election_id>/candidates/<int:candidate_id>", methods=["PUT", "POST"])
+@admin_bp.route("/candidates/<int:candidate_id>", methods=["PUT", "POST"])
 @admin_required
-def update_candidate(election_id, candidate_id):
+def update_candidate(candidate_id, election_id=None):
     """Update candidate details (name, position, department, semester, bio, optional photo)."""
     candidate = db.session.get(Candidate, candidate_id)
-    if not candidate or candidate.election_id != election_id:
+    if not candidate or (election_id is not None and candidate.election_id != election_id):
         return jsonify({"error": "Candidate not found in this election."}), 404
     if election_locked(candidate.election):
         return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 
-    payload = request.form
+    payload = request.get_json(silent=True) or request.form
     name = sanitize_input(payload.get("name"))
     position = sanitize_input(payload.get("position", candidate.position))
     department = str(payload.get("department") or "").strip()
     semester = sanitize_input(payload.get("semester", ""))[:30]
     bio = sanitize_input(payload.get("bio", ""))
-    upload = request.files.get("photo")
+    upload = request.files.get("photo") if request.files else None
 
     if not name:
         return jsonify({"error": "Candidate name is required."}), 400
@@ -348,12 +349,13 @@ def update_candidate(election_id, candidate_id):
     return jsonify(candidate.to_dict()), 200
 
 
-@admin_bp.delete("/elections/<int:election_id>/candidates/<int:candidate_id>")
+@admin_bp.route("/elections/<int:election_id>/candidates/<int:candidate_id>", methods=["DELETE"])
+@admin_bp.route("/candidates/<int:candidate_id>", methods=["DELETE"])
 @admin_required
-def delete_candidate(election_id, candidate_id):
+def delete_candidate(candidate_id, election_id=None):
     """Remove a candidate."""
     candidate = db.session.get(Candidate, candidate_id)
-    if not candidate or candidate.election_id != election_id:
+    if not candidate or (election_id is not None and candidate.election_id != election_id):
         return jsonify({"error": "Candidate not found in this election."}), 404
     if election_locked(candidate.election):
         return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409

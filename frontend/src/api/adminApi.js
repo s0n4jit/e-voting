@@ -40,9 +40,12 @@ export const adminApi = {
   updateCandidate: async (candidateId, electionId, candidateData) => {
     const form = new FormData();
     Object.entries(candidateData).forEach(([k, v]) => {
-      if (v !== null && v !== undefined) form.append(k, v);
+      if (v !== null && v !== undefined && k !== 'id') form.append(k, v);
     });
-    const response = await apiClient.put(`/admin/elections/${electionId}/candidates/${candidateId}`, form, {
+    const url = electionId
+      ? `/admin/elections/${electionId}/candidates/${candidateId}`
+      : `/admin/candidates/${candidateId}`;
+    const response = await apiClient.put(url, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;

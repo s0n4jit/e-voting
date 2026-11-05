@@ -3,11 +3,10 @@ import { Modal } from './Modal';
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, ArrowsPointingInIcon } from '@heroicons/react/24/outline';
 
 /**
- * Interactive Image Cropper Modal with 1:1 (Square) and 3:4 (Portrait) aspect ratios.
+ * Interactive Image Cropper Modal with 1:1 (Square) aspect ratio.
  * Zero external dependencies: uses HTML5 Canvas for fast, pixel-perfect cropping.
  */
 export default function ImageCropperModal({ isOpen, imageSrc, onClose, onCropComplete }) {
-  const [aspect, setAspect] = useState('1:1'); // '1:1' | '3:4'
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -66,8 +65,8 @@ export default function ImageCropperModal({ isOpen, imageSrc, onClose, onCropCom
       const cropW = rect.width;
       const cropH = rect.height;
 
-      // Target canvas resolution (high-res 800x800 for 1:1, 600x800 for 3:4)
-      const targetW = aspect === '1:1' ? 800 : 600;
+      // Target canvas resolution (high-res 800x800 for 1:1 square)
+      const targetW = 800;
       const targetH = 800;
 
       const canvas = document.createElement('canvas');
@@ -126,38 +125,13 @@ export default function ImageCropperModal({ isOpen, imageSrc, onClose, onCropCom
     } catch {
       setBusy(false);
     }
-  }, [image, aspect, zoom, pan, onCropComplete]);
+  }, [image, zoom, pan, onCropComplete]);
 
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Crop Candidate Photo" maxWidth="max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Crop Candidate Photo (1:1)" maxWidth="max-w-md">
       <div className="space-y-4">
-        {/* Aspect Ratio Selector */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted uppercase tracking-wider">Crop Ratio:</span>
-          <div className="flex rounded-lg border border-line p-0.5 bg-recessed">
-            <button
-              type="button"
-              onClick={() => { setAspect('1:1'); setPan({ x: 0, y: 0 }); }}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
-                aspect === '1:1' ? 'bg-brand text-white shadow-xs' : 'text-muted hover:text-fg'
-              }`}
-            >
-              1:1 Square (Recommended)
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAspect('3:4'); setPan({ x: 0, y: 0 }); }}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
-                aspect === '3:4' ? 'bg-brand text-white shadow-xs' : 'text-muted hover:text-fg'
-              }`}
-            >
-              3:4 Portrait
-            </button>
-          </div>
-        </div>
-
         {/* Viewport Box */}
         <div className="relative w-full flex items-center justify-center bg-slate-950/80 rounded-2xl overflow-hidden p-4 select-none">
           <div
@@ -168,7 +142,7 @@ export default function ImageCropperModal({ isOpen, imageSrc, onClose, onCropCom
             onPointerLeave={handlePointerUp}
             onWheel={handleWheel}
             style={{
-              width: aspect === '1:1' ? '280px' : '240px',
+              width: '280px',
               height: '280px',
               cursor: dragging ? 'grabbing' : 'grab',
             }}
