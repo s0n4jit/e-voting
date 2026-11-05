@@ -125,19 +125,26 @@ class BoothSlip(db.Model):
         election = db.session.get(Election, election_id)
         prefix = election.ensure_slip_prefix() if election else f"SUE{datetime.now(timezone.utc).year % 100:02d}-E{election_id}-"
 
-        if booth_number is not None:
+        # Collect all existing voting IDs for this election to guarantee uniqueness
+        existing_vids = {r[0] for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all() if r[0]}
+
+        if booth_number is not None and booth_number > 0:
             max_seq = (
                 db.session.query(db.func.max(cls.sequence_number))
                 .filter_by(election_id=election_id, booth_number=booth_number)
                 .scalar()
                 or 0
             )
+            booth_prefix_str = str(booth_number)
             existing_for_booth = []
-            for r in db.session.query(cls.voting_id).filter_by(election_id=election_id, booth_number=booth_number).all():
-                if r[0]:
-                    digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
-                    if digits:
+            for vid in existing_vids:
+                suffix = vid.split("-")[-1]
+                digits = "".join(filter(str.isdigit, suffix))
+                if digits and digits.startswith(booth_prefix_str) and len(digits) >= 4:
+                    try:
                         existing_for_booth.append(int(digits))
+                    except ValueError:
+                        pass
             start_num = max(existing_for_booth) if existing_for_booth else (booth_number * 1000)
         else:
             max_seq = (
@@ -147,18 +154,26 @@ class BoothSlip(db.Model):
                 or 0
             )
             existing_pool = []
-            for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all():
-                if r[0]:
-                    digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
-                    if digits:
+            for vid in existing_vids:
+                suffix = vid.split("-")[-1]
+                digits = "".join(filter(str.isdigit, suffix))
+                if digits:
+                    try:
                         existing_pool.append(int(digits))
+                    except ValueError:
+                        pass
             start_num = max(existing_pool) if existing_pool else 1000
 
         created = []
+        curr_num = start_num
         for i in range(1, count + 1):
             seq = max_seq + i
-            numeric_part = str(start_num + i)
-            voting_id = f"{prefix}{numeric_part}"
+            curr_num += 1
+            voting_id = f"{prefix}{curr_num}"
+            while voting_id in existing_vids:
+                curr_num += 1
+                voting_id = f"{prefix}{curr_num}"
+            existing_vids.add(voting_id)
 
             raw_pin = cls.generate_random_4digit_pin()
             pin_hash = cls.hash_pin(raw_pin)

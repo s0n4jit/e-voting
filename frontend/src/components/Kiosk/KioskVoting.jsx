@@ -388,6 +388,8 @@ export const KioskVoting = () => {
       voterApi.endSession(token).catch(() => {});
     }
     ['access_token', 'refresh_token', 'user', 'voting_id', 'booth_id'].forEach((k) => localStorage.removeItem(k));
+    setChoices({});
+    setSubmitError('');
     if (reason) {
       toast.error(reason, { duration: 4000 });
     }

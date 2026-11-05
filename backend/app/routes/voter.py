@@ -149,12 +149,13 @@ def cast_multi_position_ballot(election_id):
             err_msg = str(err)
             is_used = "already" in err_msg.lower() or "used" in err_msg.lower()
             is_booth_mismatch = "booth" in err_msg.lower()
+            status_code = 403 if (is_used or is_booth_mismatch) else 400
             return jsonify({
                 "error": "Already Voted" if is_used else ("Booth Mismatch" if is_booth_mismatch else "Voting failed"),
                 "message": err_msg,
                 "already_voted": is_used,
                 "booth_mismatch": is_booth_mismatch,
-            }), 400
+            }), status_code
         except Exception as exc:
             return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
 

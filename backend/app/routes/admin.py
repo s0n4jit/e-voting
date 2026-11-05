@@ -1456,11 +1456,17 @@ def generate_voter_slips():
     count = int(payload.get("count", 50))
     raw_b = payload.get("booth_number")
     booth_number = None
-    if raw_b is not None and str(raw_b).strip() != "" and str(raw_b).lower() not in ("none", "null", "all"):
+    if raw_b is not None and str(raw_b).strip() != "" and str(raw_b).lower() not in ("none", "null", "all", "unassigned"):
         try:
             booth_number = int(raw_b)
         except (ValueError, TypeError):
             booth_number = None
+
+    if booth_number is None or booth_number < 1:
+        return jsonify({
+            "error": "Booth selection required",
+            "message": "Please select a specific Voting Booth. Slips must be assigned directly to a booth."
+        }), 400
 
     election_id = payload.get("election_id")
     election = db.session.get(Election, int(election_id)) if election_id else Election.current()
@@ -1470,18 +1476,17 @@ def generate_voter_slips():
     if count <= 0 or count > 2000:
         return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
 
+    kiosk_device = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_number).first()
+    booth_id = kiosk_device.id if kiosk_device else None
+
     created = BoothSlip.generate_batch(
         election_id=election.id,
         booth_number=booth_number,
         count=count,
-        booth_id=None,
+        booth_id=booth_id,
     )
 
-    details = (
-        f"Generated {count} voting slips for Booth {booth_number} in “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id})."
-        if booth_number
-        else f"Generated {count} unassigned voting slips for “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id}) to be allotted on booth setup."
-    )
+    details = f"Generated {count} voting slips for BOOTH-{booth_number:02d} in “{election.title}” (IDs {created[0].voting_id} – {created[-1].voting_id})."
 
     db.session.add(AuditLog(
         user_id=int(get_jwt_identity()),
@@ -1497,7 +1502,7 @@ def generate_voter_slips():
         "count_created": len(created),
         "first_voting_id": created[0].voting_id,
         "last_voting_id": created[-1].voting_id,
-        "message": f"Successfully generated {len(created)} voting slips ({created[0].voting_id} – {created[-1].voting_id}).",
+        "message": f"Successfully generated {len(created)} voting slips for BOOTH-{booth_number:02d} ({created[0].voting_id} – {created[-1].voting_id}).",
     }), 201
 
 

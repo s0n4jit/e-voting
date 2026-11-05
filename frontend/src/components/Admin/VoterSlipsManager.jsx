@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
@@ -16,12 +17,14 @@ import { usePolling } from '../../hooks/usePolling';
 import Modal from '../common/Modal';
 
 export const VoterSlipsManager = () => {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState(null);
   const [slips, setSlips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
+  const [kiosks, setKiosks] = useState([]);
 
   // Filters
   const [boothFilter, setBoothFilter] = useState('all');
@@ -30,10 +33,19 @@ export const VoterSlipsManager = () => {
 
   // Generation Modal & Form
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
-  const [targetBooth, setTargetBooth] = useState('none');
+  const [targetBooth, setTargetBooth] = useState('1');
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const fetchKiosks = useCallback(async () => {
+    try {
+      const data = await adminApi.getKiosks();
+      setKiosks(data || []);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const fetchMetrics = useCallback(async () => {
     try {
@@ -43,6 +55,32 @@ export const VoterSlipsManager = () => {
       // silent
     }
   }, []);
+
+  const availableBooths = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    (kiosks || []).forEach((k) => {
+      const num = k.number || k.booth_number;
+      if (num && !seen.has(num)) {
+        seen.add(num);
+        list.push({
+          number: num,
+          label: k.device_name || `BOOTH-${String(num).padStart(2, '0')}`,
+        });
+      }
+    });
+    (metrics?.booths || []).forEach((b) => {
+      const num = b.booth_number;
+      if (num && !seen.has(num)) {
+        seen.add(num);
+        list.push({
+          number: num,
+          label: b.booth_id || `BOOTH-${String(num).padStart(2, '0')}`,
+        });
+      }
+    });
+    return list.sort((a, b) => a.number - b.number);
+  }, [kiosks, metrics]);
 
   const fetchSlips = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -67,23 +105,34 @@ export const VoterSlipsManager = () => {
   }, [page, boothFilter, statusFilter, search]);
 
   useEffect(() => {
+    fetchKiosks();
     fetchMetrics();
     fetchSlips(false);
-  }, [fetchMetrics, fetchSlips]);
+  }, [fetchKiosks, fetchMetrics, fetchSlips]);
 
+  usePolling(fetchKiosks, 4000);
   usePolling(fetchMetrics, 2000);
   usePolling(() => fetchSlips(true), 2500);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
+    if (!targetBooth || targetBooth === 'none' || targetBooth === 'all') {
+      toast.error('Please select a specific Voting Booth.');
+      return;
+    }
+    const bNum = Number(targetBooth);
+    if (!bNum || isNaN(bNum) || bNum < 1) {
+      toast.error('Please select a valid Voting Booth.');
+      return;
+    }
+
     setGenerating(true);
     try {
-      const isUnassigned = !targetBooth || targetBooth === 'none' || targetBooth === 'all';
-      const bNum = isUnassigned ? null : Number(targetBooth);
       const res = await adminApi.generateSlips(Number(slipCount), bNum);
       toast.success(res.message || `Generated ${res.count_created} voting slips.`);
       setGenerateModalOpen(false);
       setPage(1);
+      await fetchKiosks();
       await fetchMetrics();
       await fetchSlips(false);
     } catch (err) {
@@ -153,20 +202,17 @@ export const VoterSlipsManager = () => {
     }
   };
 
-  // Compute calculated preview range for target booth or pool
+  // Compute calculated preview range for target booth
   const getPreviewRange = () => {
-    if (!targetBooth || targetBooth === 'none' || targetBooth === 'all') {
-      return `Generates ${slipCount} sequential slips for the unassigned pool (to be allotted when setting up booths).`;
-    }
     const bNum = parseInt(targetBooth, 10);
-    if (isNaN(bNum)) {
-      return `Generates ${slipCount} sequential slips for the unassigned pool.`;
+    if (isNaN(bNum) || bNum < 1) {
+      return 'Please select a booth to preview the slip range.';
     }
     const boothInfo = (metrics?.booths || []).find((b) => b.booth_number === bNum);
     const currentCount = boothInfo?.total_slips || 0;
-    const startSeq = currentCount + 1;
-    const endSeq = currentCount + Number(slipCount);
-    return `Booth ${bNum}: Slips ${bNum}${String(startSeq).padStart(3, '0')} to ${bNum}${String(endSeq).padStart(3, '0')}`;
+    const startNum = (bNum * 1000) + currentCount + 1;
+    const endNum = startNum + Number(slipCount) - 1;
+    return `BOOTH-${String(bNum).padStart(2, '0')}: Slips ${startNum} to ${endNum}`;
   };
 
   const currentBoothStats = useMemo(() => {
@@ -215,7 +261,8 @@ export const VoterSlipsManager = () => {
             <button
               type="button"
               onClick={() => {
-                setTargetBooth('none');
+                const first = availableBooths[0]?.number || 1;
+                setTargetBooth(String(first));
                 setSlipCount(50);
                 setGenerateModalOpen(true);
               }}
@@ -308,14 +355,11 @@ export const VoterSlipsManager = () => {
               className="px-3 py-1.5 rounded-xl border border-line bg-surface text-fg text-xs font-semibold shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
             >
               <option value="all">All Booths</option>
-              <option value="unassigned">Unassigned Pool</option>
-              {(metrics?.booths || [])
-                .filter((b) => b.booth_number !== null && b.booth_number !== undefined)
-                .map((b) => (
-                  <option key={b.booth_number} value={String(b.booth_number)}>
-                    {b.booth_id || `BOOTH-${String(b.booth_number).padStart(2, '0')}`}
-                  </option>
-                ))}
+              {availableBooths.map((b) => (
+                <option key={b.number} value={String(b.number)}>
+                  {b.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -490,29 +534,60 @@ export const VoterSlipsManager = () => {
         onClose={() => setGenerateModalOpen(false)}
         title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
       >
+        {availableBooths.length === 0 ? (
+          <div className="space-y-4 py-2">
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm space-y-2">
+              <p className="font-bold flex items-center gap-2">
+                <span>⚠️</span> No Voting Booths registered yet
+              </p>
+              <p className="text-xs leading-relaxed">
+                Before generating slips, please create your Voting Booths first (e.g. BOOTH-01, BOOTH-02). Slips are strictly assigned directly to specific booths to prevent waste and reduce printing costs.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setGenerateModalOpen(false)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setGenerateModalOpen(false);
+                  navigate('/admin/kiosks');
+                }}
+              >
+                Go to Voting Booths
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleGenerate} className="space-y-4">
           <p className="text-xs text-muted">
-            Pre-generates sequential voting IDs with cryptographically secure 4-digit PINs. Each slip is 1:1 linked with a voting ID and persists across all server restarts.
+            Pre-generates sequential voting IDs with cryptographically secure 4-digit PINs assigned directly to the selected booth terminal.
           </p>
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-fg">
-              Booth Assignment <span className="text-muted font-normal text-[11px]">(Optional)</span>
+              Target Voting Booth <span className="text-brand font-bold text-[11px]">* Required</span>
             </label>
             <select
               value={targetBooth}
               onChange={(e) => setTargetBooth(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+              required
             >
-              <option value="none">None / Unassigned Pool (Allot at Booth Setup)</option>
-              {[1, 2, 3, 4, 5, 6].map((num) => (
-                <option key={num} value={num}>
-                  BOOTH-{String(num).padStart(2, '0')}
+              {availableBooths.map((b) => (
+                <option key={b.number} value={String(b.number)}>
+                  {b.label}
                 </option>
               ))}
             </select>
             <p className="text-[11px] text-muted">
-              Slips created in the unassigned pool will be assigned to a specific booth when setting up booth machines.
+              Slips are assigned exclusively to this booth to eliminate slip waste.
             </p>
           </div>
 
@@ -554,6 +629,7 @@ export const VoterSlipsManager = () => {
             </button>
           </div>
         </form>
+        )}
       </Modal>
     </div>
   );
