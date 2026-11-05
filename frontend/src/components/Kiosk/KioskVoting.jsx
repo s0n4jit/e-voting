@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, NoSymbolIcon, ExclamationCircleIcon, ArrowPathIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
 import { voterApi } from '../../api/voterApi';
 import { useBooth } from '../../hooks/useBooth';
 import { AnimatedCheck, BoothClock, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
@@ -381,16 +382,50 @@ export const KioskVoting = () => {
 
 
 
-  const finish = useCallback(() => {
-    voterApi.endSession(localStorage.getItem('access_token')).catch(() => {}); // the desk list stops showing this student as active
-    ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
+  const revokeSession = useCallback((reason) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      voterApi.endSession(token).catch(() => {});
+    }
+    ['access_token', 'refresh_token', 'user', 'voting_id', 'booth_id'].forEach((k) => localStorage.removeItem(k));
+    if (reason) {
+      toast.error(reason, { duration: 4000 });
+    }
     navigate('/kiosk/vote', { replace: true });
   }, [navigate]);
 
-  // The officer closed voting: reset this booth at once, even in the middle of a ballot.
+  const finish = useCallback(() => {
+    revokeSession();
+  }, [revokeSession]);
+
+  // The officer closed voting or booth changed or slip invalidated: reset this booth at once
   useEffect(() => {
-    if (boothInfo?.voting_ended) finish();
-  }, [boothInfo, finish]);
+    if (!boothInfo) return;
+    if (boothInfo.voting_ended) {
+      revokeSession();
+      return;
+    }
+    if (stage === 'done' || stage === 'submitting') return;
+
+    // Check if booth configuration changed while a voter is in session
+    const sessionBooth = localStorage.getItem('booth_id') || localStorage.getItem('kiosk_name');
+    if (sessionBooth && boothInfo.booth_id && sessionBooth !== boothInfo.booth_id) {
+      revokeSession(`Booth configuration changed (${sessionBooth} -> ${boothInfo.booth_id}). Session revoked.`);
+      return;
+    }
+
+    // Check if current active slip has advanced or changed (meaning this slip was already used)
+    const sessionSlip = localStorage.getItem('voting_id');
+    if (sessionSlip && boothInfo.current_voting_id && sessionSlip !== boothInfo.current_voting_id) {
+      revokeSession('This voting slip has already been used.');
+      return;
+    }
+
+    if (sessionSlip && boothInfo.is_exhausted) {
+      revokeSession('This voting slip has already been used.');
+      return;
+    }
+  }, [boothInfo, stage, revokeSession]);
 
   useEffect(() => {
     if (!localStorage.getItem('access_token')) {
@@ -402,8 +437,11 @@ export const KioskVoting = () => {
       .getElectionBallot(electionId)
       .then((data) => {
         if (data.already_voted) {
-          ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
-          navigate('/kiosk/vote', { replace: true });
+          revokeSession('This voting slip has already been used.');
+          return;
+        }
+        if (data.booth_mismatch) {
+          revokeSession('Voting slip belongs to another booth. Session revoked.');
           return;
         }
         const list = (data.positions || []).filter((p) => p.candidates?.length);
@@ -431,15 +469,25 @@ export const KioskVoting = () => {
       })
       .catch((err) => {
         const msg = errorMessage(err, '');
-        if (/already voted|already been used/i.test(msg) || err?.response?.data?.already_voted) {
-          ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
-          navigate('/kiosk/vote', { replace: true });
+        const isAlreadyUsed =
+          /already (?:voted|been used)|slip.*used|token.*used/i.test(msg) ||
+          Boolean(err?.response?.data?.already_voted);
+        const isBoothMismatch =
+          /not Booth|belongs to Booth|did not start at this booth|Unauthorized booth|booth.*mismatch/i.test(msg) ||
+          Boolean(err?.response?.data?.booth_mismatch);
+
+        if (isAlreadyUsed) {
+          revokeSession('This voting slip has already been used.');
+          return;
+        }
+        if (isBoothMismatch) {
+          revokeSession(msg || 'Voting slip belongs to another booth. Session revoked.');
           return;
         }
         setError(errorMessage(err, 'The ballot could not be loaded. Please speak to the desk.'));
         setStage('error');
       });
-  }, [electionId, navigate]);
+  }, [electionId, navigate, revokeSession]);
 
   // Suppress drag, text selection, and copy in kiosk browser sessions
   useEffect(() => {
@@ -658,14 +706,23 @@ export const KioskVoting = () => {
     } catch (err) {
       await minimum;
       const msg = errorMessage(err, 'Your vote could not be recorded. Please try again or ask the desk.');
-      if (/already voted/i.test(msg)) {
-        setAlreadyRecorded(true);
-        setChoices({});
-        setStage('done');
-      } else {
-        setSubmitError(msg);
-        setStage('review');
+      const isAlreadyUsed =
+        /already (?:voted|been used)|slip.*used|token.*used|already recorded/i.test(msg) ||
+        Boolean(err?.response?.data?.already_voted);
+      const isBoothMismatch =
+        /not Booth|belongs to Booth|did not start at this booth|Unauthorized booth|booth.*mismatch/i.test(msg) ||
+        Boolean(err?.response?.data?.booth_mismatch);
+
+      if (isAlreadyUsed || /already/i.test(msg)) {
+        revokeSession('This voting slip has already been used.');
+        return;
       }
+      if (isBoothMismatch || err?.response?.status === 403) {
+        revokeSession(msg || 'This voting session is no longer valid.');
+        return;
+      }
+      setSubmitError(msg);
+      setStage('review');
     } finally {
       submitting.current = false;
     }

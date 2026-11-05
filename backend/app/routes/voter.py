@@ -66,6 +66,12 @@ def get_election_ballot(election_id):
                 "message": "This voting slip has already been used to cast a ballot.",
                 "already_voted": True,
             }), 403
+        if booth and slip.booth_number != booth.number:
+            return jsonify({
+                "error": "Booth Mismatch",
+                "message": f"Voting slip belongs to Booth {slip.booth_number}, not Booth {booth.number}.",
+                "booth_mismatch": True,
+            }), 403
     elif claims.get("student_id"):
         from app.models.voting_token import VotingToken
         token = VotingToken.query.filter_by(
@@ -140,7 +146,15 @@ def cast_multi_position_ballot(election_id):
             )
             return jsonify(dict(result)), 200
         except VotingError as err:
-            return jsonify({"error": "Voting failed", "message": str(err)}), 400
+            err_msg = str(err)
+            is_used = "already" in err_msg.lower() or "used" in err_msg.lower()
+            is_booth_mismatch = "booth" in err_msg.lower()
+            return jsonify({
+                "error": "Already Voted" if is_used else ("Booth Mismatch" if is_booth_mismatch else "Voting failed"),
+                "message": err_msg,
+                "already_voted": is_used,
+                "booth_mismatch": is_booth_mismatch,
+            }), 400
         except Exception as exc:
             return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
 
@@ -160,7 +174,15 @@ def cast_multi_position_ballot(election_id):
         )
         return jsonify(dict(result)), 200
     except VotingError as err:
-        return jsonify({"error": "Voting failed", "message": str(err)}), 400
+        err_msg = str(err)
+        is_used = "already" in err_msg.lower() or "used" in err_msg.lower()
+        is_booth_mismatch = "booth" in err_msg.lower()
+        return jsonify({
+            "error": "Already Voted" if is_used else ("Booth Mismatch" if is_booth_mismatch else "Voting failed"),
+            "message": err_msg,
+            "already_voted": is_used,
+            "booth_mismatch": is_booth_mismatch,
+        }), 400
     except Exception as exc:
         return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500
 

@@ -27,7 +27,7 @@ export const KioskLogin = () => {
 
   // Clean slate on kiosk load
   useEffect(() => {
-    ['access_token', 'refresh_token', 'user', 'voting_id'].forEach((k) => localStorage.removeItem(k));
+    ['access_token', 'refresh_token', 'user', 'voting_id', 'booth_id'].forEach((k) => localStorage.removeItem(k));
     document.body.classList.add('kiosk-screen');
     const handleDrag = (e) => e.preventDefault();
     const handleSelect = (e) => {

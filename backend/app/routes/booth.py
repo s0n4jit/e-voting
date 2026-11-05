@@ -56,7 +56,7 @@ def require_booth(claims=None, election_id=None):
     if not ok:
         return None, denied
     if claims is not None and claims.get("booth_ref") != device.ref:
-        return None, (jsonify({"error": "Unauthorized booth", "message": "This voting session did not start at this booth. Please start again."}), 403)
+        return None, (jsonify({"error": "Unauthorized booth", "message": "This voting session did not start at this booth. Please start again.", "booth_mismatch": True}), 403)
     if election_id is not None and device.election_id not in (None, election_id):
         return None, denied
     return device, None
