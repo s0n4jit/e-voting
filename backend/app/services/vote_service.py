@@ -409,12 +409,26 @@ class VoteService:
             raise ResultsHiddenError("Election results are not yet published.")
 
         # Total unique voters who participated
-        total_voters = (
+        from app.models.booth_slip import BoothSlip
+        slips_used = (
+            session.query(func.count(BoothSlip.id))
+            .filter_by(election_id=election.id, is_used=True)
+            .scalar()
+            or 0
+        )
+        roster_voters = (
             session.query(func.count(VoterRecord.id))
             .filter_by(election_id=election.id, has_voted=True)
             .scalar()
             or 0
         )
+        unique_ballots = (
+            session.query(func.count(func.distinct(BallotEntry.blind_token)))
+            .filter_by(election_id=election.id)
+            .scalar()
+            or 0
+        )
+        total_voters = max(slips_used, roster_voters, unique_ballots)
 
         # Total ballot entries cast
         total_ballot_entries = (
@@ -784,18 +798,45 @@ class VoteService:
         if not election:
             raise VotingError("Election not found.")
 
-        total_registered = (
+        from app.models.booth_slip import BoothSlip
+        booth_slips_total = (
+            session.query(func.count(BoothSlip.id))
+            .filter_by(election_id=election.id)
+            .scalar()
+            or 0
+        )
+        booth_slips_used = (
+            session.query(func.count(BoothSlip.id))
+            .filter_by(election_id=election.id, is_used=True)
+            .scalar()
+            or 0
+        )
+        unique_ballots = (
+            session.query(func.count(func.distinct(BallotEntry.blind_token)))
+            .filter_by(election_id=election.id)
+            .scalar()
+            or 0
+        )
+
+        roster_registered = (
             session.query(func.count(VoterRecord.id))
             .filter_by(election_id=election.id)
             .scalar()
             or 0
         )
-        ballots_cast = (
+        roster_voted = (
             session.query(func.count(VoterRecord.id))
             .filter_by(election_id=election.id, has_voted=True)
             .scalar()
             or 0
         )
+
+        if booth_slips_total > 0:
+            total_registered = booth_slips_total
+            ballots_cast = max(booth_slips_used, unique_ballots)
+        else:
+            total_registered = roster_registered
+            ballots_cast = max(roster_voted, unique_ballots)
 
         turnout_pct = (
             round((ballots_cast / total_registered * 100), 2)

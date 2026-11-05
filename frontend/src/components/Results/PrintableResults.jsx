@@ -34,9 +34,9 @@ export default function PrintableResults({ data }) {
       </div>
 
       <div className="turnout">
-        <div><span>Registered voters</span><b>{turnout.total_registered}</b></div>
-        <div><span>Voters who voted</span><b>{turnout.ballots_cast}</b></div>
-        <div><span>Did not vote</span><b>{notVoted}</b></div>
+        <div><span>Total voter slips</span><b>{turnout.total_registered}</b></div>
+        <div><span>Voter slips cast</span><b>{turnout.ballots_cast}</b></div>
+        <div><span>Unused slips</span><b>{notVoted}</b></div>
       </div>
 
       <h3>Declared results</h3>

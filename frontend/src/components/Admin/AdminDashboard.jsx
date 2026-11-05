@@ -144,8 +144,15 @@ export const AdminDashboard = () => {
         <StatCard
           loading={loading}
           label="Voting booths"
-          value={s ? `${s.online_booths || 0} online` : '—'}
-          hint={s ? `${s.voting_booths || 0} booths configured` : undefined}
+          value={s ? (s.voting_booths ?? 0) : '—'}
+          hint={
+            s ? (
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className={`w-1.5 h-1.5 rounded-full ${s.online_booths > 0 ? 'bg-ok animate-pulse' : 'bg-muted/50'}`} />
+                <span>{s.online_booths || 0} online</span>
+              </span>
+            ) : undefined
+          }
           icon={ComputerDesktopIcon}
         />
         <StatCard loading={loading} label="Candidates" value={s?.candidates} icon={UserGroupIcon} />

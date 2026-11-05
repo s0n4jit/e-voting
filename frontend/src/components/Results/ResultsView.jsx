@@ -72,9 +72,9 @@ export default function ResultsView({ data, portal = true }) {
           </button>
         </div>
         <div className="grid grid-cols-3 divide-x divide-line border-t border-dashed border-line bg-recessed/50">
-          <Stat label="Registered" value={turnout.total_registered} />
-          <Stat label="Voted" value={turnout.ballots_cast} />
-          <Stat label="Did not vote" value={notVoted} />
+          <Stat label="Total Slips" value={turnout.total_registered} />
+          <Stat label="Voted (Cast)" value={turnout.ballots_cast} />
+          <Stat label="Unused Slips" value={notVoted} />
         </div>
       </section>
 

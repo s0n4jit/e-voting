@@ -106,7 +106,7 @@ export const ResultsPage = () => {
               ? 'Voting has closed. Publish the results on the Elections page to print the result sheet, present it on the projector and share it.'
               : 'Voting is still in progress. Results stay hidden, for everyone, until voting has closed and you publish them.'}
           </p>
-          <p className="text-sm mt-3"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} registered voters have voted.</p>
+          <p className="text-sm mt-3"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} voter slips cast{data.turnout.total_registered > 0 ? ` (${data.turnout.turnout_percentage}% turnout)` : ''}.</p>
           <ol className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm list-decimal pl-5 text-muted">
             {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
           </ol>
@@ -119,7 +119,7 @@ export const ResultsPage = () => {
               <p className="text-sm text-muted mt-1">
                 Print it on the college letterhead (with the logo), or open it on this screen. Counts are shown as numbers of votes, with NOTA in every position.
               </p>
-              <p className="text-sm mt-2"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} registered voters voted.</p>
+              <p className="text-sm mt-2"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} voter slips cast{data.turnout.total_registered > 0 ? ` (${data.turnout.turnout_percentage}% turnout)` : ''}.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {!showAll && (

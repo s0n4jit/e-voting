@@ -147,9 +147,15 @@ class Election(db.Model):
     def to_dict(self, include_candidates: bool = False) -> dict:
         """Return dict representation."""
         from app.models.voter_record import VoterRecord
+        from app.models.booth_slip import BoothSlip
         try:
-            total_votes = VoterRecord.query.filter_by(election_id=self.id, has_voted=True).count()
-            registered_voters = VoterRecord.query.filter_by(election_id=self.id).count()
+            slips_count = BoothSlip.query.filter_by(election_id=self.id).count()
+            if slips_count > 0:
+                registered_voters = slips_count
+                total_votes = BoothSlip.query.filter_by(election_id=self.id, is_used=True).count()
+            else:
+                total_votes = VoterRecord.query.filter_by(election_id=self.id, has_voted=True).count()
+                registered_voters = VoterRecord.query.filter_by(election_id=self.id).count()
         except Exception:
             total_votes = 0
             registered_voters = 0

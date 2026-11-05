@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, NoSymbolIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, NoSymbolIcon, ExclamationCircleIcon, ArrowPathIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { voterApi } from '../../api/voterApi';
 import { useBooth } from '../../hooks/useBooth';
 import { AnimatedCheck, BoothClock, BrandMark, ThemeToggle, errorMessage, photoSrc } from '../ui';
@@ -376,15 +376,8 @@ export const KioskVoting = () => {
   const submitBtnRef = useRef(null);
   const autoAdvanceTimer = useRef(null);
 
-  // When reaching final review, autoscroll smoothly to the submit button
-  useEffect(() => {
-    if (stage === 'review') {
-      const timer = setTimeout(() => {
-        submitBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 350);
-      return () => clearTimeout(timer);
-    }
-  }, [stage]);
+  // Smooth transition to review without jumpy autoscroll
+
 
 
   const finish = useCallback(() => {
@@ -690,7 +683,7 @@ export const KioskVoting = () => {
         )}
       </header>
       <main className="flex-1 w-full overflow-y-auto">
-        <div className="max-w-6xl mx-auto w-full px-4 pb-24">
+        <div className="max-w-6xl mx-auto w-full px-4 pb-6 sm:pb-8">
           {children}
         </div>
       </main>
@@ -796,52 +789,74 @@ export const KioskVoting = () => {
     <>
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
-          <div key="review" className={`${animation} max-h-screen flex flex-col justify-between`}>
-            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-2 border-b border-line shadow-2xs flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-brand">Final step</span>
-                  <span className="text-muted text-xs">• All positions reviewed</span>
-                </div>
-                <h1 className="text-lg sm:text-xl font-black tracking-tight text-fg">Review your choices</h1>
-              </div>
-              <p className="text-muted text-xs hidden sm:block">You can change any choice before final submission.</p>
+          <div key="review" className={`${animation} max-w-5xl mx-auto w-full space-y-3.5`}>
+            {/* Header: centered & prominent */}
+            <div className="bg-surface rounded-2xl border border-line p-4 shadow-2xs text-center">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand">Final Step</span>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-fg mt-0.5">Review your choices</h1>
+              <p className="text-xs sm:text-sm text-muted mt-1">
+                Please check each post and your chosen candidate below. You can change any vote before final submission.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3 max-w-5xl mx-auto w-full">
+            {/* Position Cards Grid: Centered post names, candidate names, and badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
               {positions.map((p, i) => {
                 const c = choices[p.position];
                 const isNota = c === 'NOTA';
                 return (
                   <div
                     key={p.position}
-                    className="p-2.5 rounded-xl border border-line bg-surface shadow-2xs flex items-center gap-3 transition-colors hover:border-brand/40"
+                    className="p-4 rounded-2xl border-2 border-line bg-surface shadow-xs flex flex-col items-center text-center transition-all hover:border-brand/40"
                   >
-                    {isNota ? (
-                      <div className="w-10 h-10 rounded-lg bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
-                        NOTA
-                      </div>
-                    ) : c ? (
-                      <Avatar candidate={c} size="w-10 h-10" rounded="rounded-lg" text="text-base" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
-                        ?
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold text-muted uppercase tracking-wider truncate">
+                    {/* Post Name (Position) - Centered & prominent */}
+                    <div className="w-full pb-2 mb-2 border-b border-line/60 text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted block">
+                        Post / Position
+                      </span>
+                      <h2 className="text-base sm:text-lg font-black text-brand tracking-tight">
                         {p.position}
-                      </p>
-                      <p className="font-bold text-sm text-fg truncate">
+                      </h2>
+                    </div>
+
+                    {/* Avatar / NOTA Badge - Centered */}
+                    <div className="my-1 flex items-center justify-center">
+                      {isNota ? (
+                        <div className="w-14 h-14 rounded-xl bg-recessed border-2 border-line flex items-center justify-center font-black text-xs text-muted">
+                          NOTA
+                        </div>
+                      ) : c ? (
+                        <Avatar candidate={c} size="w-14 h-14" rounded="rounded-xl shadow-xs" text="text-xl" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-sm">
+                          ?
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Candidate Name - Centered & Big */}
+                    <div className="w-full my-1.5 text-center flex-1 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted block">
+                        Your Vote
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-fg leading-snug">
                         {isNota ? 'None of the Above (NOTA)' : c ? c.name : 'Not selected'}
                       </p>
+                      {!isNota && c && formatCandidateClass(c.department, c.semester) && (
+                        <p className="text-[11px] text-muted font-medium mt-0.5">
+                          {formatCandidateClass(c.department, c.semester)}
+                        </p>
+                      )}
                     </div>
+
+                    {/* Change Button - Centered */}
                     <button
                       type="button"
-                      className="btn-ghost btn-xs text-brand hover:text-brand-hover hover:bg-brand-soft font-bold px-2 py-1"
+                      className="btn-secondary btn-xs text-xs font-bold mt-2 px-3.5 py-1 text-brand hover:border-brand/50 flex items-center gap-1.5"
                       onClick={() => { setFromReview(true); go(i, 'prev'); }}
                     >
-                      Change
+                      <ArrowPathIcon className="w-3.5 h-3.5" />
+                      <span>Change vote</span>
                     </button>
                   </div>
                 );
@@ -849,15 +864,16 @@ export const KioskVoting = () => {
             </div>
 
             {submitError && (
-              <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2 mt-2 animate-pop-in" role="alert">
+              <p className="text-xs text-bad bg-bad-soft rounded-lg px-3 py-2 mt-2 animate-pop-in text-center" role="alert">
                 {submitError}
               </p>
             )}
 
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-line">
+            {/* Bottom Actions Bar */}
+            <div className="flex items-center justify-between pt-3 border-t border-line">
               <button
                 type="button"
-                className="btn-secondary btn-sm flex items-center gap-1.5"
+                className="btn-secondary btn-md flex items-center gap-1.5"
                 onClick={() => go(total - 1, 'prev')}
               >
                 <ArrowLeftIcon className="w-4 h-4" />
@@ -877,17 +893,18 @@ export const KioskVoting = () => {
           </div>
         ) : (
           <div key={step} className={animation}>
-            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-3 border-b border-line shadow-xs">
-              <div className="flex items-center justify-between text-sm text-muted">
-                <span className="font-medium">Position {step + 1} of {total}</span>
+            <div className="sticky top-0 z-20 bg-bg -mx-4 px-4 py-3 border-b border-line shadow-xs text-center">
+              <div className="flex items-center justify-between text-xs text-muted mb-1">
+                <span className="font-bold uppercase tracking-wider text-brand">Post {step + 1} of {total}</span>
                 <span className="flex gap-1.5" aria-hidden="true">
                   {positions.map((p, i) => (
                     <span key={p.position} className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-brand' : choices[p.position] ? 'w-1.5 bg-brand/60' : 'w-1.5 bg-line'}`} />
                   ))}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 text-fg">{current.position}</h1>
-              <p className="text-muted text-xs mt-0.5">Choose one candidate for this position.</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Voting for Post</p>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-fg mt-0.5">{current.position}</h1>
+              <p className="text-muted text-xs sm:text-sm mt-0.5">Click your chosen candidate below to give your vote.</p>
             </div>
 
             <div
@@ -914,7 +931,7 @@ export const KioskVoting = () => {
                         : 'border-line hover:border-brand/40 hover:shadow-card-hover'
                     }`}
                   >
-                    <div className="w-full flex items-center justify-center pt-3.5 pb-2 px-3 bg-recessed/30 pointer-events-none">
+                    <div className="w-full flex items-center justify-center pt-4 pb-2 px-3 bg-recessed/30 pointer-events-none">
                       <Avatar
                         candidate={c}
                         size="w-24 h-24 sm:w-28 sm:h-28 aspect-square"
@@ -923,17 +940,22 @@ export const KioskVoting = () => {
                       />
                     </div>
                     <span
-                      className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                      className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
                         on ? 'bg-brand border-brand scale-100 shadow-xs' : 'bg-surface/90 border-line'
                       }`}
                     >
-                      {on && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
+                      {on && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                     </span>
-                    <div className={`px-3 py-2.5 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
-                      <p className="text-base sm:text-lg font-bold leading-tight break-words">{c.name}</p>
-                      <p className="text-xs sm:text-sm text-muted font-medium mt-1">
-                        {formatCandidateClass(c.department, c.semester)}
+                    <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-lg sm:text-xl font-black leading-tight break-words text-fg">{c.name}</p>
+                      <p className="text-xs sm:text-sm text-brand font-black uppercase tracking-wider mt-1">
+                        Candidate for {current.position}
                       </p>
+                      {formatCandidateClass(c.department, c.semester) && (
+                        <p className="text-xs text-muted font-medium mt-0.5">
+                          {formatCandidateClass(c.department, c.semester)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -953,17 +975,17 @@ export const KioskVoting = () => {
                     : 'border-slate-500 bg-recessed hover:border-brand/60'
                 }`}
               >
-                <div className="w-full flex items-center justify-center pt-3.5 pb-2 px-3 bg-recessed/30 pointer-events-none">
+                <div className="w-full flex items-center justify-center pt-4 pb-2 px-3 bg-recessed/30 pointer-events-none">
                   <div className="w-24 h-24 sm:w-28 sm:h-28 aspect-square rounded-xl flex items-center justify-center bg-slate-200 dark:bg-slate-700 shadow-xs">
                     <NoSymbolIcon className="w-12 h-12 sm:w-14 sm:h-14 text-slate-600 dark:text-slate-300" strokeWidth={1.5} />
                   </div>
                 </div>
-                <span className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
-                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pop-in" strokeWidth={3} />}
+                <span className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
+                  {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <div className={`px-3 py-2.5 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-base sm:text-lg font-bold leading-tight">NOTA</p>
-                  <p className="text-xs sm:text-sm text-muted font-medium mt-1">I do not choose anyone</p>
+                <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-lg sm:text-xl font-black leading-tight text-fg">None of the Above (NOTA)</p>
+                  <p className="text-xs sm:text-sm text-brand font-bold mt-1">Reject all candidates for {current.position}</p>
                 </div>
               </div>
             </div>
