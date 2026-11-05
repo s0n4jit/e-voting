@@ -389,10 +389,10 @@ def get_audit_logs():
     # Calculate summary metrics
     stats = {
         "total_records": AuditLog.query.count(),
-        "ballots_cast": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS["ballot"])).count(),
-        "pins_issued": AuditLog.query.filter(AuditLog.action == "PIN_ISSUED").count(),
-        "desk_enrollments": AuditLog.query.filter(AuditLog.action.in_(["DESK_CHECKIN", "STUDENT_REGISTERED"])).count(),
-        "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS["booth"])).count(),
+        "ballots_cast": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("ballot", []))).count(),
+        "pins_issued": AuditLog.query.filter(AuditLog.action.in_(["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"])).count(),
+        "security_alerts": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("security", []))).count(),
+        "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("booth", []))).count(),
     }
 
     serialized = []

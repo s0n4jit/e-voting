@@ -54,10 +54,40 @@ def require_booth(claims=None, election_id=None):
     ok, device = KioskDevice.verify_token(booth_token_from_request())
     denied = (jsonify({"error": "Unauthorized booth", "message": "Votes can only be cast from an authorized voting booth."}), 403)
     if not ok:
+        try:
+            db.session.add(AuditLog(
+                action="UNAUTHORIZED_BOOTH_ATTEMPT",
+                details=f"Unauthorized access attempt to {request.path} from IP {request.remote_addr}. Invalid or missing kiosk token.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return None, denied
     if claims is not None and claims.get("booth_ref") != device.ref:
+        try:
+            db.session.add(AuditLog(
+                action="TAMPER_DETECTED",
+                details=f"Cross-booth tamper attempt! Session started at {claims.get('booth_ref')} but attempted action from {device.device_name} (IP: {request.remote_addr}).",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return None, (jsonify({"error": "Unauthorized booth", "message": "This voting session did not start at this booth. Please start again.", "booth_mismatch": True}), 403)
     if election_id is not None and device.election_id not in (None, election_id):
+        try:
+            db.session.add(AuditLog(
+                action="TAMPER_DETECTED",
+                details=f"Election mismatch tamper attempt! Device {device.device_name} tried access to election #{election_id} from IP {request.remote_addr}.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return None, denied
     return device, None
 

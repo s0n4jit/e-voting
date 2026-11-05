@@ -217,6 +217,17 @@ def cast_ballot(election_id):
         )
         return jsonify(dict(result)), 200
     except VotingError as err:
+        try:
+            db.session.add(AuditLog(
+                user_id=user.id if user else None,
+                action="TAMPERED_BALLOT_REJECTED",
+                details=f"Ballot rejected for election #{election_id} from IP {request.remote_addr}: {str(err)}",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({"error": "Voting failed", "message": str(err)}), 400
     except Exception as exc:
         return jsonify({"error": "Server error", "message": "Your ballot could not be processed. Please try again."}), 500

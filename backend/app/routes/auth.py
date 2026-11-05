@@ -836,10 +836,30 @@ def booth_pin_login():
     pin = str(payload.get("pin") or "").strip()
 
     if not kiosk_token:
+        try:
+            db.session.add(AuditLog(
+                action="UNAUTHORIZED_BOOTH_ATTEMPT",
+                details=f"Unauthorized booth PIN login attempt from IP {request.remote_addr}: missing kiosk token.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({"error": "Unauthorized", "message": "Voting kiosk terminal token is required."}), 403
 
     valid_kiosk, kiosk_device = KioskDevice.verify_token(kiosk_token)
     if not valid_kiosk or not kiosk_device:
+        try:
+            db.session.add(AuditLog(
+                action="SECURITY_ALERT",
+                details=f"Invalid or revoked kiosk token presented for booth PIN login from IP {request.remote_addr}.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({"error": "Unauthorized", "message": "Invalid or revoked kiosk terminal token."}), 403
 
     election = kiosk_device.election or Election.current()
@@ -884,12 +904,31 @@ def booth_pin_login():
     # Verify PIN against hash
     if not current_slip.verify_pin(pin):
         # CRITICAL: Do NOT mark used, do NOT destroy, do NOT advance.
+        try:
+            db.session.add(AuditLog(
+                action="PIN_BRUTE_FORCE",
+                details=f"Incorrect PIN submitted for voting slip {current_slip.voting_id} at {kiosk_device.device_name} (IP: {request.remote_addr}).",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({
             "error": "Incorrect PIN",
             "message": "Incorrect PIN. Please check your voting slip and try again."
         }), 401
 
     current_slip.authenticated_at = datetime.now(timezone.utc)
+    try:
+        db.session.add(AuditLog(
+            action="BOOTH_PIN_LOGIN",
+            details=f"Successful PIN verification for voting slip {current_slip.voting_id} at {kiosk_device.device_name}.",
+            ip_address=request.remote_addr or "",
+            user_agent=(request.user_agent.string or "")[:255],
+        ))
+    except Exception:
+        pass
     db.session.commit()
 
     # Issued JWT for anonymous ballot casting

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'react-hot-toast';
 import {
   ShieldCheckIcon,
+  ShieldExclamationIcon,
   DocumentMagnifyingGlassIcon,
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -100,13 +101,15 @@ export const AuditLog = () => {
   };
 
   const BADGES = {
-    ballot: ['bg-emerald-50 text-emerald-700 border-emerald-200', CheckBadgeIcon],
-    pin: ['bg-indigo-50 text-indigo-700 border-indigo-200', TicketIcon],
-    desk: ['bg-amber-50 text-amber-700 border-amber-200', UserIcon],
-    auth: ['bg-blue-50 text-blue-700 border-blue-200', KeyIcon],
-    election: ['bg-violet-50 text-violet-700 border-violet-200', InformationCircleIcon],
-    booth: ['bg-cyan-50 text-cyan-700 border-cyan-200', ComputerDesktopIcon],
-    admin: ['bg-slate-100 text-slate-700 border-slate-200', InformationCircleIcon],
+    security: ['bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800', ShieldExclamationIcon],
+    ballot: ['bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400', CheckBadgeIcon],
+    slips: ['bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400', TicketIcon],
+    pin: ['bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400', TicketIcon],
+    desk: ['bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400', TicketIcon],
+    auth: ['bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400', KeyIcon],
+    election: ['bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400', InformationCircleIcon],
+    booth: ['bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-400', ComputerDesktopIcon],
+    admin: ['bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300', InformationCircleIcon],
   };
   const getActionBadge = (log) => {
     const [bg, icon] = BADGES[log.category] || BADGES.admin;
@@ -152,20 +155,27 @@ export const AuditLog = () => {
           <p className="eyebrow text-slate-400">Total records</p>
           <p className="text-xl font-black text-slate-900 mt-1">{stats?.total_records || logs.length}</p>
         </div>
+        <div
+          onClick={() => setCategory('security')}
+          className="p-4 rounded-2xl bg-white border border-rose-200 hover:border-rose-400 shadow-sm cursor-pointer transition-colors"
+          title="Filter security & tamper alerts"
+        >
+          <p className="eyebrow text-rose-600 font-bold flex items-center gap-1">
+            <ShieldExclamationIcon className="w-3.5 h-3.5" />
+            Security & Attacks
+          </p>
+          <p className="text-xl font-black text-rose-600 mt-1">{stats?.security_alerts || 0}</p>
+        </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
           <p className="eyebrow text-emerald-600">Ballots cast</p>
           <p className="text-xl font-black text-emerald-600 mt-1">{stats?.ballots_cast || 0}</p>
         </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="eyebrow text-indigo-600">PIN slips issued</p>
+          <p className="eyebrow text-indigo-600">Voter slips & PINs</p>
           <p className="text-xl font-black text-indigo-600 mt-1">{stats?.pins_issued || 0}</p>
         </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="eyebrow text-amber-600">Desk check-ins</p>
-          <p className="text-xl font-black text-amber-600 mt-1">{stats?.desk_enrollments || 0}</p>
-        </div>
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm col-span-2 lg:col-span-1">
-          <p className="eyebrow text-cyan-600">Booth activity</p>
+          <p className="eyebrow text-cyan-600">Booth terminals</p>
           <p className="text-xl font-black text-cyan-600 mt-1">{stats?.kiosk_actions || 0}</p>
         </div>
       </div>
@@ -228,7 +238,14 @@ export const AuditLog = () => {
                   const Icon = badge.icon;
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={log.id}
+                      className={`transition-colors ${
+                        log.category === 'security'
+                          ? 'bg-rose-50/70 hover:bg-rose-100/80 border-l-4 border-l-rose-500'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
                       {/* Timestamp */}
                       <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                         {log.created_at ? format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss') : '—'}
@@ -296,10 +313,18 @@ export const AuditLog = () => {
       {selectedLog && createPortal(
         <div className="no-flip fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className={`px-6 py-4 text-white flex items-center justify-between ${
+              selectedLog.category === 'security' ? 'bg-rose-950 border-b border-rose-800' : 'bg-slate-900'
+            }`}>
               <div className="flex items-center gap-2">
-                <ShieldCheckIcon className="w-5 h-5 text-indigo-400" />
-                <span className="font-bold text-sm">Audit Record #{selectedLog.id}</span>
+                {selectedLog.category === 'security' ? (
+                  <ShieldExclamationIcon className="w-5 h-5 text-rose-400 animate-pulse" />
+                ) : (
+                  <ShieldCheckIcon className="w-5 h-5 text-indigo-400" />
+                )}
+                <span className="font-bold text-sm">
+                  {selectedLog.category === 'security' ? 'Security & Tamper Alert #' : 'Audit Record #'}{selectedLog.id}
+                </span>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}

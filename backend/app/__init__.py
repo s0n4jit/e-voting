@@ -181,16 +181,19 @@ def _configure_logging(app: Flask) -> None:
 
     # File handler (skip in testing to keep output clean)
     if not app.config.get("TESTING"):
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            os.path.join(log_dir, "evoting.log"),
-            maxBytes=10 * 1024 * 1024,  # 10 MB
-            backupCount=5,
-        )
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(formatter)
-        app.logger.addHandler(file_handler)
+        try:
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                os.path.join(log_dir, "evoting.log"),
+                maxBytes=10 * 1024 * 1024,  # 10 MB
+                backupCount=5,
+            )
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            app.logger.addHandler(file_handler)
+        except (PermissionError, OSError) as e:
+            pass
 
     app.logger.addHandler(console_handler)
     app.logger.setLevel(log_level)
