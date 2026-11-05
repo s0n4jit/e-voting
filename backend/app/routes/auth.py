@@ -535,19 +535,41 @@ def get_active_election():
 @auth_bp.post("/voter-session-end")
 @jwt_required()
 def voter_session_end():
-    """The voter left the booth without voting ("This is not me", idle reset): the student is no longer shown as active."""
+    """The voter session ended (idle reset, 'This is not me', or window close)."""
     claims = get_jwt()
     if claims.get("role") == "voter" and claims.get("election_id"):
-        VotingToken.query.filter_by(
-            student_id=claims.get("student_id"), election_id=claims["election_id"], is_used=False
-        ).update({"authenticated_at": None}, synchronize_session=False)
-        db.session.add(AuditLog(
-            action="BOOTH_SESSION_ENDED",
-            details=f"Voter session for {claims.get('student_id')} at booth {claims.get('booth_id', 'BOOTH-01')} ended without casting a ballot.",
-            ip_address=request.remote_addr or "",
-            user_agent=(request.user_agent.string or "")[:255],
-        ))
-        db.session.commit()
+        v_id = claims.get("voting_id") or claims.get("student_id") or "Voter"
+        b_id = claims.get("booth_id", "BOOTH-01")
+        election_id = claims["election_id"]
+
+        # Check if this slip or voter has already cast a ballot
+        from app.models.booth_slip import BoothSlip
+        has_voted = False
+        if claims.get("slip_id"):
+            slip = db.session.get(BoothSlip, claims["slip_id"])
+            if slip and slip.is_used:
+                has_voted = True
+        elif claims.get("student_id"):
+            from app.models.voting_token import VotingToken
+            token = VotingToken.query.filter_by(
+                student_id=claims.get("student_id"), election_id=election_id
+            ).first()
+            if token and token.is_used:
+                has_voted = True
+
+        # Only record an audit log if the voter left WITHOUT casting their ballot!
+        if not has_voted:
+            from app.models.voting_token import VotingToken
+            VotingToken.query.filter_by(
+                student_id=claims.get("student_id"), election_id=election_id, is_used=False
+            ).update({"authenticated_at": None}, synchronize_session=False)
+            db.session.add(AuditLog(
+                action="BOOTH_SESSION_ENDED",
+                details=f"Voter session for Voting ID {v_id} at booth {b_id} ended without casting a ballot.",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
     return jsonify({"ok": True}), 200
 
 
@@ -848,6 +870,7 @@ def booth_pin_login():
         additional_claims={
             "role": "voter",
             "voting_mode": "booth_slip",
+            "student_id": current_slip.voting_id,
             "booth_id": kiosk_device.booth_id,
             "booth_number": kiosk_device.number,
             "booth_ref": kiosk_device.ref,
