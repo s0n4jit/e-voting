@@ -401,9 +401,9 @@ def get_audit_logs():
             item["actor_name"] = actor.name
             item["actor_student_id"] = actor.student_id
             item["actor_role"] = actor.role
-        elif log.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST", "VOTE_CAST") or "Voting ID" in (log.details or ""):
+        elif log.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST", "VOTE_CAST", "BOOTH_SESSION_ENDED") or "Voting ID" in (log.details or "") or "Voter Slip ID" in (log.details or ""):
             import re
-            m = re.search(r"Voting ID\s+([A-Za-z0-9_-]+)", log.details or "")
+            m = re.search(r"(?:Voting ID|Voter Slip ID)\s+([A-Za-z0-9_-]+)", log.details or "")
             item["actor_name"] = "Voter"
             item["actor_student_id"] = m.group(1) if m else "Voter Slip"
             item["actor_role"] = "voter"

@@ -109,8 +109,8 @@ def overview():
     for a in recent:
         actor_name = actors.get(a.user_id)
         if not actor_name:
-            if a.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST") or "Voting ID" in (a.details or ""):
-                m = re.search(r"Voting ID\s+([A-Za-z0-9_-]+)", a.details or "")
+            if a.action in ("VOTE_CAST_BOOTH", "BALLOT_CAST", "BOOTH_SESSION_ENDED") or "Voting ID" in (a.details or "") or "Voter Slip ID" in (a.details or ""):
+                m = re.search(r"(?:Voting ID|Voter Slip ID)\s+([A-Za-z0-9_-]+)", a.details or "")
                 actor_name = f"Voter ({m.group(1)})" if m else "Voter"
             elif "BOOTH-" in (a.details or ""):
                 m = re.search(r"(BOOTH-\d+)", a.details or "")

@@ -538,12 +538,32 @@ def voter_session_end():
     """The voter session ended (idle reset, 'This is not me', or window close)."""
     claims = get_jwt()
     if claims.get("role") == "voter" and claims.get("election_id"):
-        v_id = claims.get("voting_id") or claims.get("student_id") or "Voter"
+        from app.models.booth_slip import BoothSlip
+        v_id = claims.get("voting_id") or claims.get("student_id")
+        if not v_id or v_id == "Voter":
+            if claims.get("slip_id"):
+                slip = db.session.get(BoothSlip, claims["slip_id"])
+                if slip:
+                    v_id = slip.voting_id
+        if not v_id or v_id == "Voter":
+            b_num = claims.get("booth_number")
+            if b_num:
+                cur = BoothSlip.get_current_slip(claims["election_id"], b_num)
+                if cur:
+                    v_id = cur.voting_id
+        if not v_id or v_id == "Voter":
+            v_id = "Unknown"
+
+        if isinstance(v_id, str):
+            if v_id.startswith("Voter Slip ID "):
+                v_id = v_id.replace("Voter Slip ID ", "", 1)
+            elif v_id.startswith("Voting ID "):
+                v_id = v_id.replace("Voting ID ", "", 1)
+
         b_id = claims.get("booth_id", "BOOTH-01")
         election_id = claims["election_id"]
 
         # Check if this slip or voter has already cast a ballot
-        from app.models.booth_slip import BoothSlip
         has_voted = False
         if claims.get("slip_id"):
             slip = db.session.get(BoothSlip, claims["slip_id"])
@@ -565,7 +585,7 @@ def voter_session_end():
             ).update({"authenticated_at": None}, synchronize_session=False)
             db.session.add(AuditLog(
                 action="BOOTH_SESSION_ENDED",
-                details=f"Voter session for Voting ID {v_id} at booth {b_id} ended without casting a ballot.",
+                details=f"Voter session for Voter Slip ID {v_id} at booth {b_id} ended without casting a ballot.",
                 ip_address=request.remote_addr or "",
                 user_agent=(request.user_agent.string or "")[:255],
             ))
