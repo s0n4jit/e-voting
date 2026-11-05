@@ -24,7 +24,7 @@ export const VoterSlipsManager = () => {
   const [page, setPage] = useState(1);
 
   // Filters
-  const [boothFilter, setBoothFilter] = useState('');
+  const [boothFilter, setBoothFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(''); // '' | 'unused' | 'used'
   const [search, setSearch] = useState('');
 
@@ -51,7 +51,7 @@ export const VoterSlipsManager = () => {
         page,
         per_page: 50,
       };
-      if (boothFilter) params.booth_number = boothFilter;
+      if (boothFilter && boothFilter !== 'all') params.booth_number = boothFilter;
       if (statusFilter) params.status = statusFilter;
       if (search.trim()) params.search = search.trim();
 
@@ -169,6 +169,33 @@ export const VoterSlipsManager = () => {
     return `Booth ${bNum}: Slips ${bNum}${String(startSeq).padStart(3, '0')} to ${bNum}${String(endSeq).padStart(3, '0')}`;
   };
 
+  const currentBoothStats = useMemo(() => {
+    if (!boothFilter || boothFilter === 'all') {
+      return {
+        total: metrics?.total_generated ?? total,
+        unused: metrics?.total_unused ?? 0,
+        active: metrics?.total_active ?? 0,
+        used: metrics?.total_used ?? 0,
+      };
+    }
+    if (boothFilter === 'unassigned') {
+      const pool = (metrics?.booths || []).find((b) => b.booth_number === null || b.booth_id === 'Unassigned Pool');
+      return {
+        total: pool?.total_slips ?? 0,
+        unused: pool?.unused_slips ?? 0,
+        active: pool?.active_slips ?? 0,
+        used: pool?.used_slips ?? 0,
+      };
+    }
+    const bStat = (metrics?.booths || []).find((b) => String(b.booth_number) === String(boothFilter));
+    return {
+      total: bStat?.total_slips ?? 0,
+      unused: bStat?.unused_slips ?? 0,
+      active: bStat?.active_slips ?? 0,
+      used: bStat?.used_slips ?? 0,
+    };
+  }, [boothFilter, metrics, total]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -241,10 +268,10 @@ export const VoterSlipsManager = () => {
           <div className="flex flex-wrap items-center gap-2">
             {/* Status Tabs */}
             {[
-              ['', 'All Slips', metrics?.total_generated ?? total],
-              ['unused', 'Unused', metrics?.total_unused],
-              ['active', 'Active', metrics?.total_active],
-              ['used', 'Used', metrics?.total_used],
+              ['', 'All Slips', currentBoothStats.total],
+              ['unused', 'Unused', currentBoothStats.unused],
+              ['active', 'Active', currentBoothStats.active],
+              ['used', 'Used', currentBoothStats.used],
             ].map(([val, lbl, count]) => (
               <button
                 key={val}
@@ -273,16 +300,22 @@ export const VoterSlipsManager = () => {
 
             {/* Booth Select Filter */}
             <select
-              value={boothFilter}
-              onChange={(e) => { setBoothFilter(e.target.value); setPage(1); }}
-              className="px-3 py-1.5 rounded-xl border border-line bg-surface text-fg text-xs shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/20"
+              value={boothFilter || 'all'}
+              onChange={(e) => {
+                setBoothFilter(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-1.5 rounded-xl border border-line bg-surface text-fg text-xs font-semibold shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer"
             >
-              <option value="">All Booths</option>
-              {(metrics?.booths || []).map((b) => (
-                <option key={b.booth_number} value={b.booth_number}>
-                  {b.booth_id}
-                </option>
-              ))}
+              <option value="all">All Booths</option>
+              <option value="unassigned">Unassigned Pool</option>
+              {(metrics?.booths || [])
+                .filter((b) => b.booth_number !== null && b.booth_number !== undefined)
+                .map((b) => (
+                  <option key={b.booth_number} value={String(b.booth_number)}>
+                    {b.booth_id || `BOOTH-${String(b.booth_number).padStart(2, '0')}`}
+                  </option>
+                ))}
             </select>
           </div>
 

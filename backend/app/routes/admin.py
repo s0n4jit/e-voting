@@ -835,7 +835,7 @@ def create_booth_token():
     # If slips_count is specified but not enough unallotted slips exist, auto-generate them into pool
     if slips_count > available_count:
         needed = slips_count - available_count
-        BoothSlip.generate_batch(election.id, booth_number=None, count=needed, booth_id=None)
+        BoothSlip.generate_batch(election.id, booth_number=booth_num, count=needed, booth_id=kiosk.id)
         unassigned_pool = BoothSlip.query.filter(
             BoothSlip.election_id == election.id,
             BoothSlip.booth_number == None,
@@ -1715,15 +1715,15 @@ def list_booth_slips():
 
     query = BoothSlip.query.filter_by(election_id=election.id)
 
-    booth_num_raw = request.args.get("booth_number")
-    if booth_num_raw in ("unassigned", "none", "0"):
+    booth_num_raw = str(request.args.get("booth_number") or "").strip()
+    if booth_num_raw.lower() in ("unassigned", "none", "0", "pool"):
         query = query.filter(BoothSlip.booth_number == None)
-    elif booth_num_raw:
-        try:
-            b_val = int(booth_num_raw)
+    elif booth_num_raw and booth_num_raw.lower() not in ("all", "*"):
+        import re
+        match = re.search(r"(\d+)", booth_num_raw)
+        if match:
+            b_val = int(match.group(1))
             query = query.filter(BoothSlip.booth_number == b_val)
-        except ValueError:
-            pass
 
     status_filter = request.args.get("status") or request.args.get("statusFilter")
     is_used = request.args.get("is_used")
@@ -1749,7 +1749,7 @@ def list_booth_slips():
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(10, request.args.get("per_page", 50, type=int)))
 
-    pagination = query.order_by(BoothSlip.booth_number.asc(), BoothSlip.sequence_number.asc()).paginate(
+    pagination = query.order_by(BoothSlip.booth_number.asc().nulls_last(), BoothSlip.sequence_number.asc(), BoothSlip.id.asc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
 

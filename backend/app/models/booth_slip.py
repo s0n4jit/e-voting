@@ -132,6 +132,13 @@ class BoothSlip(db.Model):
                 .scalar()
                 or 0
             )
+            existing_for_booth = []
+            for r in db.session.query(cls.voting_id).filter_by(election_id=election_id, booth_number=booth_number).all():
+                if r[0]:
+                    digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
+                    if digits:
+                        existing_for_booth.append(int(digits))
+            start_num = max(existing_for_booth) if existing_for_booth else (booth_number * 1000)
         else:
             max_seq = (
                 db.session.query(db.func.max(cls.sequence_number))
@@ -139,22 +146,18 @@ class BoothSlip(db.Model):
                 .scalar()
                 or 0
             )
-
-        existing_nums = []
-        for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all():
-            if r[0]:
-                digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
-                if digits:
-                    existing_nums.append(int(digits))
-        base_id = max(existing_nums) if existing_nums else 1000
+            existing_pool = []
+            for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all():
+                if r[0]:
+                    digits = "".join(filter(str.isdigit, str(r[0]).split("-")[-1]))
+                    if digits:
+                        existing_pool.append(int(digits))
+            start_num = max(existing_pool) if existing_pool else 1000
 
         created = []
         for i in range(1, count + 1):
             seq = max_seq + i
-            if booth_number is not None:
-                numeric_part = f"{booth_number}{seq:03d}"
-            else:
-                numeric_part = str(base_id + i)
+            numeric_part = str(start_num + i)
             voting_id = f"{prefix}{numeric_part}"
 
             raw_pin = cls.generate_random_4digit_pin()
