@@ -3,7 +3,7 @@ import { ChevronDownIcon, ChevronUpIcon, XMarkIcon } from '@heroicons/react/24/o
 
 /** The portfolios of the Students' Union election notice, in the order they are announced and voted on. */
 export const DEFAULT_POSITIONS = [
-  'President (Reserved for 3rd-semester students)',
+  'President',
   'Vice President',
   'General Secretary',
   'Assistant General Secretary',

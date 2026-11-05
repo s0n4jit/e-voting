@@ -29,7 +29,7 @@ PROGRAMMES = [  # (level, programme, department or stream, terms)
     ("hs", "Higher Secondary", "Science", 2),
 ]
 POSITIONS = {
-    "President (Reserved for 3rd-semester students)": ["Nilav Sarma", "Ananya Kalita"],
+    "President": ["Nilav Sarma", "Ananya Kalita"],
     "Vice President": ["Debojit Das", "Priyanka Nath"],
     "General Secretary": ["Bhaskar Jyoti Rabha", "Sneha Barman"],
     "Assistant General Secretary": ["Arindam Boro", "Rashmi Rekha Deka"],

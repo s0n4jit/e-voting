@@ -840,7 +840,7 @@ export const KioskVoting = () => {
                         Your Vote
                       </span>
                       <p className="text-base sm:text-lg font-black text-fg leading-snug">
-                        {isNota ? 'None of the Above (NOTA)' : c ? c.name : 'Not selected'}
+                        {isNota ? 'NOTA' : c ? c.name : 'Not selected'}
                       </p>
                       {!isNota && c && formatCandidateClass(c.department, c.semester) && (
                         <p className="text-[11px] text-muted font-medium mt-0.5">
@@ -948,11 +948,8 @@ export const KioskVoting = () => {
                     </span>
                     <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
                       <p className="text-lg sm:text-xl font-black leading-tight break-words text-fg">{c.name}</p>
-                      <p className="text-xs sm:text-sm text-brand font-black uppercase tracking-wider mt-1">
-                        Candidate for {current.position}
-                      </p>
                       {formatCandidateClass(c.department, c.semester) && (
-                        <p className="text-xs text-muted font-medium mt-0.5">
+                        <p className="text-xs sm:text-sm text-muted font-medium mt-1">
                           {formatCandidateClass(c.department, c.semester)}
                         </p>
                       )}
@@ -984,8 +981,8 @@ export const KioskVoting = () => {
                   {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
                 <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-lg sm:text-xl font-black leading-tight text-fg">None of the Above (NOTA)</p>
-                  <p className="text-xs sm:text-sm text-brand font-bold mt-1">Reject all candidates for {current.position}</p>
+                  <p className="text-lg sm:text-xl font-black leading-tight text-fg">NOTA</p>
+                  <p className="text-xs sm:text-sm text-muted font-medium mt-1">I do not choose anyone</p>
                 </div>
               </div>
             </div>
