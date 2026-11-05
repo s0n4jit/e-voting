@@ -29,9 +29,16 @@ PROGRAMMES = [  # (level, programme, department or stream, terms)
     ("hs", "Higher Secondary", "Science", 2),
 ]
 POSITIONS = {
-    "President": ["Aarav Mehta", "Ishita Rao", "Kabir Sen"],
-    "General Secretary": ["Neha Kulkarni", "Dev Malhotra", "Sana Iqbal"],
-    "Cultural Secretary": ["Tara Nair", "Vikram Joshi", "Meera Pillai"],
+    "President (Reserved for 3rd-semester students)": ["Nilav Sarma", "Ananya Kalita"],
+    "Vice President": ["Debojit Das", "Priyanka Nath"],
+    "General Secretary": ["Bhaskar Jyoti Rabha", "Sneha Barman"],
+    "Assistant General Secretary": ["Arindam Boro", "Rashmi Rekha Deka"],
+    "Cultural Secretary": ["Manash Pratim Nath", "Rimpi Bora"],
+    "Magazine Secretary": ["Chinmoy Dutta", "Pallabi Saikia"],
+    "Major Games Secretary": ["Himangshu Medhi", "Bikramjit Ray"],
+    "Minor Games Secretary": ["Subrata Roy", "Deepjyoti Das"],
+    "Boys' Common Room Secretary": ["Saurav Jyoti Hazarika", "Pranjal Pratim Borah"],
+    "Girls' Common Room Secretary": ["Barasha Rani Das", "Dimpi Kalita"],
 }
 STUDENTS = [
     "Ananya Sharma", "Rahul Verma", "Priya Patel", "Arjun Reddy", "Sneha Gupta", "Karan Singh",
