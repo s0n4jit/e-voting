@@ -75,7 +75,13 @@ export const ResultsPage = () => {
     }
   };
 
-  const state = data.locked ? (data.voting_over ? 'Voting closed' : 'Voting in progress') : data.published ? 'Published' : data.mock ? 'Mock election' : 'Ready';
+  const activeMock = (elections || []).find((e) => e.is_mock && e.status !== 'archived');
+
+  const state = data.mock
+    ? 'Mock Dry Run'
+    : data.published
+    ? 'Published'
+    : data.status_label || (data.status ? data.status.replace('_', ' ').toUpperCase() : (data.locked ? 'Locked' : 'Ready'));
 
   return (
     <div className="space-y-6">
@@ -91,6 +97,23 @@ export const ResultsPage = () => {
           </div>
         </div>
       )}
+
+      {activeMock && !data.mock && (
+        <div className="p-3.5 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 flex items-center justify-between gap-3 text-xs sm:text-sm shadow-xs">
+          <div className="flex items-center gap-2 text-amber-950 dark:text-amber-200">
+            <span className="font-bold">Active Mock Run:</span>
+            <span>A mock dry run is in progress. View simulated ballots and live tallies.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => select(activeMock.id)}
+            className="btn-secondary btn-sm shrink-0 font-semibold bg-white text-amber-950 border-amber-300 hover:bg-amber-100 dark:bg-amber-500/20 dark:text-white"
+          >
+            Switch to Mock Results
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <ElectionPicker elections={elections} value={electionId} onChange={select} />
@@ -108,18 +131,29 @@ export const ResultsPage = () => {
       </div>
 
       {data.locked ? (
-        <section className="card card-body">
+        <section className="card card-body space-y-4">
           <div className="flex items-center gap-3">
             <LockClosedIcon className="w-6 h-6 text-muted" />
-            <h2 className="font-semibold">Results are locked</h2>
+            <h2 className="font-semibold text-lg">
+              {['setup', 'registration', 'ready'].includes(data.status)
+                ? 'Voting Has Not Started'
+                : data.voting_over
+                ? 'Voting Closed'
+                : 'Official Voting Active'}
+            </h2>
           </div>
-          <p className="text-sm text-muted mt-2">
-            {data.voting_over
-              ? 'Voting has closed. Publish the results on the Elections page to print the result sheet, present it on the projector and share it.'
-              : 'Voting is still in progress. Results stay hidden, for everyone, until voting has closed and you publish them.'}
+          <p className="text-sm text-muted">
+            {['setup', 'registration', 'ready'].includes(data.status)
+              ? `This election is currently in the ${data.status_label || 'Setup'} stage. Voting has not opened yet. Results, candidate vote counts, and winner determinations will become available once voting is conducted and closed.`
+              : data.voting_over
+              ? 'Voting has closed. Turnout has been finalized. Publish the results on the Elections page to reveal winner declarations, present on the projector, and print the result sheet.'
+              : 'Official voting is currently live at the booth terminals. Candidate vote counts and winner tallies remain securely sealed until voting is closed and results are published.'}
           </p>
-          <p className="text-sm mt-3"><strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} voter slips cast{data.turnout.total_registered > 0 ? ` (${data.turnout.turnout_percentage}% turnout)` : ''}.</p>
-          <ol className="mt-3 grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm list-decimal pl-5 text-muted">
+          <p className="text-sm font-medium">
+            <strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} voter slips cast
+            {data.turnout.total_registered > 0 ? ` (${data.turnout.turnout_percentage}% turnout)` : ''}.
+          </p>
+          <ol className="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-sm list-decimal pl-5 text-muted">
             {data.by_position.map((p) => <li key={p.position}>{p.position}</li>)}
           </ol>
         </section>

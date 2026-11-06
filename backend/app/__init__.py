@@ -139,6 +139,7 @@ def create_app(config_object=None) -> Flask:
             booth_create_token,
             revoked_token,
             vote_receipt,
+            booth_slip,
         )
         from app.migrations import run_migrations
 

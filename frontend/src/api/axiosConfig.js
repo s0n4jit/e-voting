@@ -2,8 +2,11 @@ import axios from 'axios';
 
 // Same-origin "/api" by default (nginx / Vite proxy). Set VITE_API_URL at build time when the API
 // lives on another host (e.g. Vercel frontend + Render backend).
-const rawApiUrl =
+let rawApiUrl =
   (typeof window !== 'undefined' && window.__API_URL__) || import.meta.env.VITE_API_URL || '/api';
+if (rawApiUrl && !rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://') && !rawApiUrl.startsWith('/')) {
+  rawApiUrl = `https://${rawApiUrl}`;
+}
 export const API_BASE_URL = rawApiUrl.endsWith('/api')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/+$/, '')}/api`;

@@ -46,9 +46,11 @@ _COLUMNS = [
 
 def _add_missing_columns():
     insp = inspect(db.engine)
+    existing_tables = set(insp.get_table_names())
     for table, column, ddl in _COLUMNS:
-        if column not in {c["name"] for c in insp.get_columns(table)}:
-            db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+        if table in existing_tables:
+            if column not in {c["name"] for c in insp.get_columns(table)}:
+                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
     db.session.commit()
 
 

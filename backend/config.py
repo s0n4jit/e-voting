@@ -22,10 +22,10 @@ class Config:
     TESTING: bool = False
 
     # ── SQLAlchemy ───────────────────────────────────────────────────────────
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get(
-        "DATABASE_URL",
-        "sqlite:///evoting_dev.db",
-    )
+    _db_url = os.environ.get("DATABASE_URL", "sqlite:///evoting_dev.db")
+    if _db_url.startswith("postgres://"):
+        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URI: str = _db_url
     # Silence the deprecation warning about modification tracking
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     # Connection pool settings (meaningful for PostgreSQL)
@@ -63,11 +63,12 @@ class Config:
     RATELIMIT_STORAGE_URI: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")  # Flask-Limiter 3.x storage URI
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list = [
-        o.strip()
-        for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
-        if o.strip()
-    ]
+    _raw_origins = [o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+    CORS_ORIGINS: list = []
+    for _o in _raw_origins:
+        CORS_ORIGINS.append(_o)
+        if not _o.startswith("http://") and not _o.startswith("https://") and _o != "*":
+            CORS_ORIGINS.extend([f"https://{_o}", f"http://{_o}"])
 
     # ── Logging ──────────────────────────────────────────────────────────────
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")

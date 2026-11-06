@@ -38,6 +38,8 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: VITE_API_URL        # URL of the API above
         sync: false
     routes:

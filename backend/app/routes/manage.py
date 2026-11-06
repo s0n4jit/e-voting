@@ -736,6 +736,8 @@ def election_results(election_id):
         }
     data["published"] = published
     data["mock"] = bool(election.is_mock)
+    data["status"] = election.effective_status
+    data["status_label"] = election.STATUS_LABELS.get(election.effective_status, election.status)
     data["voting_over"] = voting_over
     data["public_path"] = f"/results/{election.public_token}" if election.public_token else None
     return jsonify(data), 200

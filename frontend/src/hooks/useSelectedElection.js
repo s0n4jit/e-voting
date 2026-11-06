@@ -21,6 +21,7 @@ export function useSelectedElection() {
   const election =
     (elections && (
       (wanted ? elections.find((e) => String(e.id) === wanted) : null) ||
+      elections.find((e) => e.is_mock && e.status !== 'archived') ||
       elections.find((e) => !e.is_mock && e.status !== 'archived') ||
       elections.find((e) => e.status !== 'archived') ||
       elections[0]
