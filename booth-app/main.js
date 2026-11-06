@@ -513,8 +513,15 @@ async function uploadReceiptToServer(r, html, pdfBuffer) {
     form.append('pdf', new Blob([pdfBuffer], { type: 'application/pdf' }), `${r.slip}.pdf`);
   }
 
+  const headers = {};
+  if (r.kiosk_token) {
+    headers['X-Kiosk-Token'] = r.kiosk_token;
+    form.append('kiosk_token', r.kiosk_token);
+  }
+
   await fetch(`${targetOrigin}/api/booth/receipt-upload`, {
     method: 'POST',
+    headers,
     body: form,
   });
 }

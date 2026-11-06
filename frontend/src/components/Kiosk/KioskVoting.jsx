@@ -554,6 +554,7 @@ export const KioskVoting = () => {
       '';
     const payload = {
       ...r,
+      kiosk_token: kioskToken,
       institution: activeInst,
       logo: activeLogo,
       is_mock: Boolean(r.is_mock),

@@ -19,7 +19,9 @@ function normalize(r = {}) {
   return {
     institution: clean(r.institution, 80),
     election: clean(r.election, 80),
-    slip: clean(r.slip || r.slip_id, 40),
+    election_id: r.election_id || '',
+    kiosk_token: clean(r.kiosk_token, 255),
+    slip: clean(r.slip || r.receipt_ref || r.slip_id, 40),
     booth: clean(r.booth, 20),
     time: clean(r.time, 40),
     printer: clean(r.printer, 120),
@@ -209,7 +211,7 @@ function toHtml(r) {
         <div class="banner">
           <div class="side">Booth: ${esc(r.booth || 'BOOTH')}</div>
           <div class="slip">
-            <span class="slip-lbl">VOTER SLIP ID</span>
+            <span class="slip-lbl">BALLOT REF</span>
             <span class="slip-id">${esc(r.slip)}</span>
           </div>
           <div class="side">Time: ${esc(r.time)}</div>

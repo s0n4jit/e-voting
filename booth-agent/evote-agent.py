@@ -77,7 +77,8 @@ def render(r):
     out = [clean(r.get("institution"), WIDTH), header_title]
     if is_mock:
         out.append("*** MOCK ELECTION - NOT AN OFFICIAL VOTE ***")
-    out += [bar, "Voter Slip ID: " + clean(r.get("slip_id"), 40), bar]
+    ref = clean(r.get("receipt_ref") or r.get("slip") or r.get("slip_id"), 40)
+    out += [bar, "Ballot Ref: " + ref, bar]
     for line in (r.get("lines") or [])[:40]:
         out.append(f"{clean(line.get('position'), 28)}\n    {clean(line.get('choice'), 40)}")
     out += [bar, f"Booth {clean(r.get('booth'), 20)}  {clean(r.get('time'), 30)}"]
@@ -110,7 +111,8 @@ def archive(r, text, conf):
     os.makedirs(base_dir, mode=0o700, exist_ok=True)
     folder = os.path.join(base_dir, now.strftime("%Y-%m-%d"))
     os.makedirs(folder, mode=0o700, exist_ok=True)
-    slip = re.sub(r"[^A-Za-z0-9_-]", "_", clean(r.get("slip_id"), 40)) or "unknown"
+    ref = clean(r.get("receipt_ref") or r.get("slip") or r.get("slip_id"), 40)
+    slip = re.sub(r"[^A-Za-z0-9_-]", "_", ref) or "unknown"
     base = f"{now.strftime('%H%M%S')}-{slip}"
     path = os.path.join(folder, base + ".txt")
     n = 1
@@ -122,7 +124,7 @@ def archive(r, text, conf):
         f.flush()
         os.fsync(f.fileno())
     record = {"saved_at": now.isoformat(timespec="seconds"), "file": path, "is_mock": is_mock,
-              **{k: r.get(k) for k in ("slip_id", "election", "booth", "time", "lines")}}
+              "receipt_ref": ref, "slip_id": ref, **{k: r.get(k) for k in ("election", "booth", "time", "lines")}}
     log_name = "mock-receipts.jsonl" if is_mock else "receipts.jsonl"
     with open(os.path.join(base_dir, log_name), "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
