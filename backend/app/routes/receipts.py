@@ -30,13 +30,16 @@ def list_receipts():
 
     if search:
         search_term = f"%{search}%"
-        query = query.filter(
-            or_(
-                VoteReceipt.slip_id.ilike(search_term),
-                VoteReceipt.booth_name.ilike(search_term),
-                VoteReceipt.choices_json.ilike(search_term),
+        if search.isdigit():
+            padded = f"%{int(search):02d}%"
+            query = query.filter(
+                or_(
+                    VoteReceipt.booth_name.ilike(search_term),
+                    VoteReceipt.booth_name.ilike(padded),
+                )
             )
-        )
+        else:
+            query = query.filter(VoteReceipt.booth_name.ilike(search_term))
 
     total = query.count()
     items = (

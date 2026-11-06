@@ -288,7 +288,7 @@ const ReceiptManager = () => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search Slip ID, Booth, or Candidate..."
+              placeholder="Search by booth machine (e.g. Booth 1)..."
               className="w-full pl-9 pr-8 py-2 rounded-xl border border-line bg-surface text-fg text-xs shadow-2xs placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
             />
             {search && (
