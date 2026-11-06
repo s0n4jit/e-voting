@@ -27,7 +27,7 @@ class VoteReceipt(db.Model):
         index=True,
     )
 
-    election = db.relationship("Election", backref=db.backref("receipts", cascade="all, delete-orphan", lazy="dynamic"))
+    election = db.relationship("Election", backref=db.backref("receipts", lazy="dynamic"))
 
     def get_choices(self) -> list:
         try:
@@ -36,11 +36,14 @@ class VoteReceipt(db.Model):
             return []
 
     def to_dict(self) -> dict:
+        title = ""
+        if self.election:
+            title = f"[MOCK] {self.election.title}" if (self.is_mock and not self.election.title.startswith("[MOCK]")) else self.election.title
         return {
             "id": self.id,
             "slip_id": self.slip_id,
             "election_id": self.election_id,
-            "election_title": self.election.title if self.election else "",
+            "election_title": title,
             "booth_name": self.booth_name or "Booth",
             "is_mock": self.is_mock,
             "choices": self.get_choices(),

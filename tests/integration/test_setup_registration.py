@@ -1298,6 +1298,18 @@ def test_separate_mock_election_workflow(client, installed, desk_token, booth):
     assert results_res.status_code == 200
     assert results_res.get_json()["mock"] is True
 
+    # Create a mock vote receipt during the mock run
+    from app.models.vote_receipt import VoteReceipt
+    mock_receipt = VoteReceipt(
+        slip_id="MOCK-TEST-9999",
+        election_id=mock_id,
+        booth_name="BOOTH-01",
+        is_mock=True,
+        choices_json="[]",
+    )
+    db.session.add(mock_receipt)
+    db.session.commit()
+
     # End mock election
     end_res = client.post("/api/admin/mock/end", headers=H(installed), json={"confirm": "RESET"})
     assert end_res.status_code == 200
@@ -1307,6 +1319,12 @@ def test_separate_mock_election_workflow(client, installed, desk_token, booth):
     real_e = db.session.get(Election, eid)
     assert real_e is not None
     assert real_e.status == "setup"
+
+    # Verify mock vote receipts are PRESERVED!
+    preserved_receipt = VoteReceipt.query.filter_by(slip_id="MOCK-TEST-9999").first()
+    assert preserved_receipt is not None
+    assert preserved_receipt.is_mock is True
+    assert preserved_receipt.election_id == eid
 
     # Verify mock start and end audit logs are preserved
     mock_logs = AuditLog.query.filter(AuditLog.action.in_(["MOCK_STARTED", "MOCK_RESET"])).all()

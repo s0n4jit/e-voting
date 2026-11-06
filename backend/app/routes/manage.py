@@ -486,6 +486,11 @@ def end_mock(election_id=None):
     voted = VoterRecord.query.filter_by(election_id=active_mock_id).update({"has_voted": False, "voted_at": None})
 
     # Receipts and audit logs are preserved for full accountability and post-mock inspection.
+    if parent_id:
+        from app.models.vote_receipt import VoteReceipt
+        VoteReceipt.query.filter_by(election_id=active_mock_id).update(
+            {"election_id": parent_id}, synchronize_session=False
+        )
     # Preserve all mock audit logs for accountability, unless it was a legacy in-place test run
     if not (mock_election and mock_election.parent_election_id):
         started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
