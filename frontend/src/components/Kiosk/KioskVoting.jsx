@@ -901,35 +901,35 @@ export const KioskVoting = () => {
 
             {/* Clean list layout just like the old design, arranged in 2 columns if > 4 positions to fit in one screen */}
             {positions.length > 4 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
                 <ul className="card divide-y divide-line">
                   {positions.slice(0, Math.ceil(positions.length / 2)).map((p, i) => {
                     const c = choices[p.position];
                     const isNota = c === 'NOTA';
                     return (
-                      <li key={p.position} className="flex items-center gap-3 px-3.5 py-2.5">
+                      <li key={p.position} className="flex items-center gap-3.5 px-4 py-2.5 sm:py-3">
                         {isNota ? (
-                          <div className="w-9 h-9 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                          <div className="w-11 h-11 rounded-xl bg-recessed border border-line flex items-center justify-center font-black text-xs text-muted shrink-0">
                             NOTA
                           </div>
                         ) : c ? (
-                          <Avatar candidate={c} size="w-9 h-9" rounded="rounded-xl" text="text-xs" />
+                          <Avatar candidate={c} size="w-11 h-11" rounded="rounded-xl" text="text-sm font-bold" />
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                          <div className="w-11 h-11 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-sm shrink-0">
                             ?
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold text-muted uppercase tracking-wider truncate">
+                          <p className="text-xs font-bold text-muted uppercase tracking-wider truncate">
                             {p.position}
                           </p>
-                          <p className="text-sm font-bold text-fg truncate">
+                          <p className="text-[15px] sm:text-base font-extrabold text-fg truncate">
                             {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
                           </p>
                         </div>
                         <button
                           type="button"
-                          className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-2.5 py-1 text-xs shrink-0"
+                          className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
                           onClick={() => { setFromReview(true); go(i, 'prev'); }}
                         >
                           Change
@@ -945,29 +945,29 @@ export const KioskVoting = () => {
                     const c = choices[p.position];
                     const isNota = c === 'NOTA';
                     return (
-                      <li key={p.position} className="flex items-center gap-3 px-3.5 py-2.5">
+                      <li key={p.position} className="flex items-center gap-3.5 px-4 py-2.5 sm:py-3">
                         {isNota ? (
-                          <div className="w-9 h-9 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                          <div className="w-11 h-11 rounded-xl bg-recessed border border-line flex items-center justify-center font-black text-xs text-muted shrink-0">
                             NOTA
                           </div>
                         ) : c ? (
-                          <Avatar candidate={c} size="w-9 h-9" rounded="rounded-xl" text="text-xs" />
+                          <Avatar candidate={c} size="w-11 h-11" rounded="rounded-xl" text="text-sm font-bold" />
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                          <div className="w-11 h-11 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-sm shrink-0">
                             ?
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold text-muted uppercase tracking-wider truncate">
+                          <p className="text-xs font-bold text-muted uppercase tracking-wider truncate">
                             {p.position}
                           </p>
-                          <p className="text-sm font-bold text-fg truncate">
+                          <p className="text-[15px] sm:text-base font-extrabold text-fg truncate">
                             {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
                           </p>
                         </div>
                         <button
                           type="button"
-                          className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-2.5 py-1 text-xs shrink-0"
+                          className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
                           onClick={() => { setFromReview(true); go(i, 'prev'); }}
                         >
                           Change
@@ -983,29 +983,29 @@ export const KioskVoting = () => {
                   const c = choices[p.position];
                   const isNota = c === 'NOTA';
                   return (
-                    <li key={p.position} className="flex items-center gap-3 px-4 py-3">
+                    <li key={p.position} className="flex items-center gap-4 px-5 py-3.5">
                       {isNota ? (
-                        <div className="w-10 h-10 rounded-xl bg-recessed border border-line flex items-center justify-center font-bold text-xs text-muted shrink-0">
+                        <div className="w-13 h-13 rounded-xl bg-recessed border border-line flex items-center justify-center font-black text-sm text-muted shrink-0">
                           NOTA
                         </div>
                       ) : c ? (
-                        <Avatar candidate={c} size="w-10 h-10" rounded="rounded-xl" text="text-xs" />
+                        <Avatar candidate={c} size="w-13 h-13" rounded="rounded-xl" text="text-base font-bold" />
                       ) : (
-                        <div className="w-10 h-10 rounded-xl bg-bad-soft text-bad font-bold flex items-center justify-center text-xs shrink-0">
+                        <div className="w-13 h-13 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-base shrink-0">
                           ?
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-muted uppercase tracking-wider truncate">
+                        <p className="text-xs font-bold text-muted uppercase tracking-wider truncate">
                           {p.position}
                         </p>
-                        <p className="text-base font-bold text-fg truncate">
+                        <p className="text-lg font-black text-fg truncate">
                           {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
                         </p>
                       </div>
                       <button
                         type="button"
-                        className="btn-ghost btn-sm text-brand hover:text-brand-hover font-semibold px-3 py-1 text-xs shrink-0"
+                        className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3.5 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
                         onClick={() => { setFromReview(true); go(i, 'prev'); }}
                       >
                         Change
