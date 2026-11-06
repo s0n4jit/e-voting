@@ -344,3 +344,54 @@ class TestMockElectionIsolation:
             assert db_session.get(Election, mock_id) is None
 
 
+class TestCancelledSlipIntegrity:
+    def test_cancelled_slip_cannot_cast_vote(self, app, db_session, test_election):
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=1)
+            slip = slips[0]
+            slip.is_cancelled = True
+            db_session.commit()
+
+            cands = Candidate.query.filter_by(election_id=test_election.id).all()
+            selections = [
+                {"position": "General Secretary", "candidate_id": cands[0].id, "is_nota": False},
+                {"position": "Cultural Secretary", "candidate_id": cands[2].id, "is_nota": False},
+            ]
+
+            with pytest.raises(VotingError, match="cancelled"):
+                VoteService.cast_booth_slip_vote(
+                    slip_id=slip.id,
+                    election_id=test_election.id,
+                    selections=selections,
+                    db=db_session,
+                )
+
+    def test_turnout_excludes_cancelled_slips(self, app, db_session, test_election):
+        with app.app_context():
+            slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=4)
+            # Cancel slip 1
+            slips[0].is_cancelled = True
+            db_session.commit()
+
+            # Cast ballot on slip 2
+            cands = Candidate.query.filter_by(election_id=test_election.id).all()
+            selections = [
+                {"position": "General Secretary", "candidate_id": cands[0].id, "is_nota": False},
+                {"position": "Cultural Secretary", "candidate_id": cands[2].id, "is_nota": False},
+            ]
+            VoteService.cast_booth_slip_vote(
+                slip_id=slips[1].id,
+                election_id=test_election.id,
+                selections=selections,
+                db=db_session,
+            )
+
+            turnout = VoteService.calculate_turnout(test_election.id, db=db_session)
+            # 4 total slips - 1 cancelled = 3 valid registered slips
+            assert turnout["total_registered"] == 3
+            assert turnout["total_slips"] == 4
+            assert turnout["cancelled_slips"] == 1
+            assert turnout["ballots_cast"] == 1
+            assert turnout["turnout_percentage"] == 33.33
+
+

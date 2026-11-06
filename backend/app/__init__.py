@@ -107,11 +107,15 @@ def create_app(config_object=None) -> Flask:
     @app.route("/healthz")  # also the self-ping target; never rate limited
     @limiter.exempt
     def health():
+        db_ok = True
         try:
             db.session.execute(db.text("SELECT 1"))
-        except Exception:
-            return jsonify({"status": "unhealthy"}), 503
-        return jsonify({"status": "healthy"}), 200
+        except Exception as exc:
+            db_ok = False
+            app.logger.error("Database connectivity check failed: %s", exc)
+        status = "healthy" if db_ok else "unhealthy"
+        code = 200 if db_ok else 503
+        return jsonify({"status": status, "database": "connected" if db_ok else "disconnected"}), code
 
     if not app.config.get("TESTING"):
         from app.keepalive import start_self_ping

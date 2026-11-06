@@ -332,7 +332,7 @@ class VoteService:
         from app.models.booth_slip import BoothSlip
         slips_used = (
             session.query(func.count(BoothSlip.id))
-            .filter_by(election_id=election.id, is_used=True)
+            .filter_by(election_id=election.id, is_used=True, is_cancelled=False)
             .scalar()
             or 0
         )
@@ -559,6 +559,8 @@ class VoteService:
         )
         if not booth_slip:
             raise VotingError("Voting slip credential not found.")
+        if booth_slip.is_cancelled:
+            raise VotingError("This voting slip has been cancelled and is no longer valid.")
         if booth_slip.is_used:
             raise VotingError("This voting slip has already been used.")
         if booth and booth.number != booth_slip.booth_number:
@@ -778,12 +780,19 @@ class VoteService:
             .scalar()
             or 0
         )
-        booth_slips_used = (
+        booth_slips_cancelled = (
             session.query(func.count(BoothSlip.id))
-            .filter_by(election_id=election.id, is_used=True)
+            .filter_by(election_id=election.id, is_cancelled=True)
             .scalar()
             or 0
         )
+        booth_slips_used = (
+            session.query(func.count(BoothSlip.id))
+            .filter_by(election_id=election.id, is_used=True, is_cancelled=False)
+            .scalar()
+            or 0
+        )
+        valid_slips = max(0, booth_slips_total - booth_slips_cancelled)
         unique_ballots = (
             session.query(func.count(func.distinct(BallotEntry.blind_token)))
             .filter_by(election_id=election.id)
@@ -805,7 +814,7 @@ class VoteService:
         )
 
         if booth_slips_total > 0:
-            total_registered = booth_slips_total
+            total_registered = valid_slips
             ballots_cast = max(booth_slips_used, unique_ballots)
         else:
             total_registered = roster_registered
@@ -821,6 +830,8 @@ class VoteService:
             "election_id": election.id,
             "title": election.title,
             "total_registered": total_registered,
+            "total_slips": booth_slips_total,
+            "cancelled_slips": booth_slips_cancelled,
             "ballots_cast": ballots_cast,
             "turnout_percentage": turnout_pct,
             "is_ongoing": election.is_ongoing,
