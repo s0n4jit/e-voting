@@ -12,7 +12,7 @@ const receipt = require('./lib/receipt');
 
 const UI_DIR = path.join(__dirname, 'ui');
 const UI_URL = pathToFileURL(UI_DIR).href;
-const EXIT_KEYS = 'CommandOrControl+Alt+Shift+Q';
+const EXIT_KEYS = ['CommandOrControl+Alt+Shift+Q', 'CommandOrControl+Shift+Q', 'CommandOrControl+Alt+Q'];
 const MAINTENANCE_MINUTES = 15; // the booth returns to voting by itself after this long outside kiosk mode
 
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
@@ -166,6 +166,8 @@ async function printHtml(html, wanted, copies = 1) {
 
 // ── windows ────────────────────────────────────────────────────────────────
 function showUi(page, query = {}, opts = {}) {
+  stopWindowsLockdown();
+  unregisterLockdownShortcuts();
   if (uiWin) uiWin.destroy();
   uiWin = new BrowserWindow({
     width: 680, height: 760, title: 'Campus E-Voting Booth', autoHideMenuBar: true, alwaysOnTop: !!mainWin, ...opts,
@@ -245,12 +247,19 @@ const SWALLOWED_SHORTCUTS = [
   'Alt+Space',
   'CommandOrControl+Escape',
   'CommandOrControl+W',
-  'CommandOrControl+Q',
   'CommandOrControl+R',
   'CommandOrControl+Shift+R',
   'F5',
   'F11',
 ];
+
+function registerExitShortcuts() {
+  for (const k of EXIT_KEYS) {
+    try {
+      globalShortcut.register(k, openExitPrompt);
+    } catch (_) {}
+  }
+}
 
 function registerLockdownShortcuts() {
   for (const sc of SWALLOWED_SHORTCUTS) {
@@ -332,45 +341,50 @@ function startKiosk() {
     wc.clearHistory();
   });
 
-  // Strict input lockdown: only allow typing voter slip ID / digits, and officer unlock shortcut
+  // Strict input lockdown: allow normal typing, block desktop-escape shortcuts, and allow exit shortcut
   wc.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return;
     const k = (input.key || '').toLowerCase();
     const ctrl = Boolean(input.control || input.meta);
 
-    // 1. Officer exit shortcut: Ctrl+Alt+Shift+Q
-    if (ctrl && input.alt && input.shift && k === 'q') {
+    // 1. Officer exit shortcut: Ctrl+Shift+Q or Ctrl+Alt+Q or Ctrl+Alt+Shift+Q
+    if (ctrl && (input.shift || input.alt) && k === 'q') {
       e.preventDefault();
       openExitPrompt();
       return;
     }
 
-    // 2. Swallow any Meta / Windows / Super key (prevents desktop switching and Start menu)
+    // Allow standard copy, cut, paste, select-all
+    if (ctrl && ['c', 'v', 'x', 'a', 'z'].includes(k)) {
+      return;
+    }
+
+    // 2. Block Windows key / Start menu
     if (input.meta) {
       e.preventDefault();
       return;
     }
 
-    // 3. Swallow ALL Alt combinations (Alt+Tab, Alt+F4, Alt+Esc, Alt+Space, etc.)
-    if (input.alt) {
+    // 3. Block Alt+Tab, Alt+F4, Alt+Esc, Alt+Space
+    if (input.alt && ['tab', 'escape', 'f4', ' '].includes(k)) {
       e.preventDefault();
       return;
     }
 
-    // 4. Swallow ALL Control combinations (Ctrl+W, Ctrl+R, Ctrl+N, Ctrl+T, Ctrl+Q, Ctrl+Win+Arrows, etc.)
-    if (input.control) {
+    // 4. Block Ctrl+W, Ctrl+R, Ctrl+N, Ctrl+T, Ctrl+Escape
+    if (ctrl && ['w', 'r', 'n', 't', 'escape', 'tab'].includes(k)) {
       e.preventDefault();
       return;
     }
 
-    // 5. Swallow all Function keys (F1-F24)
+    // 5. Block Function keys F1-F12
     if (/^f\d+$/i.test(k)) {
       e.preventDefault();
       return;
     }
 
-    // 6. Swallow non-typing navigation and system keys
-    if (['escape', 'contextmenu', 'insert', 'pageup', 'pagedown', 'home', 'end', 'printscreen', 'pause', 'scrolllock', 'help', 'select'].includes(k)) {
+    // 6. Block system control keys
+    if (['escape', 'contextmenu', 'insert', 'pageup', 'pagedown', 'printscreen', 'pause', 'scrolllock', 'help'].includes(k)) {
       e.preventDefault();
       return;
     }
@@ -460,49 +474,35 @@ function leaveKiosk() {
 }
 
 // ── officer code ───────────────────────────────────────────────────────────
-// The same check the website's maintenance screen uses: the current authenticator code of an Election Officer.
+// Verify officer code: configured emergency offline PIN unlocks immediately (0ms);
+// server TOTP is also checked if entered.
 async function verifyOfficerCode(code) {
   const clean = String(code || '').trim().replace(/\D/g, '');
-  const base = apiBase || `${config.originOf(cfg.url)}/api`;
   const emergencyPin = String(cfg.exitCode || '').trim();
 
-  let serverOnline = false;
-  let authResponse = null;
+  // 1. If code matches configured emergency exit PIN, unlock IMMEDIATELY (0ms, 100% smooth, online or offline)
+  if (clean && emergencyPin && clean === emergencyPin) {
+    return { ok: true, emergency: true };
+  }
 
-  // 1. Try online verification against the Election Officer authenticator on the server
-  // AbortSignal.timeout(1500) ensures zero hangs when offline or network drops
+  // 2. Otherwise verify against server officer authenticator code if online
+  const base = apiBase || `${config.originOf(cfg.url)}/api`;
   try {
     const res = await net.fetch(`${base}/maintenance/auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: clean.slice(0, 8) }),
-      signal: AbortSignal.timeout(1500),
+      signal: AbortSignal.timeout(600),
     });
-    serverOnline = true;
-    authResponse = await res.json().catch(() => ({}));
+    const authResponse = await res.json().catch(() => ({}));
     if (res.ok && authResponse.authenticated) {
       return { ok: true };
     }
-  } catch (_) {
-    serverOnline = false;
-  }
-
-  // If server is online, require live officer TOTP code
-  if (serverOnline) {
-    return {
-      ok: false,
-      message: (authResponse && authResponse.message) || 'Invalid Election Officer authenticator code.',
-    };
-  }
-
-  // 2. If server is unreachable or offline: verify against configured emergency offline PIN
-  if (clean && emergencyPin && clean === emergencyPin) {
-    return { ok: true, emergency: true };
-  }
+  } catch (_) {}
 
   return {
     ok: false,
-    message: 'Server unreachable. Enter your configured emergency offline exit PIN to unlock.',
+    message: 'Incorrect exit code. Enter your emergency exit PIN or officer authenticator code.',
   };
 }
 
@@ -686,6 +686,11 @@ ui('maint:quit', () => {
   app.exit(0);
 });
 
+ipcMain.handle('open-exit-prompt', () => {
+  openExitPrompt();
+  return { ok: true };
+});
+
 // ── start ──────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   cfg = config.load(cfgFile());
@@ -699,7 +704,7 @@ app.whenReady().then(() => {
     if (i > 0) apiBase = `${details.url.slice(0, i)}/api`;
     cb({});
   });
-  globalShortcut.register(EXIT_KEYS, openExitPrompt);
+  registerExitShortcuts();
   if (cfg.url) {
     applyAutoStart();
     startKiosk();

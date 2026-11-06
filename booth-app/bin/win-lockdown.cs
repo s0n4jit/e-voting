@@ -102,25 +102,13 @@ class KioskLockdown {
         } catch (Exception) {}
     }
 
-    public static void SetTouchpadEnabled(bool enabled) {
-        try {
-            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad\Status")) {
-                if (key != null) {
-                    key.SetValue("Enabled", enabled ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
-                }
-            }
-        } catch (Exception) {}
-    }
-
     public static void Main(string[] args) {
-        // If run with 'restore', restore taskbar & touchpad and exit immediately
         if (args.Length > 0 && args[0].ToLower() == "restore") {
             Cleanup();
             return;
         }
 
         SetTaskbarVisible(false);
-        SetTouchpadEnabled(false);
         EnsureNumLockOn();
 
         using (Process curProcess = Process.GetCurrentProcess())
@@ -163,7 +151,6 @@ class KioskLockdown {
             _hookID = IntPtr.Zero;
         }
         SetTaskbarVisible(true);
-        SetTouchpadEnabled(true);
     }
 
     private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
@@ -171,37 +158,47 @@ class KioskLockdown {
             KBDLLHOOKSTRUCT kbd = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
             int vkCode = kbd.vkCode;
             bool altDown = (kbd.flags & 0x20) != 0 || ((GetAsyncKeyState(0x12) & 0x8000) != 0);
-            bool ctrlDown = (GetAsyncKeyState(0x11) & 0x8000) != 0;
-            bool shiftDown = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+            bool ctrlDown = ((GetAsyncKeyState(0x11) & 0x8000) != 0);
             bool winDown = ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0) || ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0);
 
-            // 1. Allow Election Officer unlock combination: Ctrl+Alt+Shift+Q
-            if (ctrlDown && altDown && shiftDown && (vkCode == 0x51 || vkCode == 0x71)) {
+            // 1. Allow exit combinations: any Q keypress with Ctrl/Alt/Shift
+            if (vkCode == 0x51 || vkCode == 0x71) {
                 return CallNextHookEx(_hookID, nCode, wParam, lParam);
             }
 
-            // 2. Block ANY key if Windows key is involved (stops desktop switching, start menu, shortcuts)
+            // 2. Always allow modifier keys themselves (Ctrl, Alt, Shift)
+            if (vkCode == 0x11 || vkCode == 0xA2 || vkCode == 0xA3 ||
+                vkCode == 0x12 || vkCode == 0xA4 || vkCode == 0xA5 ||
+                vkCode == 0x10 || vkCode == 0xA0 || vkCode == 0xA1) {
+                return CallNextHookEx(_hookID, nCode, wParam, lParam);
+            }
+
+            // 3. Block Windows Key (LWIN, RWIN) and any shortcut where Windows key is down
             if (vkCode == VK_LWIN || vkCode == VK_RWIN || winDown) {
                 return (IntPtr)1;
             }
 
-            // 3. Block ANY key if Alt is down (stops Alt+Tab, Alt+Esc, Alt+F4, Alt+Space, etc.)
+            // 4. Block Alt+Tab, Alt+Esc, Alt+F4, Alt+Space
             if (altDown) {
-                return (IntPtr)1;
+                if (vkCode == VK_TAB || vkCode == VK_ESCAPE || vkCode == 0x73 || vkCode == 0x20) {
+                    return (IntPtr)1;
+                }
             }
 
-            // 4. Block ANY key if Ctrl is down (stops Ctrl+Esc, Ctrl+W, Ctrl+Shift+Esc, Ctrl+Win+Arrows, etc.)
+            // 5. Block Ctrl+Esc, Ctrl+Shift+Esc
             if (ctrlDown) {
-                return (IntPtr)1;
+                if (vkCode == VK_ESCAPE || vkCode == VK_TAB) {
+                    return (IntPtr)1;
+                }
             }
 
-            // 5. Block Function keys F1 - F24
-            if (vkCode >= 0x70 && vkCode <= 0x87) {
-                return (IntPtr)1;
-            }
-
-            // 6. Block Escape, Apps/ContextMenu (0x5D), Sleep (0x5F), PrintScreen (0x2C)
+            // 6. Block standalone Escape, ContextMenu (0x5D), Sleep (0x5F), PrintScreen (0x2C)
             if (vkCode == VK_ESCAPE || vkCode == 0x5D || vkCode == 0x5F || vkCode == 0x2C) {
+                return (IntPtr)1;
+            }
+
+            // 7. Block Function keys F1-F12
+            if (vkCode >= 0x70 && vkCode <= 0x7B) {
                 return (IntPtr)1;
             }
         }

@@ -91,6 +91,16 @@ const NUMPAD_MAP = {
 };
 
 window.addEventListener('keydown', (e) => {
+  const k = (e.key || '').toLowerCase();
+  const ctrl = e.ctrlKey || e.metaKey;
+  // In-page fallback for exit shortcut: Ctrl+Shift+Q or Ctrl+Alt+Q
+  if (ctrl && (e.shiftKey || e.altKey) && k === 'q') {
+    e.preventDefault();
+    e.stopPropagation();
+    ipcRenderer.invoke('open-exit-prompt');
+    return;
+  }
+
   if (e.code && NUMPAD_MAP[e.code]) {
     const digit = NUMPAD_MAP[e.code];
     const target = document.activeElement;

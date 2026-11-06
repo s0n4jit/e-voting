@@ -8,11 +8,11 @@
 <label for="printer">Printer for the vote copy</label>
 <select id="printer"></select>
 <button class="alt" id="test" type="button">Print a test page</button>
-<label for="exitCode">Emergency Offline Exit PIN (Mandatory, 4 to 8 digits)</label>
+<label for="exitCode">Emergency Exit PIN (Mandatory, 4 to 8 digits)</label>
 <input id="exitCode" type="password" inputmode="numeric" maxlength="8" placeholder="Enter secret PIN (no default code)" autocomplete="off" required>
-<p class="sub" style="margin:2px 0 10px;font-size:11px">Mandatory: there is no predefined default code. Only works when the election server is offline or unreachable.</p>
+<p class="sub" style="margin:2px 0 10px;font-size:11px">Mandatory: there is no predefined default code. Used to unlock and leave the booth anytime.</p>
 <label><input id="auto" type="checkbox" checked>Start this app automatically when the computer starts</label>
 <div class="msg" id="msg"></div>
 <button id="save" type="button">Save and start voting</button>
-<p class="sub" style="margin-top:22px">To leave the full-screen booth later press <b>Ctrl+Alt+Shift+Q</b> and enter the Election Officer's authenticator code or your emergency offline PIN.</p>
+<p class="sub" style="margin-top:22px">To leave the full-screen booth later press <b>Ctrl+Shift+Q</b> (or <b>Ctrl+Alt+Shift+Q</b>) and enter your exit PIN.</p>
 </main><script src="setup.js"></script></body></html>
