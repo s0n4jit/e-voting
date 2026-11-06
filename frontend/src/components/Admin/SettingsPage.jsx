@@ -4,7 +4,6 @@ import { adminApi } from '../../api/adminApi';
 import { useBrand } from '../../context/BrandContext';
 import { Field, PageHeader, errorMessage } from '../ui';
 import LoadingSpinner from '../common/LoadingSpinner';
-import MockElection from './MockElection';
 import PrintingSettings from './PrintingSettings';
 
 const LANGUAGES = { en: 'English', hi: 'Hindi', bn: 'Bengali', as: 'Assamese' };
@@ -125,7 +124,6 @@ export default function SettingsPage() {
       </form>
       <div className="space-y-5">
         <PrintingSettings />
-        <MockElection />
       </div>
       </div>
     </div>

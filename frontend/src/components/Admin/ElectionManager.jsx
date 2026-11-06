@@ -31,6 +31,8 @@ export const ElectionManager = () => {
   const [elections, setElections] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [editor, setEditor] = useState(null); // {election?, form}
+  const [mockEnding, setMockEnding] = useState(null);
+  const [resetWord, setResetWord] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -95,6 +97,36 @@ export const ElectionManager = () => {
       await load();
     } catch (err) {
       toast.error(errorMessage(err), { id: 'voting-state-toggle' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startMock = async (election) => {
+    setBusy(true);
+    try {
+      await adminApi.startMock(election.id);
+      toast.success('Mock election started');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const endMock = async (election) => {
+    setBusy(true);
+    try {
+      await adminApi.endMock(election.id);
+      toast.success('Mock election reset');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      setMockEnding(null);
+      setResetWord('');
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -234,6 +266,25 @@ export const ElectionManager = () => {
                         {e.voting_paused ? 'Resume voting' : 'Pause voting'}
                       </button>
                     )}
+                    {e.is_mock ? (
+                      <button
+                        className="btn-danger btn-sm"
+                        disabled={busy}
+                        onClick={() => { setMockEnding(e); setResetWord(''); }}
+                      >
+                        End mock & reset
+                      </button>
+                    ) : (
+                      e.status === 'ready' && (
+                        <button
+                          className="btn-secondary btn-sm"
+                          disabled={busy}
+                          onClick={() => startMock(e)}
+                        >
+                          Start mock election
+                        </button>
+                      )
+                    )}
                     {next && (
                       <button className="btn-primary btn-sm" disabled={busy} onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}>
                         {next[1]}
@@ -278,6 +329,33 @@ export const ElectionManager = () => {
               <button className="btn-ghost" onClick={() => setConfirm(null)}>Cancel</button>
               <button className="btn-primary" disabled={busy} onClick={() => move(confirm.election, confirm.next[0])}>
                 {confirm.next[1]}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={Boolean(mockEnding)} onClose={() => setMockEnding(null)} title="End the mock election?">
+        {mockEnding && (
+          <div className="space-y-4">
+            <p className="text-sm">
+              This deletes all mock ballots, PINs, voter slips, and log entries recorded since the mock started, and returns the election to Ready. This cannot be undone.
+            </p>
+            <input
+              className="input"
+              placeholder="Type RESET"
+              value={resetWord}
+              onChange={(e) => setResetWord(e.target.value)}
+              aria-label="Type RESET to confirm"
+            />
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost" onClick={() => setMockEnding(null)}>Cancel</button>
+              <button
+                className="btn-danger"
+                disabled={busy || resetWord !== 'RESET'}
+                onClick={() => endMock(mockEnding)}
+              >
+                End mock and reset
               </button>
             </div>
           </div>
