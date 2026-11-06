@@ -217,7 +217,8 @@ export const adminApi = {
   },
 
   downloadAllSlipsPdf: async (electionId = null) => {
-    const params = electionId ? { election_id: electionId } : {};
+    const id = typeof electionId === 'object' && electionId !== null ? electionId.election_id : electionId;
+    const params = id ? { election_id: id } : {};
     const res = await apiClient.get('/admin/booths/all-slips-pdf', { params, responseType: 'blob' });
     return res.data;
   },

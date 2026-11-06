@@ -77,8 +77,12 @@ def read_photo(upload):
 @admin_bp.get("/elections")
 @admin_required
 def list_elections():
-    """List all elections."""
-    elections = Election.query.order_by(Election.created_at.desc()).all()
+    """List all elections. Mock elections are filtered out by default to avoid duplicate cards."""
+    include_mock = request.args.get("include_mock", "false").lower() in ("true", "1")
+    q = Election.query
+    if not include_mock:
+        q = q.filter_by(is_mock=False)
+    elections = q.order_by(Election.created_at.desc()).all()
     return jsonify([e.to_dict(include_candidates=True) for e in elections]), 200
 
 
@@ -86,7 +90,7 @@ def list_elections():
 @admin_required
 def create_election():
     """Create a new election."""
-    if any(e.effective_status != "archived" for e in Election.query.all()):
+    if any(e.effective_status != "archived" for e in Election.query.filter_by(is_mock=False).all()):
         return jsonify({"error": "Only one election can run at a time. Archive the current election first."}), 409
     payload = request.get_json(silent=True) or {}
     title = sanitize_input(payload.get("title"))
