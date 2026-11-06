@@ -16,10 +16,13 @@ import {
 import { adminApi } from '../../api/adminApi';
 import { EmptyState, PageHeader, TableSkeleton, errorMessage } from '../ui';
 import { usePolling } from '../../hooks/usePolling';
+import { useAuth } from '../../context/AuthContext';
 import Modal from '../common/Modal';
 
 export const VoterSlipsManager = () => {
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [metrics, setMetrics] = useState(null);
   const [slips, setSlips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -266,7 +269,11 @@ export const VoterSlipsManager = () => {
     <div className="space-y-6">
       <PageHeader
         title="Voter Slips"
-        subtitle="Generate and manage pre-issued voter slips, sequential IDs, and printable A4 PDF sheets for each booth."
+        subtitle={
+          isAdmin
+            ? "Generate and manage pre-issued voter slips, sequential IDs, and printable A4 PDF sheets for each booth."
+            : "Monitor issued voter slips, active booth voting states, and download printable slips."
+        }
         actions={
           <div className="flex items-center gap-2.5">
             <div className="inline-flex items-center">
@@ -301,19 +308,21 @@ export const VoterSlipsManager = () => {
                 <span>{downloadingPdf ? 'Building PDF…' : 'Download Slips PDF'}</span>
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                const first = availableBooths[0]?.number || 1;
-                setTargetBooth(String(first));
-                setSlipCount(50);
-                setGenerateModalOpen(true);
-              }}
-              className="btn-primary flex items-center gap-2"
-            >
-              <PlusIcon className="w-4 h-4" />
-              <span>Generate Slips</span>
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  const first = availableBooths[0]?.number || 1;
+                  setTargetBooth(String(first));
+                  setSlipCount(50);
+                  setGenerateModalOpen(true);
+                }}
+                className="btn-primary flex items-center gap-2"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>Generate Slips</span>
+              </button>
+            )}
           </div>
         }
       />
@@ -429,22 +438,28 @@ export const VoterSlipsManager = () => {
           >
             {total === 0 ? (
               <div className="space-y-3 mt-1">
-                <p>Click the <strong>Generate Slips</strong> button above to pre-generate sequential voting credentials with 4-digit PINs.</p>
-                <div>
-                  <button
-                    onClick={() => {
-                      setTargetBooth('none');
-                      setGenerateModalOpen(true);
-                    }}
-                    className="btn-primary inline-flex items-center gap-1.5"
-                  >
-                    <PlusIcon className="w-4 h-4" />
-                    <span>Generate Slips Now</span>
-                  </button>
-                </div>
+                {isAdmin ? (
+                  <>
+                    <p>Click the <strong>Generate Slips</strong> button above to pre-generate sequential voting credentials with 4-digit PINs.</p>
+                    <div>
+                      <button
+                        onClick={() => {
+                          setTargetBooth('none');
+                          setGenerateModalOpen(true);
+                        }}
+                        className="btn-primary inline-flex items-center gap-1.5"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Generate Slips Now</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">No voter slips have been issued for this election yet.</p>
+                )}
               </div>
             ) : (
-              "Try adjusting your search or booth filters, or generate new slips using the button above."
+              "Try adjusting your search or booth filters."
             )}
           </EmptyState>
         ) : (
@@ -455,7 +470,6 @@ export const VoterSlipsManager = () => {
                   <th>Voting ID</th>
                   <th>Booth</th>
                   <th>Machine Allotment</th>
-                  <th>Sequence #</th>
                   <th>Status</th>
                   <th>Used At</th>
                   <th className="text-right">Actions</th>
@@ -488,7 +502,6 @@ export const VoterSlipsManager = () => {
                         </span>
                       )}
                     </td>
-                    <td className="text-muted font-mono text-xs">#{s.sequence_number}</td>
                     <td>
                       {s.is_cancelled ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-bad-soft text-bad border border-bad/20">
@@ -520,7 +533,7 @@ export const VoterSlipsManager = () => {
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {!s.is_used && !s.is_cancelled && (
+                        {isAdmin && !s.is_used && !s.is_cancelled && (
                           <button
                             type="button"
                             onClick={() => setCancellingSlip(s)}
@@ -577,49 +590,52 @@ export const VoterSlipsManager = () => {
         )}
       </div>
 
-      {/* Cancel Individual Voter Slip Confirmation Modal */}
-      <Modal
-        isOpen={Boolean(cancellingSlip)}
-        onClose={() => !cancellingBusy && setCancellingSlip(null)}
-        title={`Cancel Voter Slip ${cancellingSlip?.voting_id || ''}?`}
-      >
-        {cancellingSlip && (
-          <div className="space-y-4">
-            <p className="text-sm text-fg leading-relaxed">
-              Are you sure you want to void and cancel slip <strong className="font-mono text-brand font-black">{cancellingSlip.voting_id}</strong>?
-            </p>
-            <p className="text-xs text-muted leading-relaxed">
-              This will mark the slip as spoiled/void. The booth terminal will automatically advance to the next valid sequential voting slip. This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                className="btn-ghost"
-                disabled={cancellingBusy}
-                onClick={() => setCancellingSlip(null)}
-              >
-                Keep Slip
-              </button>
-              <button
-                type="button"
-                className="btn-danger flex items-center gap-1.5"
-                disabled={cancellingBusy}
-                onClick={handleCancelSlip}
-              >
-                <XCircleIcon className="w-4 h-4" />
-                <span>{cancellingBusy ? 'Cancelling…' : 'Confirm Void & Cancel'}</span>
-              </button>
+      {/* Cancel Individual Voter Slip Confirmation Modal (Admin Only) */}
+      {isAdmin && (
+        <Modal
+          isOpen={Boolean(cancellingSlip)}
+          onClose={() => !cancellingBusy && setCancellingSlip(null)}
+          title={`Cancel Voter Slip ${cancellingSlip?.voting_id || ''}?`}
+        >
+          {cancellingSlip && (
+            <div className="space-y-4">
+              <p className="text-sm text-fg leading-relaxed">
+                Are you sure you want to void and cancel slip <strong className="font-mono text-brand font-black">{cancellingSlip.voting_id}</strong>?
+              </p>
+              <p className="text-xs text-muted leading-relaxed">
+                This will mark the slip as spoiled/void. The booth terminal will automatically advance to the next valid sequential voting slip. This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={cancellingBusy}
+                  onClick={() => setCancellingSlip(null)}
+                >
+                  Keep Slip
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger flex items-center gap-1.5"
+                  disabled={cancellingBusy}
+                  onClick={handleCancelSlip}
+                >
+                  <XCircleIcon className="w-4 h-4" />
+                  <span>{cancellingBusy ? 'Cancelling…' : 'Confirm Void & Cancel'}</span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </Modal>
+          )}
+        </Modal>
+      )}
 
-      {/* Modal for Slips Generation */}
-      <Modal
-        isOpen={generateModalOpen}
-        onClose={() => setGenerateModalOpen(false)}
-        title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
-      >
+      {/* Modal for Slips Generation (Admin Only) */}
+      {isAdmin && (
+        <Modal
+          isOpen={generateModalOpen}
+          onClose={() => setGenerateModalOpen(false)}
+          title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
+        >
         {availableBooths.length === 0 ? (
           <div className="space-y-4 py-2">
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm space-y-2">
@@ -717,6 +733,7 @@ export const VoterSlipsManager = () => {
         </form>
         )}
       </Modal>
+      )}
     </div>
   );
 };
