@@ -103,7 +103,8 @@ def require_booth(claims=None, election_id=None):
 def activate():
     """Exchange a booth create token plus the creating officer's authenticator code for a booth."""
     payload = request.get_json(silent=True) or {}
-    token, code = normalise(payload.get("create_token")), str(payload.get("code") or "").strip()
+    raw_token = payload.get("create_token") or payload.get("token")
+    token, code = normalise(raw_token), str(payload.get("code") or "").strip()
     failure = (jsonify({"error": "Not authorized", "message": "The booth token or the authenticator code is not correct, or the token has expired. Create a new token in the officer panel."}), 403)
 
     row = BoothCreateToken.query.filter_by(token_hash=_hash(token)).first() if token else None

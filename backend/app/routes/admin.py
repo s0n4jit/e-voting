@@ -853,7 +853,10 @@ def create_booth_token():
         booth_num = int(booth_num)
 
     # 1. Pre-create or retrieve KioskDevice for this booth
-    kiosk = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_num).first()
+    kiosk = KioskDevice.query.filter(
+        KioskDevice.election_id == election.id,
+        (KioskDevice.booth_number == booth_num) | (KioskDevice.device_name == f"BOOTH-{booth_num:02d}")
+    ).first()
     if not kiosk:
         raw_dummy = f"pending_{secrets.token_urlsafe(32)}"
         kiosk = KioskDevice(
@@ -865,6 +868,8 @@ def create_booth_token():
         )
         db.session.add(kiosk)
         db.session.flush()
+    elif kiosk.booth_number is None:
+        kiosk.booth_number = booth_num
 
     # Link any slips that already exist for this booth_num to this kiosk device
     BoothSlip.query.filter_by(
@@ -900,8 +905,11 @@ def create_booth_token():
     totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
 
     return jsonify({
+        "success": True,
         "token": token,
+        "create_token": token,
         "totp_code": totp_code,
+        "current_totp": totp_code,
         "expires_at": utc_iso(expires),
         "election_title": election.title,
         "booth_number": booth_num,
@@ -912,8 +920,16 @@ def create_booth_token():
 @admin_bp.get("/kiosk/list")
 @desk_required
 def list_kiosks():
-    """List all registered computer lab kiosk terminals."""
-    kiosks = KioskDevice.query.order_by(KioskDevice.created_at.desc()).all()
+    """List registered computer lab kiosk terminals for the active/current election."""
+    election_id = request.args.get("election_id", type=int)
+    if not election_id:
+        election = Election.current()
+        election_id = election.id if election else None
+
+    query = KioskDevice.query
+    if election_id:
+        query = query.filter_by(election_id=election_id)
+    kiosks = query.order_by(KioskDevice.booth_number.asc(), KioskDevice.id.asc()).all()
     return jsonify([k.to_dict() for k in kiosks]), 200
 
 
@@ -970,7 +986,9 @@ def revoke_kiosk(kiosk_id):
         "success": True,
         "message": f"Booth {kiosk.device_name} session was revoked. The terminal session was terminated and existing slips remain assigned for reconnection.",
         "token": token,
+        "create_token": token,
         "totp_code": totp_code,
+        "current_totp": totp_code,
         "booth_id": kiosk.device_name,
         "booth_number": kiosk.number,
         "election_title": election.title if election else "",
@@ -989,6 +1007,10 @@ def get_kiosk_setup_token(kiosk_id):
     officer_id = int(get_jwt_identity())
     officer = db.session.get(User, officer_id)
     election = kiosk.election or Election.current()
+    if not election or election.effective_status == "archived":
+        return jsonify({"error": "There is no election to set booths up for."}), 409
+    if not officer.otp_enabled:
+        return jsonify({"error": "Turn on two-step verification first; booths are approved with your authenticator code."}), 409
 
     token = new_create_token()
     expires = datetime.now(timezone.utc) + TOKEN_LIFETIME
@@ -1019,7 +1041,9 @@ def get_kiosk_setup_token(kiosk_id):
     return jsonify({
         "success": True,
         "token": token,
+        "create_token": token,
         "totp_code": totp_code,
+        "current_totp": totp_code,
         "booth_id": kiosk.device_name,
         "booth_number": kiosk.number,
         "election_title": election.title if election else "",

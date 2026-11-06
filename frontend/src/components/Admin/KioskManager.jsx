@@ -71,12 +71,16 @@ export const KioskManager = () => {
     try {
       const res = await adminApi.getKioskSetupToken(booth.id);
       setIssued({
-        create_token: res.create_token,
+        token: res.token || res.create_token,
+        create_token: res.token || res.create_token,
         booth_id: res.booth_id || booth.booth_id,
-        current_totp: res.current_totp,
+        booth_number: res.booth_number || booth.booth_number,
+        totp_code: res.totp_code || res.current_totp,
+        current_totp: res.totp_code || res.current_totp,
         expires_at: res.expires_at,
+        election_title: res.election_title || booth.election_title,
       });
-      toast.success(`Setup code generated for ${booth.booth_id || 'Booth'}`);
+      toast.success(`Setup code generated for ${res.booth_id || booth.booth_id || 'Booth'}`);
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to generate setup code.'));
     } finally {
@@ -318,7 +322,7 @@ export const KioskManager = () => {
         </>
       )}
 
-      {/* Generated Setup Token Modal (Shows ONLY the setup token code) */}
+      {/* Generated Setup Token Modal */}
       <Modal
         isOpen={Boolean(issued)}
         onClose={() => setIssued(null)}
@@ -338,14 +342,14 @@ export const KioskManager = () => {
                 Booth Setup Token
               </span>
               <p className="font-mono text-3xl sm:text-4xl font-black text-brand tracking-widest select-all">
-                {issued.token}
+                {issued.token || issued.create_token}
               </p>
               <div className="pt-2 flex justify-center">
                 <button
                   type="button"
                   className="btn-secondary btn-sm flex items-center gap-1.5"
                   onClick={() => {
-                    navigator.clipboard?.writeText(issued.token);
+                    navigator.clipboard?.writeText(issued.token || issued.create_token);
                     toast.success('Setup token copied to clipboard');
                   }}
                 >
@@ -356,12 +360,42 @@ export const KioskManager = () => {
               <p className="text-[11px] text-muted pt-1">Valid for 15 minutes</p>
             </div>
 
+            {/* Officer Authenticator Code (TOTP) if available */}
+            {(issued.totp_code || issued.current_totp) && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-700 dark:text-amber-300">
+                    Officer Authenticator Code (TOTP)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-base text-amber-600 dark:text-amber-400 tracking-widest select-all">
+                      {issued.totp_code || issued.current_totp}
+                    </span>
+                    <button
+                      type="button"
+                      className="p-1 rounded text-amber-700 hover:bg-amber-500/20 transition-colors"
+                      title="Copy Authenticator Code"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(issued.totp_code || issued.current_totp);
+                        toast.success('Authenticator code copied');
+                      }}
+                    >
+                      <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted">
+                  Current code from your authenticator app (valid for 30s) or read from your phone app.
+                </p>
+              </div>
+            )}
+
             {/* Instructions */}
             <div className="p-3.5 rounded-xl bg-surface border border-line text-left text-xs space-y-1.5 text-muted leading-relaxed">
               <p className="font-bold text-fg">How to complete activation on terminal:</p>
-              <p>1. On the booth computer, navigate to <strong className="text-fg font-mono bg-recessed px-1.5 py-0.5 rounded">/kiosk/vote</strong>.</p>
+              <p>1. On the booth computer, launch the Booth App (or open <strong className="text-fg font-mono bg-recessed px-1.5 py-0.5 rounded">/kiosk/vote</strong>).</p>
               <p>2. Enter this <strong>Setup Token</strong> and your <strong>authenticator code</strong>.</p>
-              <p>3. The machine will instantly activate as <strong className="text-brand font-bold">{issued.booth_id}</strong> and begin accepting votes.</p>
+              <p>3. The machine will instantly activate as <strong className="text-brand font-bold">{issued.booth_id || `Booth ${issued.booth_number}`}</strong> and begin accepting votes.</p>
             </div>
 
             <div className="flex justify-center pt-1 border-t border-line">

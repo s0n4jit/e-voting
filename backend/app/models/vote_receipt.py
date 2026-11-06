@@ -30,7 +30,7 @@ class VoteReceipt(db.Model):
         index=True,
     )
 
-    election = db.relationship("Election", backref=db.backref("receipts", lazy="dynamic"))
+    election = db.relationship("Election", backref=db.backref("receipts", cascade="all, delete-orphan", passive_deletes=True, lazy="dynamic"))
 
     def get_choices(self) -> list:
         try:
