@@ -485,11 +485,7 @@ def end_mock(election_id=None):
 
     voted = VoterRecord.query.filter_by(election_id=active_mock_id).update({"has_voted": False, "voted_at": None})
 
-    try:
-        ReceiptService.clear_mock_receipts(election_id=active_mock_id)
-    except Exception as e:
-        logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
-
+    # Receipts and audit logs are preserved for full accountability and post-mock inspection.
     # Preserve all mock audit logs for accountability, unless it was a legacy in-place test run
     if not (mock_election and mock_election.parent_election_id):
         started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
@@ -500,7 +496,7 @@ def end_mock(election_id=None):
     db.session.flush()
 
     if mock_election and mock_election.parent_election_id:
-        _audit("MOCK_RESET", f"Mock election #{mock_election.id} ended and purged: {ballots} ballots, {pins} PINs, {slips} mock slips removed. Booths restored to election #{parent_id}.")
+        _audit("MOCK_RESET", f"Mock election #{mock_election.id} ended: {ballots} ballots, {pins} PINs, {slips} mock slips reset. Receipts and audit logs preserved. Booths restored to election #{parent_id}.")
         db.session.delete(mock_election)
         db.session.commit()
         real_election = db.session.get(Election, parent_id) if parent_id else None
