@@ -63,11 +63,13 @@ On Render: **New → Static Site**, **Root directory** `frontend`, **Build comma
 
 `VITE_API_URL` is read when the site is **built**; change it and redeploy. Vercel and Netlify work the same way (`frontend/vercel.json` already contains the rewrite).
 
-## 4. First run
+## 4. First run & workflow
 
 1. Open the web app URL; the installation wizard starts. Enter the setup token if you set one.
-2. Finish the wizard and set up two-step verification.
-3. Check `https://<api>/healthz` returns `{"status":"healthy"}`.
+2. Complete the setup wizard (Institution details, Election Officer account with mandatory two-step verification, and Election configuration with positions).
+3. Pre-generate sequential voter slips with 4-digit PINs per booth (configured directly in the wizard or via the **Voter Slips** admin panel).
+4. Print the official A4 voter slips sheets (6 slips per sheet) for your polling stations. Voter verification is conducted against the institution's physical electoral roll at the desks.
+5. Check `https://<api>/healthz` returns `{"status":"healthy"}`.
 
 ## Keeping the free API awake (self-ping)
 

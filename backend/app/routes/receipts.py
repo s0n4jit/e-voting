@@ -34,6 +34,7 @@ def list_receipts():
             or_(
                 VoteReceipt.slip_id.ilike(search_term),
                 VoteReceipt.booth_name.ilike(search_term),
+                VoteReceipt.choices_json.ilike(search_term),
             )
         )
 

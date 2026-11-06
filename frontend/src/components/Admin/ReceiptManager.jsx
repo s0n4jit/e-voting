@@ -278,15 +278,40 @@ const ReceiptManager = () => {
           </button>
         </div>
 
-        <form onSubmit={handleSearchSubmit} className="relative sm:w-72">
-          <MagnifyingGlassIcon className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Slip ID or Booth..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-line bg-surface text-fg text-xs shadow-2xs placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
-          />
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 sm:w-80">
+          <div className="relative flex-1">
+            <MagnifyingGlassIcon className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search Slip ID, Booth, or Candidate..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl border border-line bg-surface text-fg text-xs shadow-2xs placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted hover:text-fg rounded-md transition"
+                title="Clear search"
+              >
+                <XMarkIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="btn-secondary btn-sm px-3 py-2 text-xs font-semibold shrink-0"
+            title="Search receipts"
+          >
+            Search
+          </button>
         </form>
       </div>
 

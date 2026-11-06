@@ -8,8 +8,6 @@ import { fileToAvatarDataUrl } from '../ui/image';
 import { TwoStep } from '../Profile/ProfilePage';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
-import ProgrammePlanner from './ProgrammePlanner';
-import SlipSheet, { slipsCsv } from '../Desk/SlipSheet';
 import PositionsEditor, { DEFAULT_POSITIONS } from '../common/PositionsEditor';
 
 const STEPS = ['Welcome', 'System', 'Officer account', 'Election', 'Review'];
@@ -44,7 +42,7 @@ export default function SetupWizard() {
       institution_name: '',
       system_name: 'Campus Election Portal',
       logo: '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
       language: 'en',
       slip_code: 'SUE',
     },
@@ -56,8 +54,7 @@ export default function SetupWizard() {
       start_time: '09:00',
       end_time: '17:00',
       positions: [...DEFAULT_POSITIONS],
-      programmes_csv: '',
-      students_csv: '',
+      slips_per_booth: 50,
     },
   });
 
@@ -74,32 +71,7 @@ export default function SetupWizard() {
             <h1 className="text-2xl font-semibold tracking-tight">Turn on two-step verification</h1>
             <p className="text-muted mt-2">The portal is installed, but the election officer account cannot be used until two-step verification is on. It is required: it approves new voting booths, protects resets and backups, and lets you recover a forgotten password. Scan the code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…) and enter the 6-digit code.</p>
           </div>
-          {slips.students.length > 0 && (
-            <div className="card card-body space-y-3">
-              <p className="font-medium">{slips.students.length} students registered with a voter slip ID</p>
-              <p className="text-sm text-muted">
-                Voting PINs are not issued yet. When you are ready, the officer issues them from Registrations (all at once with "Issue PINs", or one student at a time) and prints the slips with PINs.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary" onClick={() => window.print()}>Print slips</button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(new Blob([slipsCsv(slips.students)], { type: 'text/csv' }));
-                    a.download = 'voter-slips-with-pins.csv';
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                  }}
-                >
-                  Download (CSV)
-                </button>
-              </div>
-              <SlipSheet students={slips.students} electionTitle={slips.title} />
-            </div>
-          )}
-          <TwoStep />
+                    <TwoStep />
           <div className="text-center">
             <button className="btn-primary btn-lg" disabled={!signedIn?.otp_enabled} onClick={() => window.location.replace('/admin/dashboard')}>Go to the dashboard</button>
             {!signedIn?.otp_enabled && <p className="text-xs text-muted mt-2">Turn on two-step verification above to continue.</p>}
@@ -381,68 +353,35 @@ export default function SetupWizard() {
                     <PositionsEditor value={election.positions} onChange={(v) => set('election', 'positions', v)} />
                   </Field>
 
-                  <div>
-                    <ProgrammePlanner onChange={(csv) => set('election', 'programmes_csv', csv)} />
-                    {errors.programmes_csv && <p className="error-text mt-2" role="alert">{errors.programmes_csv}</p>}
+                  <div className="rounded-lg border border-line bg-recessed/50 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-brand" />
+                      <h3 className="text-sm font-medium">Physical Electoral Roll & Booth Slips</h3>
+                    </div>
+                    <p className="text-xs text-muted leading-relaxed">
+                      Voter eligibility is verified against the institution's physical printed electoral roll at the polling station.
+                      Pre-printed sequential slips (with unique slip IDs and 4-digit PINs) are generated per booth.
+                    </p>
                   </div>
 
                   <Field
-                    label="Student voter list (optional)"
-                    hint="A CSV with the columns name, programme, department, semester and, optionally, roll_no. Each student gets a voter slip ID. You can skip this and register students at the desk, or import a list later on the Registrations page."
-                    error={errors.students_csv}
-                  >
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="btn-secondary btn-sm cursor-pointer">
-                        Choose CSV file
-                        <input
-                          type="file"
-                          accept=".csv,text/csv"
-                          className="sr-only"
-                          onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            e.target.value = '';
-                            if (f) set('election', 'students_csv', await f.text());
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="btn-ghost btn-sm"
-                        onClick={async () => {
-                          const blob = new Blob([await setupApi.studentTemplate()], { type: 'text/csv' });
-                          const a = document.createElement('a');
-                          a.href = URL.createObjectURL(blob);
-                          a.download = 'students-template.csv';
-                          a.click();
-                          URL.revokeObjectURL(a.href);
-                        }}
-                      >
-                        Download the template
-                      </button>
-                      {election.students_csv && (
-                        <span className="text-sm text-muted">
-                          {Math.max(election.students_csv.trim().split(/\r?\n/).length - 1, 0)} students in the file{' '}
-                          <button type="button" className="text-brand-fg hover:underline" onClick={() => set('election', 'students_csv', '')}>Remove</button>
-                        </span>
-                      )}
-                    </div>
-                  </Field>
-
-                  <Field
-                    label="Initial Voter Slips per Booth (optional)"
+                    label="Initial Voter Slips per Booth"
                     htmlFor="election-slips_per_booth"
-                    hint="Optionally configure how many sequential slips with 4-digit PINs to generate for each booth upon setup (e.g. 50 or 100). You can also generate slips at any time in the Voter Slips panel."
+                    hint="Number of sequential slips with 4-digit PINs to generate for each booth upon setup (e.g. 50 or 100). Additional batches can be generated anytime in the Voter Slips panel."
                   >
-                    <input
-                      id="election-slips_per_booth"
-                      type="number"
-                      min={0}
-                      max={1000}
-                      className="input w-48 font-mono"
-                      placeholder="0"
-                      value={election.slips_per_booth || ''}
-                      onChange={(e) => set('election', 'slips_per_booth', parseInt(e.target.value, 10) || 0)}
-                    />
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="election-slips_per_booth"
+                        type="number"
+                        min={0}
+                        max={1000}
+                        className="input w-48 font-mono"
+                        placeholder="50"
+                        value={election.slips_per_booth || ''}
+                        onChange={(e) => set('election', 'slips_per_booth', parseInt(e.target.value, 10) || 0)}
+                      />
+                      <span className="text-xs text-muted">slips per booth</span>
+                    </div>
                   </Field>
                 </>
               )}
@@ -465,7 +404,8 @@ export default function SetupWizard() {
                       ['Election', election.title],
                       ['Voting', `${election.date}, ${election.start_time}–${election.end_time}`],
                       ['Positions', election.positions.join(', ')],
-                      ['Initial slips per booth', election.slips_per_booth ? `${election.slips_per_booth} slips/booth` : 'Generate on Voter Slips page'],
+                      ['Voter verification', 'Physical roll at polling station'],
+                      ['Initial slips per booth', election.slips_per_booth ? `${election.slips_per_booth} slips per booth` : 'Generate on Voter Slips page'],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-6 py-2.5">
                         <dt className="text-muted">{k}</dt>
