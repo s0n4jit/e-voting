@@ -206,6 +206,11 @@ def delete_election(election_id):
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
     if active_mock and election.id != active_mock.id:
         return jsonify({"error": "A mock election is currently active. Official election cannot be deleted until the mock run ends."}), 409
+    if election.effective_status == "voting_active":
+        return jsonify({
+            "error": "Election active",
+            "message": "Cannot delete an ongoing active election. Close or archive the election before deleting.",
+        }), 409
 
     _audit("ELECTION_DELETED", f"Deleted the election \u201c{election.title}\u201d.")
     db.session.delete(election)
@@ -398,20 +403,6 @@ def list_voters():
     return jsonify([v.to_dict() for v in voters]), 200
 
 
-@admin_bp.post("/voters")
-@admin_required
-def add_single_voter():
-    """Superseded by Desk Officer registration (/api/desk/registrations)."""
-    return jsonify({"error": "Voters are registered at the desk, which generates their voter slip ID."}), 410
-
-
-@admin_bp.post("/voters/import")
-@admin_required
-def import_voters():
-    """Superseded by Desk Officer registration (/api/desk/registrations)."""
-    return jsonify({"error": "Voters are registered at the desk, which generates their voter slip ID."}), 410
-
-
 # ── Audit Trail ───────────────────────────────────────────────────────────────
 
 @admin_bp.get("/audit-logs")
@@ -464,13 +455,27 @@ def get_audit_logs():
     else:
         actual_ballots = BoothSlip.query.filter_by(is_used=True).count()
 
+    desk_actions = ["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "PIN_ISSUED"]
+    pin_actions = ["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"]
+    sec_actions = CATEGORY_ACTIONS.get("security", [])
+    booth_actions = CATEGORY_ACTIONS.get("booth", [])
+
+    # Single grouped aggregation query replaces 5 separate full-table count scans
+    agg = db.session.query(
+        db.func.count(AuditLog.id),
+        db.func.count(db.case((AuditLog.action.in_(desk_actions), 1))),
+        db.func.count(db.case((AuditLog.action.in_(pin_actions), 1))),
+        db.func.count(db.case((AuditLog.action.in_(sec_actions), 1))),
+        db.func.count(db.case((AuditLog.action.in_(booth_actions), 1))),
+    ).first()
+
     stats = {
-        "total_records": AuditLog.query.count(),
+        "total_records": agg[0] or 0,
         "ballots_cast": actual_ballots,
-        "desk_enrollments": AuditLog.query.filter(AuditLog.action.in_(["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "PIN_ISSUED"])).count(),
-        "pins_issued": AuditLog.query.filter(AuditLog.action.in_(["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"])).count(),
-        "security_alerts": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("security", []))).count(),
-        "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("booth", []))).count(),
+        "desk_enrollments": agg[1] or 0,
+        "pins_issued": agg[2] or 0,
+        "security_alerts": agg[3] or 0,
+        "kiosk_actions": agg[4] or 0,
     }
 
     serialized = []
@@ -616,50 +621,20 @@ def issue_desk_pin():
     admin_identity = get_jwt_identity()
     admin_id = int(admin_identity) if str(admin_identity).isdigit() else None
 
-    # Check if voter has already cast a ballot in this election
-    voter_hash = User.hash_student_id(user.student_id)
-    voter_rec = VoterRecord.query.filter_by(
-        election_id=election.id, voter_hash=voter_hash
-    ).first()
-
-    if voter_rec and voter_rec.has_voted:
-        return (
-            jsonify({
-                "error": "Already Voted",
-                "message": f"Student '{user.name}' ({user.student_id}) has already cast their ballot in this election. Slip cannot be re-issued.",
-            }),
-            400,
+    from app.services.vote_service import VoteService, VotingError
+    try:
+        raw_pin, token_record = VoteService.issue_desk_pin(
+            user=user,
+            election=election,
+            actor_id=admin_id,
+            ip_address=request.remote_addr or "127.0.0.1",
+            user_agent=request.user_agent.string if request.user_agent else "desk",
         )
-
-    # If not registered yet, register eligible student at desk
-    if not voter_rec:
-        voter_rec = VoterRecord(
-            election_id=election.id,
-            voter_hash=voter_hash,
-            has_voted=False,
-        )
-        db.session.add(voter_rec)
-        db.session.flush()
-
-    # Generate 6-digit PIN valid for 20 minutes
-    raw_pin, token_record = VotingToken.generate_pin(
-        student_id=user.student_id,
-        election_id=election.id,
-        created_by=admin_id,
-        validity_minutes=STATIC_PIN_MINUTES,
-    )
-
-    # Audit log PIN issuance
-    audit_pin = AuditLog(
-        user_id=admin_id,
-        action="PIN_ISSUED",
-        details=f"Issued a voting PIN to {user.name} ({user.student_id}) for \u201c{election.title}\u201d.",
-        ip_address=request.remote_addr or "127.0.0.1",
-        user_agent=request.user_agent.string if request.user_agent else "desk",
-    )
-    db.session.add(audit_pin)
-
-    db.session.commit()
+    except VotingError as err:
+        return jsonify({
+            "error": "Already Voted",
+            "message": str(err),
+        }), 400
 
     return (
         jsonify({
@@ -1522,8 +1497,8 @@ def generate_voter_slips():
             "message": "Cannot generate official voter slips while a mock election is in progress. Official slips must be created before starting a mock run."
         }), 409
 
-    if count <= 0 or count > 2000:
-        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
+    if count <= 0 or count > 500:
+        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 500 per batch."}), 400
 
     kiosk_device = KioskDevice.query.filter_by(election_id=election.id, booth_number=booth_number).first()
     booth_id = kiosk_device.id if kiosk_device else None
@@ -1575,8 +1550,8 @@ def generate_booth_slips(booth_number):
             "message": "Cannot generate official voter slips while a mock election is in progress. Official slips must be created before starting a mock run."
         }), 409
 
-    if count <= 0 or count > 2000:
-        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
+    if count <= 0 or count > 500:
+        return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 500 per batch."}), 400
 
     created = BoothSlip.generate_batch(
         election_id=election.id,

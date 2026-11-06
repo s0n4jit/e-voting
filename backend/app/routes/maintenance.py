@@ -36,9 +36,33 @@ except ImportError:
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
-# In-memory tracking for failed PIN attempts and lockout protection
-# Format: { "ip_address": { "attempts": int, "lockout_until": float } }
+import json
+from app.models.system_setting import SystemSetting
+
+# Backwards compatibility export for test suites
 _pin_attempts = {}
+
+# Database-backed helper functions for maintenance lockout tracking across all worker processes
+def _get_ip_lockout(client_ip: str) -> dict:
+    key = f"maint_lockout_{client_ip.replace(':', '_')}"
+    try:
+        from app.models.system_setting import SystemSetting
+        raw = SystemSetting.get(key, "")
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return _pin_attempts.get(client_ip, {"attempts": 0, "lockout_until": 0})
+
+def _set_ip_lockout(client_ip: str, state: dict) -> None:
+    _pin_attempts[client_ip] = state
+    key = f"maint_lockout_{client_ip.replace(':', '_')}"
+    try:
+        from app.models.system_setting import SystemSetting
+        SystemSetting.put(key, json.dumps(state))
+        db.session.commit()
+    except Exception:
+        pass
 
 # Strict allowlist of permitted privileged maintenance actions
 PERMITTED_ACTIONS = {
@@ -96,12 +120,12 @@ def staff_pin_auth():
     now_ts = time.time()
 
     # Check lockout status
-    ip_state = _pin_attempts.get(client_ip, {"attempts": 0, "lockout_until": 0})
-    if ip_state["lockout_until"] > 0 and now_ts >= ip_state["lockout_until"]:
+    ip_state = _get_ip_lockout(client_ip)
+    if ip_state.get("lockout_until", 0) > 0 and now_ts >= ip_state["lockout_until"]:
         ip_state["attempts"] = 0
         ip_state["lockout_until"] = 0
-        _pin_attempts[client_ip] = ip_state
-    elif ip_state["lockout_until"] > now_ts:
+        _set_ip_lockout(client_ip, ip_state)
+    elif ip_state.get("lockout_until", 0) > now_ts:
         remaining = int(ip_state["lockout_until"] - now_ts)
         return (
             jsonify({
@@ -128,12 +152,12 @@ def staff_pin_auth():
     is_valid = any(u.verify_otp(pin) for u in officers)
 
     if not is_valid:
-        ip_state["attempts"] += 1
+        ip_state["attempts"] = ip_state.get("attempts", 0) + 1
         remaining_attempts = max(0, max_attempts - ip_state["attempts"])
 
         if ip_state["attempts"] >= max_attempts:
             ip_state["lockout_until"] = now_ts + lockout_seconds
-            _pin_attempts[client_ip] = ip_state
+            _set_ip_lockout(client_ip, ip_state)
             return (
                 jsonify({
                     "error": "Terminal Locked",
@@ -143,7 +167,7 @@ def staff_pin_auth():
                 429,
             )
 
-        _pin_attempts[client_ip] = ip_state
+        _set_ip_lockout(client_ip, ip_state)
         return (
             jsonify({
                 "error": "Authentication Failed",
@@ -154,7 +178,7 @@ def staff_pin_auth():
         )
 
     # Success: Reset failed attempts
-    _pin_attempts[client_ip] = {"attempts": 0, "lockout_until": 0}
+    _set_ip_lockout(client_ip, {"attempts": 0, "lockout_until": 0})
 
     # Issue short-lived 15-minute staff maintenance token
     token = create_access_token(
@@ -417,56 +441,27 @@ def execute_action():
     is_testing = current_app.config.get("TESTING", False)
 
     if action == "restart_browser":
-        # Safe browser restart (handles testing lab container vs physical Ubuntu host)
+        # Dispatched only to booth agent / lab kiosk simulator — never kills processes on central server
         executed = _send_lab_kiosk_action(action)
-        if not executed and not is_testing:
-            for binary in (["pkill", "-f", "firefox"], ["killall", "firefox"], ["pkill", "-f", "chromium"]):
-                cmd_path = shutil.which(binary[0])
-                if cmd_path:
-                    try:
-                        subprocess.run(binary, check=False)
-                        executed = True
-                        break
-                    except Exception as e:
-                        current_app.logger.warning(f"Browser restart command failed: {e}")
-        msg = "Browser process restart initiated." if executed else "Browser restart signal processed (active in kiosk environment)."
+        msg = "Browser process restart initiated on booth." if executed else "Browser restart signal dispatched (must be handled by local booth agent)."
 
     elif action == "restart_kiosk":
-        # Safe kiosk session restart via user systemd unit or lab container
+        # Dispatched only to booth agent / lab kiosk simulator — never restarts services on central server
         executed = _send_lab_kiosk_action(action)
-        if not executed and not is_testing:
-            cmd_path = shutil.which("systemctl")
-            if cmd_path:
-                try:
-                    subprocess.run(["systemctl", "--user", "restart", "evote-kiosk.service"], check=False)
-                    executed = True
-                except Exception as e:
-                    current_app.logger.warning(f"Kiosk session restart failed: {e}")
-        msg = "Kiosk user session restarted." if executed else "Kiosk session restart signal processed (active in kiosk environment)."
+        msg = "Kiosk user session restarted on booth." if executed else "Kiosk restart signal dispatched (must be handled by local booth agent)."
 
     elif action == "restart_system":
-        # Safe system reboot via allowlisted command or lab container display reset
+        # System reboots must NEVER run on the central server host
         executed = _send_lab_kiosk_action(action)
         if not executed and not is_testing:
-            if shutil.which("sudo"):
-                try:
-                    subprocess.run(["sudo", "/sbin/reboot"], check=False)
-                    executed = True
-                except Exception as e:
-                    current_app.logger.warning(f"Reboot via sudo failed: {e}")
-            elif shutil.which("reboot"):
-                try:
-                    subprocess.run(["reboot"], check=False)
-                    executed = True
-                except Exception as e:
-                    current_app.logger.warning(f"Reboot command failed: {e}")
-            elif shutil.which("shutdown"):
-                try:
-                    subprocess.run(["shutdown", "/r", "/t", "5"], check=False)
-                    executed = True
-                except Exception as e:
-                    current_app.logger.warning(f"Shutdown command failed: {e}")
-        msg = "System reboot initiated." if executed else "System reboot signal processed (active in kiosk environment)."
+            return (
+                jsonify({
+                    "error": "Central Reboot Prohibited",
+                    "message": "Physical booth machines must be restarted locally. Central server reboot is prohibited.",
+                }),
+                400,
+            )
+        msg = "Booth machine reboot initiated." if executed else "Booth reboot signal processed (testing)."
 
     elif action == "test_network":
         msg = "Network diagnostic suite executed successfully."

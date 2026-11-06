@@ -11,7 +11,9 @@ import zipfile
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from flask import Blueprint, current_app, jsonify, request, send_file
+import os
+import tempfile
+from flask import Blueprint, after_this_request, current_app, jsonify, request, send_file
 from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db, limiter
@@ -46,10 +48,10 @@ def _json_default(value):
     return str(value)
 
 
-def _build_backup(actor) -> bytes:
-    buf = io.BytesIO()
+def _build_backup_to_file(actor, file_path: str) -> None:
+    """Stream tables and binary objects directly into a temporary file on disk."""
     counts = {}
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+    with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as z:
         for table in db.metadata.sorted_tables:
             rows = []
             for r in db.session.execute(table.select()).mappings():
@@ -71,7 +73,22 @@ def _build_backup(actor) -> bytes:
             "rows": counts,
         }, indent=1))
         z.writestr("README.txt", _README)
-    return buf.getvalue()
+
+
+def _build_backup(actor) -> bytes:
+    """Backwards-compatible helper for tests."""
+    fd, tmp_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    try:
+        _build_backup_to_file(actor, tmp_path)
+        with open(tmp_path, "rb") as f:
+            return f.read()
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
 
 
 def _audit(action, details):
@@ -89,12 +106,32 @@ def _audit(action, details):
 @limiter.limit("10 per hour")
 def export_backup():
     actor = db.session.get(User, int(get_jwt_identity()))
-    data = _build_backup(actor)
-    SystemSetting.put("last_backup_at", datetime.now(timezone.utc).isoformat())
-    _audit("SYSTEM_BACKUP_DOWNLOADED", "Downloaded a full backup of the system.")
-    db.session.commit()
-    name = f"evoting-backup-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.zip"
-    return send_file(io.BytesIO(data), mimetype="application/zip", as_attachment=True, download_name=name)
+    fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="evoting-backup-")
+    os.close(fd)
+    try:
+        _build_backup_to_file(actor, tmp_path)
+        SystemSetting.put("last_backup_at", datetime.now(timezone.utc).isoformat())
+        _audit("SYSTEM_BACKUP_DOWNLOADED", "Downloaded a full backup of the system.")
+        db.session.commit()
+        name = f"evoting-backup-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.zip"
+
+        @after_this_request
+        def remove_temp_file(response):
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            return response
+
+        return send_file(tmp_path, mimetype="application/zip", as_attachment=True, download_name=name)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        raise
 
 
 def _recent_backup() -> bool:

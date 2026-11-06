@@ -21,6 +21,7 @@ class AuditLog(db.Model):
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+        index=True,
     )
 
     actor_id = synonym("user_id")

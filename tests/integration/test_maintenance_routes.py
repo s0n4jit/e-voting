@@ -26,11 +26,25 @@ def officer(db):
 
 
 @pytest.fixture(autouse=True)
-def clear_attempts():
-    """Clear in-memory lockout table between test runs."""
-    _pin_attempts.clear()
+def clear_attempts(app):
+    """Clear lockout table between test runs."""
+    with app.app_context():
+        _pin_attempts.clear()
+        try:
+            from app.models.system_setting import SystemSetting
+            SystemSetting.query.filter(SystemSetting.key.like("maint_lockout_%")).delete()
+            _db.session.commit()
+        except Exception:
+            pass
     yield
-    _pin_attempts.clear()
+    with app.app_context():
+        _pin_attempts.clear()
+        try:
+            from app.models.system_setting import SystemSetting
+            SystemSetting.query.filter(SystemSetting.key.like("maint_lockout_%")).delete()
+            _db.session.commit()
+        except Exception:
+            pass
 
 
 def test_maintenance_auth_success(client):

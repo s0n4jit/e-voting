@@ -15,7 +15,7 @@ class VoteReceipt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slip_id = db.Column(db.String(64), nullable=False, unique=True, index=True)
     election_id = db.Column(db.Integer, db.ForeignKey("elections.id", ondelete="CASCADE"), nullable=False, index=True)
-    booth_name = db.Column(db.String(100), nullable=True, default="")
+    booth_name = db.Column(db.String(100), nullable=True, default="", index=True)
     is_mock = db.Column(db.Boolean, default=False, nullable=False, index=True)
     choices_json = db.Column(db.Text, nullable=False)
     html_content = db.Column(db.Text, nullable=True)

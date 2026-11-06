@@ -330,8 +330,35 @@ def upload_booth_receipt():
     is_printed = request.form.get("is_printed", "true").lower() in ("true", "1", "yes")
     print_error = (request.form.get("print_error") or "").strip() or None
 
+    # Verify that the receipt corresponds to an actual cast ballot or valid session
+    from app.models.booth_slip import BoothSlip
+    from app.models.ballot_entry import BallotEntry
+
     receipt = VoteReceipt.query.filter_by(slip_id=slip_id).first()
+
     if not receipt:
+        # Check if this slip was actually cast in this election
+        slip_record = BoothSlip.query.filter_by(election_id=election_id, voting_id=slip_id).first()
+        is_cast = (slip_record and slip_record.is_used)
+        if not is_cast and slip_id.startswith("VOTE-"):
+            # Check if blind token exists in ballot entries
+            token_prefix = slip_id.replace("VOTE-", "").lower()
+            ballot_exists = BallotEntry.query.filter(
+                BallotEntry.election_id == election_id,
+                BallotEntry.blind_token.ilike(f"{token_prefix}%")
+            ).first() is not None
+            is_cast = ballot_exists or is_mock
+
+        if not is_cast and not is_mock:
+            db.session.add(AuditLog(
+                action="SECURITY_ALERT",
+                details=f"Attempted receipt upload for uncast or invalid slip {slip_id} from {booth_name} (IP: {request.remote_addr}).",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+            return jsonify({"error": "Invalid receipt", "message": "Receipt cannot be archived for an uncast slip."}), 400
+
         receipt = VoteReceipt(
             slip_id=slip_id,
             election_id=election_id,
@@ -346,15 +373,14 @@ def upload_booth_receipt():
         )
         db.session.add(receipt)
     else:
+        # Finalized receipt: choices and election are strictly immutable!
+        # Only printer status, error, and physical PDF artifact can be updated idempotently.
         receipt.booth_name = booth_name
-        receipt.is_mock = is_mock
-        receipt.choices_json = choices_raw
-        if html_content:
-            receipt.html_content = html_content
-        receipt.pdf_filename = pdf_filename
+        if pdf_file:
+            receipt.pdf_filename = pdf_filename
         receipt.is_printed = is_printed
         receipt.print_error = print_error
-        receipt.created_at = now
+        receipt.reprinted_at = now
 
     mode_str = "mock" if is_mock else "official"
     try:

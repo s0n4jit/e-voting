@@ -19,9 +19,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from config import get_config
 
-from app.extensions import db, jwt, limiter, token_blacklist
-
-_token_blacklist = token_blacklist
+from app.extensions import db, jwt, limiter
 
 
 def create_app(config_object=None) -> Flask:
@@ -205,8 +203,6 @@ def _register_jwt_callbacks(app: Flask) -> None:
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        if jwt_payload.get("jti") in _token_blacklist:
-            return True
         from app.models.revoked_token import RevokedToken
 
         if db.session.get(RevokedToken, jwt_payload.get("jti")):
@@ -238,8 +234,7 @@ def _register_jwt_callbacks(app: Flask) -> None:
     def missing_token_callback(error):
         return jsonify({"error": "Authentication required.", "details": str(error)}), 401
 
-    # Expose the blacklist to routes (e.g. logout)
-    app.extensions["jwt_blacklist"] = _token_blacklist
+    # Database-backed RevokedToken is the single authoritative source of truth
 
 
 def _register_blueprints(app: Flask) -> None:

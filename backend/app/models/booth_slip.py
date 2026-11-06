@@ -128,8 +128,13 @@ class BoothSlip(db.Model):
         if count <= 0:
             return []
 
+        MAX_BATCH_SIZE = 500
+        if count > MAX_BATCH_SIZE:
+            count = MAX_BATCH_SIZE
+
         from app.models.election import Election
-        election = db.session.get(Election, election_id)
+        # Lock election row to prevent concurrent race conditions on sequence numbers
+        election = db.session.query(Election).filter_by(id=election_id).with_for_update().first()
         mock_run = is_mock or bool(election and election.is_mock)
         if mock_run:
             prefix = f"MOCK-B{booth_number:02d}-" if booth_number else "MOCK-"

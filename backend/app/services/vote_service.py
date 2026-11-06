@@ -220,6 +220,9 @@ class VoteService:
             hashlib.sha256,
         ).hexdigest()
 
+        # Hourly bucket to break microsecond timing correlation between ballot and audit log
+        ballot_cast_at = now.replace(minute=0, second=0, microsecond=0)
+
         # Insert a BallotEntry for each position under the same blind token
         for entry in validated_entries:
             ballot_entry = BallotEntry(
@@ -228,7 +231,7 @@ class VoteService:
                 position=entry["position"],
                 is_nota=entry["is_nota"],
                 blind_token=blind_token,
-                cast_at=now,
+                cast_at=ballot_cast_at,
             )
             session.add(ballot_entry)
 
@@ -293,105 +296,20 @@ class VoteService:
         user_agent="internal",
         booth=None,
     ) -> VoteResult:
-        """
-        Atomically cast a single candidate vote (supports backwards compatibility).
-        """
+        """Backwards compatibility adapter delegating directly to cast_multi_position_vote."""
         session = db.session if hasattr(db, "session") else (db or default_db.session)
-
-        # Resolve voter user
-        if voter_id is None and user is not None:
-            voter_id = getattr(user, "id", None)
-            voter_user = user
-        elif voter_id is not None:
-            voter_user = session.get(User, voter_id)
-        else:
-            raise VotingError("Voter user not identified.")
-
-        if not voter_user:
-            raise VotingError("Voter user not found.")
-
-        # Resolve election
-        if not election_id:
-            raise VotingError("Election ID is required.")
-        election = session.get(Election, election_id)
-        if not election:
-            raise VotingError("Election not found.")
-
-        if not election.is_active:
-            raise VotingError("Voting is not open.")
-        if election.voting_paused:
-            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
-
-        now = datetime.now(timezone.utc)
-
-        # Resolve and validate candidate
-        if not candidate_id:
-            raise VotingError("Candidate selection is required.")
-        candidate = session.get(Candidate, candidate_id)
-        if not candidate or candidate.election_id != election.id:
-            raise VotingError("Invalid candidate for this election.")
-
-        # Check voter registration in this election
-        voter_hash = User.hash_student_id(voter_user.student_id)
-        voter_record = (
-            session.query(VoterRecord)
-            .filter_by(election_id=election.id, voter_hash=voter_hash)
-            .with_for_update()
-            .first()
-        )
-        if not voter_record:
-            raise VotingError("Voter is not eligible for this election.")
-
-        if voter_record.has_voted:
-            raise VotingError("Voter has already voted in this election.")
-
-        # Execute atomic ballot separation
-        voter_record.has_voted = True
-        voter_record.voted_at = now
-
-        # Invalidate any active desk VotingToken
-        session.query(VotingToken).filter(
-            VotingToken.election_id == election.id,
-            (VotingToken.student_id == voter_user.student_id) | (VotingToken.user_id == voter_user.id),
-            VotingToken.is_used == False,
-        ).update({"is_used": True}, synchronize_session=False)
-
-        # Cryptographically strong blind token (no voter identifier)
-        blind_seed = uuid.uuid4().hex.encode("utf-8")
-        blind_token = hmac.new(
-            blind_seed,
-            f"election-{election.id}:{uuid.uuid4().hex}".encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-
-        ballot_entry = BallotEntry(
-            election_id=election.id,
-            candidate_id=candidate.id,
-            position=candidate.position or "General Secretary",
-            is_nota=False,
-            blind_token=blind_token,
-            cast_at=now,
-        )
-        session.add(ballot_entry)
-
-        audit_entry = AuditLog(
-            user_id=voter_user.id,
-            action="VOTE_CAST",
-            details=f"Cast a ballot in \u201c{election.title}\u201d{_at_booth(booth)}.",
+        cand = session.get(Candidate, candidate_id) if candidate_id else None
+        pos = cand.position if cand else "General Secretary"
+        selections = [{"candidate_id": candidate_id, "position": pos, "is_nota": False}]
+        return cls.cast_multi_position_vote(
+            user=user,
+            election_id=election_id,
+            selections=selections,
+            booth=booth,
+            voter_id=voter_id,
+            db=db,
             ip_address=ip_address,
             user_agent=user_agent,
-            created_at=now,
-        )
-        session.add(audit_entry)
-
-        session.flush()
-        session.commit()
-
-        return VoteResult(
-            success=True,
-            message="Vote successfully cast and recorded anonymously.",
-            blind_token=blind_token,
-            election_id=election.id,
         )
 
     @classmethod
@@ -725,6 +643,9 @@ class VoteService:
             hashlib.sha256,
         ).hexdigest()
 
+        # Hourly bucket to break timing correlation between ballot entries and audit trail
+        ballot_cast_at = now.replace(minute=0, second=0, microsecond=0)
+
         for entry in validated_entries:
             ballot_entry = BallotEntry(
                 election_id=election.id,
@@ -732,7 +653,7 @@ class VoteService:
                 position=entry["position"],
                 is_nota=entry["is_nota"],
                 blind_token=blind_token,
-                cast_at=now,
+                cast_at=ballot_cast_at,
             )
             session.add(ballot_entry)
 
@@ -792,6 +713,54 @@ class VoteService:
                 "cast_at": now.isoformat(),
             }
         )
+
+    @classmethod
+    def issue_desk_pin(
+        cls,
+        user: User,
+        election: Election,
+        actor_id: Optional[int] = None,
+        ip_address: str = "127.0.0.1",
+        user_agent: str = "desk",
+        session=None,
+    ) -> tuple[str, VotingToken]:
+        """Atomically issue a single-use desk Voting PIN for an eligible student."""
+        sess = session or default_db.session
+        voter_hash = User.hash_student_id(user.student_id)
+        voter_rec = sess.query(VoterRecord).filter_by(
+            election_id=election.id, voter_hash=voter_hash
+        ).first()
+
+        if voter_rec and voter_rec.has_voted:
+            raise VotingError(f"Student '{user.name}' ({user.student_id}) has already cast their ballot in this election. Slip cannot be re-issued.")
+
+        if not voter_rec:
+            voter_rec = VoterRecord(
+                election_id=election.id,
+                voter_hash=voter_hash,
+                has_voted=False,
+            )
+            sess.add(voter_rec)
+            sess.flush()
+
+        from app.models.voting_token import STATIC_PIN_MINUTES
+        raw_pin, token_record = VotingToken.generate_pin(
+            student_id=user.student_id,
+            election_id=election.id,
+            created_by=actor_id,
+            validity_minutes=STATIC_PIN_MINUTES,
+        )
+
+        audit_pin = AuditLog(
+            user_id=actor_id,
+            action="PIN_ISSUED",
+            details=f"Issued a voting PIN to {user.name} ({user.student_id}) for \u201c{election.title}\u201d.",
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        sess.add(audit_pin)
+        sess.commit()
+        return raw_pin, token_record
 
     @classmethod
     def calculate_turnout(cls, election_id: int, db=None) -> dict:

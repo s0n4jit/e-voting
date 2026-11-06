@@ -262,6 +262,19 @@ def _m011_prefix_booth_slips():
     db.session.commit()
 
 
+def _m012_audit_and_receipt_indexes():
+    """Add indexes on audit_logs(created_at) and vote_receipts(booth_name) for query performance."""
+    try:
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at DESC)"))
+    except Exception:
+        pass
+    try:
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_vote_receipts_booth_name ON vote_receipts (booth_name)"))
+    except Exception:
+        pass
+    db.session.commit()
+
+
 _STEPS = [
     ("001_election_status", _m001_election_status),
     ("002_mark_installed", _m002_mark_installed),
@@ -274,6 +287,7 @@ _STEPS = [
     ("009_new_slip_format", _m009_new_slip_format),
     ("010_short_year_slip_format", _m010_short_year_slip_format),
     ("011_prefix_booth_slips", _m011_prefix_booth_slips),
+    ("012_audit_and_receipt_indexes", _m012_audit_and_receipt_indexes),
 ]
 
 

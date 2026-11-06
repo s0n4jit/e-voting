@@ -18,7 +18,7 @@ from flask_jwt_extended import (
     decode_token,
 )
 
-from app.extensions import db, limiter, token_blacklist, commit_or_flush
+from app.extensions import db, limiter, commit_or_flush
 from app.models.user import User
 from app.models.election import Election
 from app.models.voter_record import VoterRecord
@@ -340,7 +340,6 @@ def logout():
     payload = get_jwt()
     jti = payload.get("jti")
     if jti:
-        token_blacklist.add(jti)
         RevokedToken.revoke(payload)
     refresh = (request.get_json(silent=True) or {}).get("refresh_token")
     if refresh:  # the matching refresh token must not be usable either
@@ -351,16 +350,17 @@ def logout():
     RevokedToken.purge_expired()
 
     user_id = get_jwt_identity()
-    if user_id and str(user_id).isdigit():
-        audit = AuditLog(
-            user_id=int(user_id),
-            action="LOGOUT",
-            details="Signed out.",
-            ip_address=request.remote_addr or "127.0.0.1",
-            user_agent=request.user_agent.string if request.user_agent else "client",
-        )
-        db.session.add(audit)
-        commit_or_flush()
+    audit_actor = int(user_id) if user_id and str(user_id).isdigit() else None
+    actor_desc = f"Signed out ({user_id})." if user_id and not str(user_id).isdigit() else "Signed out."
+    audit = AuditLog(
+        user_id=audit_actor,
+        action="LOGOUT",
+        details=actor_desc,
+        ip_address=request.remote_addr or "127.0.0.1",
+        user_agent=request.user_agent.string if request.user_agent else "client",
+    )
+    db.session.add(audit)
+    commit_or_flush()
 
     return jsonify({"message": "Successfully logged out."}), 200
 
@@ -577,6 +577,10 @@ def voter_session_end():
             if token and token.is_used:
                 has_voted = True
 
+        # Revoke the active voter JWT so this session token cannot be reused
+        from app.models.revoked_token import RevokedToken
+        RevokedToken.revoke(claims)
+
         # Only record an audit log if the voter left WITHOUT casting their ballot!
         if not has_voted:
             if claims.get("slip_id"):
@@ -593,7 +597,7 @@ def voter_session_end():
                 ip_address=request.remote_addr or "",
                 user_agent=(request.user_agent.string or "")[:255],
             ))
-            db.session.commit()
+        commit_or_flush()
     return jsonify({"ok": True}), 200
 
 
