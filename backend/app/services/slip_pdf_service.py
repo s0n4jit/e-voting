@@ -81,11 +81,24 @@ class SlipPdfService:
         slips_per_page = cols * rows
 
         voting_date = ""
-        if election and getattr(election, "start_time", None):
-            try:
-                voting_date = election.start_time.strftime("%d %b %Y")
-            except Exception:
-                pass
+        voting_time = ""
+        if election:
+            st = getattr(election, "start_time", None)
+            et = getattr(election, "end_time", None)
+            if st:
+                try:
+                    voting_date = st.strftime("%d %b %Y")
+                except Exception:
+                    pass
+                try:
+                    s_str = st.strftime("%I:%M %p").lstrip("0")
+                    if et:
+                        e_str = et.strftime("%I:%M %p").lstrip("0")
+                        voting_time = f"{s_str} – {e_str}"
+                    else:
+                        voting_time = s_str
+                except Exception:
+                    pass
         if not voting_date:
             from datetime import datetime
             voting_date = datetime.now().strftime("%d %b %Y")
@@ -112,6 +125,7 @@ class SlipPdfService:
                 election_title=election_title,
                 institution_name=institution_name,
                 voting_date=voting_date,
+                voting_time=voting_time,
                 img_reader=img_reader,
             )
 
@@ -164,12 +178,25 @@ class SlipPdfService:
         card_y = (page_h - card_h) / 2.0
 
         voting_date = ""
+        voting_time = ""
         el = election or slip.election
-        if el and getattr(el, "start_time", None):
-            try:
-                voting_date = el.start_time.strftime("%d %b %Y")
-            except Exception:
-                pass
+        if el:
+            st = getattr(el, "start_time", None)
+            et = getattr(el, "end_time", None)
+            if st:
+                try:
+                    voting_date = st.strftime("%d %b %Y")
+                except Exception:
+                    pass
+                try:
+                    s_str = st.strftime("%I:%M %p").lstrip("0")
+                    if et:
+                        e_str = et.strftime("%I:%M %p").lstrip("0")
+                        voting_time = f"{s_str} – {e_str}"
+                    else:
+                        voting_time = s_str
+                except Exception:
+                    pass
         if not voting_date:
             from datetime import datetime
             voting_date = datetime.now().strftime("%d %b %Y")
@@ -184,6 +211,7 @@ class SlipPdfService:
             election_title=election_title,
             institution_name=institution_name,
             voting_date=voting_date,
+            voting_time=voting_time,
             img_reader=img_reader,
         )
 
@@ -204,6 +232,7 @@ class SlipPdfService:
         election_title: str,
         institution_name: str,
         voting_date: str = "",
+        voting_time: str = "",
         img_reader: Optional[ImageReader] = None,
     ):
         """Draws one individual voter slip card matching the 6-per-A4 sheet layout."""
@@ -274,8 +303,8 @@ class SlipPdfService:
         c.line(x, y + h - 42.0, x + w, y + h - 42.0)
         c.restoreState()
 
-        # 3. Booth badge & Voting Date
-        badge_w = 76.0
+        # 3. Booth badge & Voting Date / Time (informational)
+        badge_w = 72.0
         badge_h = 13.0
         badge_x = x + 10.0
         badge_y = y + h - 59.0
@@ -289,10 +318,18 @@ class SlipPdfService:
         booth_str = f"BOOTH-{str(slip.booth_number or 1).zfill(2)}"
         c.drawCentredString(badge_x + badge_w / 2.0, badge_y + 3.5, booth_str)
 
-        # Voting date on the right
-        c.setFillColor(colors.HexColor("#475569"))
-        c.setFont("Helvetica-Bold", 6.8)
-        c.drawRightString(x + w - 10.0, badge_y + 3.5, f"Voting Date: {voting_date}")
+        # Voting date & informational scheduled time
+        if voting_time:
+            c.setFillColor(colors.HexColor("#334155"))
+            c.setFont("Helvetica-Bold", 6.2)
+            c.drawRightString(x + w - 10.0, badge_y + 7.5, f"Date: {voting_date}")
+            c.setFont("Helvetica", 5.6)
+            c.setFillColor(colors.HexColor("#64748b"))
+            c.drawRightString(x + w - 10.0, badge_y - 1.5, f"Time: {voting_time}")
+        else:
+            c.setFillColor(colors.HexColor("#475569"))
+            c.setFont("Helvetica-Bold", 6.8)
+            c.drawRightString(x + w - 10.0, badge_y + 3.5, f"Voting Date: {voting_date}")
         c.restoreState()
 
         # 4. Voter Slip ID Section

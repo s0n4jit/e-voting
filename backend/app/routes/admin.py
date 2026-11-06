@@ -1400,7 +1400,7 @@ def get_booths_slips_metrics():
 
         is_b_active = b_num in active_booth_numbers
         active_for_booth = 1 if (is_b_active and cur_slip and cur_slip.id in active_slip_ids) else 0
-        unused_for_booth = max(0, total_for_booth - used_for_booth - active_for_booth)
+        unused_for_booth = max(0, total_for_booth - used_for_booth)
 
         rate = round((used_for_booth / total_for_booth * 100), 1) if total_for_booth > 0 else 0.0
 
@@ -1444,7 +1444,7 @@ def get_booths_slips_metrics():
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
     total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
     total_active = len(active_slip_ids)
-    total_unused = max(0, total_gen - total_used - total_active)
+    total_unused = max(0, total_gen - total_used)
     overall_rate = round((total_used / total_gen * 100), 1) if total_gen > 0 else 0.0
 
     return jsonify({
@@ -1755,10 +1755,7 @@ def list_booth_slips():
         elif sf == "active":
             query = query.filter(BoothSlip.is_used == False, BoothSlip.id.in_(list(active_slip_ids) if active_slip_ids else [-1]))
         elif sf == "unused":
-            if active_slip_ids:
-                query = query.filter(BoothSlip.is_used == False, ~BoothSlip.id.in_(list(active_slip_ids)))
-            else:
-                query = query.filter(BoothSlip.is_used == False)
+            query = query.filter(BoothSlip.is_used == False)
     elif is_used is not None and is_used != "":
         used_bool = is_used.lower() in ("true", "1", "yes")
         query = query.filter_by(is_used=used_bool)
@@ -1789,7 +1786,7 @@ def list_booth_slips():
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
     total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
     total_active = len(active_slip_ids)
-    total_unused = max(0, total_gen - total_used - total_active)
+    total_unused = max(0, total_gen - total_used)
 
     return jsonify({
         "items": items,
