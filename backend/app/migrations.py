@@ -275,6 +275,28 @@ def _m012_audit_and_receipt_indexes():
     db.session.commit()
 
 
+def _m013_booth_slip_id_booth_prefix():
+    """Update booth slip IDs to SUE<yy>-B<booth_number>-<num>, e.g. SUE26-B1-1001."""
+    import re
+    from app.models.booth_slip import BoothSlip
+    from app.models.vote_receipt import VoteReceipt
+    from app.models.audit_log import AuditLog
+
+    slips = BoothSlip.query.filter(BoothSlip.booth_number != None).all()
+    for s in slips:
+        m = re.match(r"^([A-Z]+)(\d{2})-(?:E\d+|B\d+)-(\d+)$", s.voting_id)
+        if m:
+            c, yr, num = m.group(1), m.group(2), m.group(3)
+            new_vid = f"{c}{yr}-B{s.booth_number}-{num}"
+            old_vid = s.voting_id
+            if old_vid != new_vid:
+                s.voting_id = new_vid
+                VoteReceipt.query.filter_by(slip_id=old_vid).update({"slip_id": new_vid}, synchronize_session=False)
+                for log in AuditLog.query.filter(AuditLog.details.like(f"%{old_vid}%")).all():
+                    log.details = log.details.replace(old_vid, new_vid)
+    db.session.commit()
+
+
 _STEPS = [
     ("001_election_status", _m001_election_status),
     ("002_mark_installed", _m002_mark_installed),
@@ -288,6 +310,7 @@ _STEPS = [
     ("010_short_year_slip_format", _m010_short_year_slip_format),
     ("011_prefix_booth_slips", _m011_prefix_booth_slips),
     ("012_audit_and_receipt_indexes", _m012_audit_and_receipt_indexes),
+    ("013_booth_slip_id_booth_prefix", _m013_booth_slip_id_booth_prefix),
 ]
 
 

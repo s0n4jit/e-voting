@@ -58,23 +58,19 @@ class TestBoothSlipModel:
         with app.app_context():
             # Generate 4 slips for Booth 1
             b1_slips = BoothSlip.generate_batch(test_election.id, booth_number=1, count=4)
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in b1_slips] == [f"{pfx}{i}" for i in ["1001", "1002", "1003", "1004"]]
+            assert [s.voting_id for s in b1_slips] == [f"SUE26-B1-{i}" for i in ["1001", "1002", "1003", "1004"]]
 
             # Generate 4 slips for Booth 2
             b2_slips = BoothSlip.generate_batch(test_election.id, booth_number=2, count=4)
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in b2_slips] == [f"{pfx}{i}" for i in ["2001", "2002", "2003", "2004"]]
+            assert [s.voting_id for s in b2_slips] == [f"SUE26-B2-{i}" for i in ["2001", "2002", "2003", "2004"]]
 
             # Generate 2 slips for Booth 3
             b3_slips = BoothSlip.generate_batch(test_election.id, booth_number=3, count=2)
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in b3_slips] == [f"{pfx}{i}" for i in ["3001", "3002"]]
+            assert [s.voting_id for s in b3_slips] == [f"SUE26-B3-{i}" for i in ["3001", "3002"]]
 
             # Append 2 more slips to Booth 1: should continue sequence from 1005
             b1_more = BoothSlip.generate_batch(test_election.id, booth_number=1, count=2)
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in b1_more] == [f"{pfx}{i}" for i in ["1005", "1006"]]
+            assert [s.voting_id for s in b1_more] == [f"SUE26-B1-{i}" for i in ["1005", "1006"]]
 
     def test_unassigned_pool_slips_generation(self, app, db_session, test_election):
         """Verify slips can be generated without booth pre-assignment."""
@@ -129,8 +125,7 @@ class TestBoothSlipModel:
 
             # Initially current slip is 1001
             current = BoothSlip.get_current_slip(test_election.id, booth_number=1)
-            pfx = test_election.ensure_slip_prefix()
-            assert current.voting_id == f"{pfx}1001"
+            assert current.voting_id == "SUE26-B1-1001"
 
             # Mark 1001 as used
             current.is_used = True
@@ -139,14 +134,12 @@ class TestBoothSlipModel:
 
             # Now current slip automatically advances to 1002
             next_slip = BoothSlip.get_current_slip(test_election.id, booth_number=1)
-            pfx = test_election.ensure_slip_prefix()
-            assert next_slip.voting_id == f"{pfx}1002"
+            assert next_slip.voting_id == "SUE26-B1-1002"
 
             # Booth 2 current slip is unaffected
             BoothSlip.generate_batch(test_election.id, booth_number=2, count=2)
             b2_curr = BoothSlip.get_current_slip(test_election.id, booth_number=2)
-            pfx = test_election.ensure_slip_prefix()
-            assert b2_curr.voting_id == f"{pfx}2001"
+            assert b2_curr.voting_id == "SUE26-B2-2001"
 
 
 class TestBoothSlipVotingFlow:
@@ -176,9 +169,8 @@ class TestBoothSlipVotingFlow:
             )
 
             assert res["success"] is True
-            pfx = test_election.ensure_slip_prefix()
-            assert res["data"]["voting_id"] == f"{pfx}1001"
-            assert res["data"]["next_voting_id"] == f"{pfx}1002"
+            assert res["data"]["voting_id"] == "SUE26-B1-1001"
+            assert res["data"]["next_voting_id"] == "SUE26-B1-1002"
 
             # Verify slip1 is marked used
             refreshed_s1 = db_session.get(BoothSlip, slip1.id)
@@ -187,7 +179,7 @@ class TestBoothSlipVotingFlow:
 
             # Verify next current slip for Booth 1 is 1002
             current = BoothSlip.get_current_slip(test_election.id, booth_number=1)
-            assert current.voting_id == f"{pfx}1002"
+            assert current.voting_id == "SUE26-B1-1002"
 
             # Verify ballot entries recorded anonymously under blind_token
             entries = BallotEntry.query.filter_by(election_id=test_election.id).all()
@@ -275,13 +267,11 @@ class TestBoothTokenAllotment:
             # 3. Verify exactly 5 slips are allotted to this kiosk and 5 remain unallotted
             allotted = BoothSlip.query.filter_by(election_id=test_election.id, booth_id=kiosk.id).all()
             assert len(allotted) == 5
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in allotted] == [f"{pfx}{i}" for i in ["1001", "1002", "1003", "1004", "1005"]]
+            assert [s.voting_id for s in allotted] == [f"SUE26-B1-{i}" for i in ["1001", "1002", "1003", "1004", "1005"]]
 
             unallotted = BoothSlip.query.filter_by(election_id=test_election.id, booth_id=None).all()
             assert len(unallotted) == 5
-            pfx = test_election.ensure_slip_prefix()
-            assert [s.voting_id for s in unallotted] == [f"{pfx}{i}" for i in ["1006", "1007", "1008", "1009", "1010"]]
+            assert [s.voting_id for s in unallotted] == [f"SUE26-B1-{i}" for i in ["1006", "1007", "1008", "1009", "1010"]]
 
 
 class TestMockElectionIsolation:

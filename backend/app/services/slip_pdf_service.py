@@ -10,7 +10,7 @@ matching the classic official slips layout:
       * Institution Logo & College Name
       * Election Name
       * Optional Booth Indicator (e.g. "VOTING BOOTH 1")
-      * Voter Slip ID (e.g. "SUE26-E1-1001")
+      * Voter Slip ID (e.g. "SUE26-B1-1001")
       * 4-Digit Voting PIN (e.g. "4   8   2   9")
       * Official voter instruction footer.
   - Strictly no personal identifying data or internal architecture disclosures.

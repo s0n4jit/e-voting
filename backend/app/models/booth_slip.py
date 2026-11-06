@@ -133,13 +133,18 @@ class BoothSlip(db.Model):
             count = MAX_BATCH_SIZE
 
         from app.models.election import Election
+        from app.models.system_setting import SystemSetting
         # Lock election row to prevent concurrent race conditions on sequence numbers
         election = db.session.query(Election).filter_by(id=election_id).with_for_update().first()
         mock_run = is_mock or bool(election and election.is_mock)
+        code = SystemSetting.get("slip_code") or "SUE"
+        year = (election.start_time or datetime.now(timezone.utc)).year % 100 if election else datetime.now(timezone.utc).year % 100
         if mock_run:
             prefix = f"MOCK-B{booth_number:02d}-" if booth_number else "MOCK-"
+        elif booth_number is not None and booth_number > 0:
+            prefix = f"{code}{year:02d}-B{booth_number}-"
         else:
-            prefix = election.ensure_slip_prefix() if election else f"SUE{datetime.now(timezone.utc).year % 100:02d}-E{election_id}-"
+            prefix = election.ensure_slip_prefix() if election else f"{code}{year:02d}-E{election_id}-"
 
         # Collect all existing voting IDs for this election to guarantee uniqueness
         existing_vids = {r[0] for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all() if r[0]}

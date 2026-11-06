@@ -825,7 +825,7 @@ export const VoterSlipsManager = () => {
 
           <div className="p-3 rounded-xl bg-recessed/60 border border-line text-xs text-muted space-y-1">
             <p className="font-bold text-fg">Voter Slips Generation Guide:</p>
-            <p>• Sequential slip IDs are formatted with the election prefix (e.g. SUE26-E1-1001).</p>
+            <p>• Sequential slip IDs are formatted with the booth prefix (e.g. SUE26-B1-1001).</p>
             <p>• Each slip includes an authorized 4-digit voting PIN for kiosk unlock.</p>
             <p>• Slips can be downloaded individually or as printable A4 PDF sheets.</p>
           </div>

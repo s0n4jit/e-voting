@@ -19,7 +19,7 @@ Campus E-Voting runs a complete student-union election on campus hardware:
 2. **Polling & Desk Workflow**:
    - Polling Officer 1 verifies the physical Student ID Card.
    - Polling Officer 2 records the student's physical signature on the official voter roll.
-   - Polling Officer 3 / Desk Officer hands the pre-printed voter slip containing the **Voter Slip ID** (e.g. `SUE26-E3-1001`) and **4-digit Voting PIN** (printed in high-density 6-per-A4 sheets with cut guides).
+   - Polling Officer 3 / Desk Officer hands the pre-printed voter slip containing the **Voter Slip ID** (e.g. `SUE26-B1-1001`) and **4-digit Voting PIN** (printed in high-density 6-per-A4 sheets with cut guides).
 3. **Voting Booth Terminal**:
    - The student voter walks to the designated booth machine where the sequential Slip ID is already prefilled.
    - The voter enters the 4-digit PIN using the on-screen virtual numpad with mouse.

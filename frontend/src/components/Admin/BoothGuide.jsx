@@ -55,8 +55,11 @@ export default function BoothGuide() {
           Install the official desktop booth app on each kiosk computer (Windows or Linux). No special Linux users or scripts are needed.
         </p>
         <div className="flex flex-wrap gap-2 pt-1 pb-2">
-          {DOWNLOADS.map((d) => (
-            <a key={d.file} className="btn-primary" href={`${RELEASE}/${d.file}`} target="_blank" rel="noopener noreferrer">
+          <a className="btn-primary" href="/downloads/Campus-E-Voting-Booth-Setup.exe" download="Campus-E-Voting-Booth-Setup.exe">
+            Download Windows Installer (.exe)
+          </a>
+          {DOWNLOADS.filter(d => d.file !== 'Campus-E-Voting-Booth-Setup.exe').map((d) => (
+            <a key={d.file} className="btn-secondary" href={`${RELEASE}/${d.file}`} target="_blank" rel="noopener noreferrer">
               {d.label}
             </a>
           ))}
