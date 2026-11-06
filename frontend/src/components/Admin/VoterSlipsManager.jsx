@@ -41,6 +41,7 @@ export const VoterSlipsManager = () => {
   const [targetBooth, setTargetBooth] = useState('1');
   const [slipCount, setSlipCount] = useState(50);
   const [generating, setGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState({ done: 0, total: 0, percent: 0 });
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadBoothTarget, setDownloadBoothTarget] = useState('all');
   const [cancellingSlip, setCancellingSlip] = useState(null);
@@ -149,19 +150,42 @@ export const VoterSlipsManager = () => {
       return;
     }
 
+    const totalNeeded = Number(slipCount);
+    if (!totalNeeded || totalNeeded < 1 || totalNeeded > 2000) {
+      toast.error('Please enter a count between 1 and 2,000.');
+      return;
+    }
+
     setGenerating(true);
+    setGenerateProgress({ done: 0, total: totalNeeded, percent: 0 });
+
+    const BATCH_SIZE = 250;
+    let totalDone = 0;
+    let lastResult = null;
+
     try {
-      const res = await adminApi.generateSlips(Number(slipCount), bNum);
-      toast.success(res.message || `Generated ${res.count_created} voting slips.`);
+      while (totalDone < totalNeeded) {
+        const chunkSize = Math.min(BATCH_SIZE, totalNeeded - totalDone);
+        const res = await adminApi.generateSlips(chunkSize, bNum);
+        lastResult = res;
+        totalDone += (res.count_created || chunkSize);
+        const percent = Math.min(100, Math.round((totalDone / totalNeeded) * 100));
+        setGenerateProgress({ done: totalDone, total: totalNeeded, percent });
+      }
+      toast.success(lastResult?.message || `Successfully generated all ${totalDone} voting slips for Booth ${bNum}.`);
       setGenerateModalOpen(false);
       setPage(1);
-      await fetchKiosks();
-      await fetchMetrics();
-      await fetchSlips(false);
     } catch (err) {
-      toast.error(errorMessage(err, 'Failed to generate slips'));
+      if (totalDone > 0) {
+        toast.error(`Partially generated ${totalDone} of ${totalNeeded} slips before error: ${errorMessage(err)}`);
+        setGenerateModalOpen(false);
+      } else {
+        toast.error(errorMessage(err, 'Failed to generate slips'));
+      }
     } finally {
       setGenerating(false);
+      setGenerateProgress({ done: 0, total: 0, percent: 0 });
+      await Promise.all([fetchKiosks(), fetchMetrics(), fetchSlips(false)]);
     }
   };
 
@@ -633,7 +657,7 @@ export const VoterSlipsManager = () => {
       {isAdmin && (
         <Modal
           isOpen={generateModalOpen}
-          onClose={() => setGenerateModalOpen(false)}
+          onClose={() => { if (!generating) setGenerateModalOpen(false); }}
           title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
         >
         {availableBooths.length === 0 ? (
@@ -679,7 +703,8 @@ export const VoterSlipsManager = () => {
             <select
               value={targetBooth}
               onChange={(e) => setTargetBooth(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+              disabled={generating}
+              className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:opacity-50"
               required
             >
               {availableBooths.map((b) => (
@@ -698,14 +723,41 @@ export const VoterSlipsManager = () => {
             <input
               type="number"
               min={1}
-              max={1500}
+              max={2000}
               value={slipCount}
               onChange={(e) => setSlipCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25"
+              disabled={generating}
+              className="w-full px-3 py-2 rounded-xl border border-line bg-surface text-fg text-sm shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:opacity-50"
               required
             />
             <p className="text-[11px] text-muted">{getPreviewRange()}</p>
           </div>
+
+          {generating && (
+            <div className="p-4 rounded-xl bg-brand/10 border border-brand/25 space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-2 text-fg">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand"></span>
+                  </span>
+                  Generating slips for Booth {targetBooth}...
+                </span>
+                <span className="text-brand font-mono font-bold">
+                  {generateProgress.done} / {generateProgress.total} ({generateProgress.percent}%)
+                </span>
+              </div>
+              <div className="w-full h-2.5 bg-line rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand transition-all duration-300 ease-out rounded-full"
+                  style={{ width: `${Math.max(4, generateProgress.percent)}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-muted">
+                Encrypting and securing 4-digit voting PINs in batches. Please keep this modal open until finished.
+              </p>
+            </div>
+          )}
 
           <div className="p-3 rounded-xl bg-recessed/60 border border-line text-xs text-muted space-y-1">
             <p className="font-bold text-fg">Voter Slips Generation Guide:</p>
@@ -718,6 +770,7 @@ export const VoterSlipsManager = () => {
             <button
               type="button"
               className="btn-ghost"
+              disabled={generating}
               onClick={() => setGenerateModalOpen(false)}
             >
               Cancel
@@ -727,7 +780,7 @@ export const VoterSlipsManager = () => {
               disabled={generating}
               className="btn-primary"
             >
-              {generating ? 'Generating…' : 'Generate Slips'}
+              {generating ? `Generating (${generateProgress.percent}%)...` : 'Generate Slips'}
             </button>
           </div>
         </form>

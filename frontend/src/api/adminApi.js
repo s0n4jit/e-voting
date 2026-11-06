@@ -197,11 +197,11 @@ export const adminApi = {
   },
 
   generateBoothSlips: async (boothNumber, count = 50, electionId = null) => {
-    return (await apiClient.post(`/admin/booths/${boothNumber}/generate-slips`, { count, election_id: electionId })).data;
+    return (await apiClient.post(`/admin/booths/${boothNumber}/generate-slips`, { count, election_id: electionId }, { timeout: 120000 })).data;
   },
 
   generateAllBoothSlips: async (countPerBooth = 50, electionId = null) => {
-    return (await apiClient.post('/admin/booths/generate-all-slips', { count_per_booth: countPerBooth, election_id: electionId })).data;
+    return (await apiClient.post('/admin/booths/generate-all-slips', { count_per_booth: countPerBooth, election_id: electionId }, { timeout: 120000 })).data;
   },
 
   downloadBoothSlipsPdf: async (boothNumber, electionId = null) => {
@@ -221,8 +221,8 @@ export const adminApi = {
     return res.data;
   },
 
-    generateSlips: async (count = 50, boothNumber = null, electionId = null) => {
-    return (await apiClient.post('/admin/slips/generate', { count, booth_number: boothNumber, election_id: electionId })).data;
+  generateSlips: async (count = 50, boothNumber = null, electionId = null) => {
+    return (await apiClient.post('/admin/slips/generate', { count, booth_number: boothNumber, election_id: electionId }, { timeout: 120000 })).data;
   },
 
   cancelSlip: async (slipId) => (await apiClient.post(`/admin/slips/${slipId}/cancel`)).data,
