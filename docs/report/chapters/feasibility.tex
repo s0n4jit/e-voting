@@ -30,15 +30,15 @@ A college needs a way to run its student election that is
 
 \section{Scope}
 
-\textbf{In scope:} one election at a time per installation; three roles (Election Officer, Desk Officer, Voter); single-choice voting per position with an ``abstain'' option; Ubuntu booth lock-down scripts; documentation.
+\textbf{In scope:} one election at a time per installation; three roles (Election Officer, Desk Officer, Voter); single-choice voting per position with a ``None of the Above'' (NOTA) option; dedicated cross-platform booth kiosk app with OS-level lockdown; silent physical VVPAT thermal receipt printing; documentation.
 
-\textbf{Out of scope:} remote (home) voting; ranked or multi-choice ballots; multiple simultaneous elections; paper-ballot reconciliation; mobile applications.
+\textbf{Out of scope:} remote (unsupervised internet) voting; ranked-choice algorithms; multiple simultaneous live elections; mobile app stores.
 
 \section{Feasibility}
 
 \subsection{Technical feasibility}
 
-The system uses mature, open-source technology: Python/Flask, PostgreSQL, React, Docker and Ubuntu. All required capabilities (relational transactions and row locks for duplicate-vote prevention, bcrypt and TOTP libraries, browser enterprise policies for lock-down) exist and are documented. A working implementation with an automated test suite of 147 tests demonstrates feasibility.
+The system uses mature, open-source technology: Python/Flask, PostgreSQL, React, Electron, Docker and Linux/Windows. All required capabilities (relational transactions and row locks for duplicate-vote prevention, bcrypt and TOTP libraries, native lockdown hooks and silent thermal receipt printing) exist and are documented. A working implementation with an automated test suite of 205 tests demonstrates feasibility.
 
 \subsection{Economic feasibility}
 
@@ -49,7 +49,7 @@ The system uses mature, open-source technology: Python/Flask, PostgreSQL, React,
 \midrule
 Software licences & All components are open source & 0 \\
 Server & One small VM or an existing campus server (1 vCPU, 2 GB RAM is sufficient) & existing \\
-Booth computers & Existing computer-lab machines are reused; Ubuntu is free & existing \\
+Booth computers & Existing computer-lab machines (Windows/Linux) reused with USB thermal printers & existing \\
 Database & PostgreSQL in Docker, or a free managed tier & 0 \\
 HTTPS certificate & Let's Encrypt & 0 \\
 \bottomrule
@@ -83,9 +83,9 @@ Votes from unauthorised computers & High & Booth token required for PIN login, b
 Results leak before announcement & Medium & Server withholds counts until publication \\
 Brute-forcing PINs or codes & Medium & Rate limits, PIN cancellation after five wrong entries \\
 Loss of the officer's authenticator & Medium & Operator recovery commands (\code{set-password}, \code{reset-2fa}) run on the server \\
-Booth tampering & Medium & Browser policy, desktop lock-down, BIOS password, port blockers \\
-Network failure during voting & Low & Offline notice on the booth; booth resumes automatically \\
-Database access by an insider & Medium & Restrict access; known time-correlation limitation documented \\
+Booth tampering & Medium & Dedicated booth app with OS hook lockdown, virtual numpad, BIOS password \\
+Network failure during voting & Low & Offline retry overlay on the booth; booth resumes automatically \\
+Database access by an insider & Medium & Decoupled timestamp jitter and separated audit records prevent choice reconstruction \\
 \bottomrule
 \end{tabularx}
 \end{center}

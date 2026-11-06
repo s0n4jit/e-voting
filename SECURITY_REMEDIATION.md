@@ -47,6 +47,9 @@ A comprehensive security hardening and code audit was performed across the Campu
 - **Migration Step**: `012_audit_and_receipt_indexes` added to `backend/app/migrations.py`:
   - `CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at DESC)`
   - `CREATE INDEX IF NOT EXISTS ix_vote_receipts_booth_name ON vote_receipts (booth_name)`
+- **Migration Step**: `013_booth_slip_id_booth_prefix` added to `backend/app/migrations.py`:
+  - Partitions booth slips by booth machine (e.g. `SUE26-B1-1001` for Booth 1, `SUE26-B2-2001` for Booth 2).
+  - Updates associated references in `vote_receipts` and `audit_logs`.
 - Automatic, idempotent execution on backend startup or via `python backend/manage.py migrate`.
 
 ---

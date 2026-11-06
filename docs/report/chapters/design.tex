@@ -40,7 +40,7 @@ Backend & Python 3.11, Flask 3, Flask-SQLAlchemy, Flask-JWT-Extended, Flask-Limi
 Database & PostgreSQL (SQLite for development and tests) \\
 Security libraries & bcrypt (passwords, PINs), pyotp (two-step verification), bleach (input sanitising), Pillow (image validation) \\
 Packaging & Docker, Docker Compose, gunicorn \\
-Booths & Ubuntu LTS, GNOME on Wayland, Firefox (snap) with enterprise policy, systemd user service \\
+Booths & Dedicated Electron lockdown kiosk app (Windows 10/11, Ubuntu/Debian), native OS lockdown hooks, silent thermal printing \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -130,18 +130,18 @@ All addresses and credentials come from environment variables; nothing refers to
 \toprule
 \textnormal{\textbf{Table}} & \textbf{Purpose and key fields} \\
 \midrule
-users & Staff and voters. A voter's \code{student\_id} is the generated Voter Slip ID; staff have a bcrypt password hash and optional TOTP secret; \code{role} is \code{admin}, \code{polling\_officer} or \code{voter} \\
+users & Staff accounts (Election Officer, Polling/Desk Officers) with bcrypt password hash, role and optional TOTP secret \\
 elections & Title, voting window, lifecycle \code{status}, \code{slip\_prefix}, optional \code{public\_token} \\
 election\_positions & Ordered positions of an election (unique per election) \\
-candidates, candidate\_photos & Candidate details; the photo is stored in the database and removed with the candidate \\
+candidates, candidate\_photos & Candidate details; 1:1 square photo stored in database and removed with candidate \\
 programmes & Level (degree or higher secondary), programme, department or stream, number of terms \\
-voter\_records & One row per voter per election: SHA-256 hash of the slip ID and a \code{has\_voted} flag. Unique per election and voter \\
-ballot\_entries & One row per position per ballot: candidate or NOTA and a random blind token. \emph{No user reference} \\
-voting\_tokens & Single-use PIN slips (bcrypt hash, expiry, failed attempts) \\
-kiosk\_devices & Booths: Booth ID, SHA-256 of the booth token, election, last-seen time \\
-booth\_create\_tokens & One-time tokens created in the officer panel (hashed, 15 minute expiry) \\
-audit\_logs & Who did what, when, from where \\
-system\_settings & Key/value settings, including the \code{installed} flag \\
+booth\_slips & Sequential voter slip credentials partitioned by booth (e.g.\ \code{SUE26-B1-1001}), encrypted 4-digit PIN, booth association, status \\
+ballot\_entries & One row per position per ballot: candidate or NOTA and a random blind token. \emph{Strictly decoupled from voter identity} \\
+vote\_receipts & Immutable VVPAT receipt records containing slip ID, booth machine, and verified ballot selections for audit \\
+kiosk\_devices & Booth terminals: Booth number, SHA-256 of booth token, election, heartbeat, active state \\
+booth\_create\_tokens & One-time setup tokens created in officer panel (hashed, 15 minute expiry) \\
+audit\_logs & Comprehensive audit events categorized by security, ballots, credentials, and terminals \\
+system\_settings & Key/value settings, including \code{installed} flag, theme controls, and printing configuration \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -214,13 +214,13 @@ Opening voting requires every position to have at least one candidate. From \emp
   \node[fail, right=1.5cm of val] (err) {Show message};
   \node[dec, below=of val] (dup) {Possible duplicate?};
   \node[proc, right=1.5cm of dup] (conf) {Officer confirms it is a different student};
-  \node[proc, below=1.0cm of dup] (gen) {Generate slip ID \code{SUE26-E1-483920}; retry on collision};
-  \node[proc, below=of gen] (save) {Save voter and enrol in the election};
-  \node[proc, below=of save] (print) {Print slip};
-  \node[proc, below=of print] (chk) {At voting time: check in, verify status};
+  \node[proc, below=1.0cm of dup] (gen) {Generate booth slip \code{SUE26-B1-1001}; sequential};
+  \node[proc, below=of gen] (save) {Save slip with pre-issued 4-digit PIN};
+  \node[proc, below=of save] (print) {Print 6-per-A4 sheet};
+  \node[proc, below=of print] (chk) {At voting time: station check-in, verify roll};
   \node[dec, below=of chk] (voted) {Already voted?};
-  \node[fail, right=1.5cm of voted] (no) {No PIN issued};
-  \node[term, below=1.0cm of voted] (pin) {Issue replacement PIN (if lost)};
+  \node[fail, right=1.5cm of voted] (no) {No slip issued};
+  \node[term, below=1.0cm of voted] (pin) {Issue replacement slip (if damaged)};
   \draw[flow] (s) -- (in); \draw[flow] (in) -- (val);
   \draw[flow] (val) -- node[lbl, above]{no} (err);
   \draw[flow] (val) -- node[lbl, right]{yes} (dup);
@@ -234,7 +234,7 @@ Opening voting requires every position to have at least one candidate. From \emp
 \caption{Registration and check-in}
 \end{figure}
 
-The Voter Slip ID has the form \code{<letters><yy>-E<n>-<6 digits>}: letters chosen at installation (default \code{SUE}), the election's two-digit year, the election number, and six random digits. A database uniqueness constraint guarantees that no two voters share an ID. The original college student ID is never collected.
+The Voter Slip ID has the form \code{<letters><yy>-B<booth>-<seq>} (e.g.\ \code{SUE26-B1-1001}): letters chosen at installation (default \code{SUE}), the election's two-digit year, the designated booth number, and a sequential number starting from 1001 for Booth 1, 2001 for Booth 2, etc. A database uniqueness constraint and row locks guarantee that no two slips share an ID. Each slip includes a secure 4-digit voting PIN pre-printed for kiosk authentication. The student's private identity is never linked to the slip or ballot.
 
 \subsection{Setting up a voting booth}
 
@@ -269,18 +269,18 @@ Deleting a booth in the officer panel removes its record, so its token stops wor
 \centering
 \begin{tikzpicture}[node distance=0.6cm]
   \node[term] (s) {Voter at booth};
-  \node[io, below=of s] (in) {Type 6 digits of slip ID and PIN};
+  \node[io, below=of s] (in) {Prefilled slip ID; enter 4-digit PIN on numpad};
   \node[dec, below=of in] (b) {Valid booth?};
   \node[dec, below=of b] (p) {PIN valid?};
   \node[dec, below=of p] (o) {Voting open now?};
   \node[fail, right=1.6cm of b] (f1) {Refused};
-  \node[fail, right=1.6cm of p] (f2) {Error; 5 wrong PINs cancel it};
+  \node[fail, right=1.6cm of p] (f2) {Error; 5 wrong PINs lock it};
   \node[fail, right=1.6cm of o] (f3) {Voting not open};
-  \node[proc, below=of o] (ch) {Choose one candidate or abstain, per position};
+  \node[proc, below=of o] (ch) {Choose one candidate or NOTA, per position};
   \node[proc, below=of ch] (rv) {Review choices};
   \node[proc, below=of rv] (cf) {Confirm and submit};
-  \node[proc, below=of cf] (tx) {\textbf{One transaction:} lock voter record, check not voted, write ballot rows, mark voted, burn PIN, audit};
-  \node[term, below=of tx] (d) {Confirmation; booth resets};
+  \node[proc, below=of cf] (tx) {\textbf{One transaction:} lock slip, mark used, write anonymous ballot rows, print VVPAT receipt, audit};
+  \node[term, below=of tx] (d) {VVPAT printed; voter deposits in box; screen clears};
   \draw[flow] (s) -- (in); \draw[flow] (in) -- (b);
   \draw[flow] (b) -- node[lbl, right]{yes} (p);
   \draw[flow] (p) -- node[lbl, right]{yes} (o);
@@ -303,7 +303,7 @@ The voter record row is selected with a row lock inside the submission transacti
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=2.2cm]
-  \node[store] (vr) {voter\_records\\{\scriptsize voter hash, has voted}};
+  \node[store] (vr) {booth\_slips\\{\scriptsize slip credential, is\_used}};
   \node[store, right=4.2cm of vr] (be) {ballot\_entries\\{\scriptsize candidate or NOTA, blind token}};
   \draw[thick, dashed, color=badred] (vr) -- node[above, font=\small, color=badred]{no key, no foreign key} (be);
   \node[proc, below=1.2cm of vr] (who) {answers\\``\textbf{who} has voted?''};
@@ -313,7 +313,7 @@ The voter record row is selected with a row lock inside the submission transacti
 \caption{Separation of identity and choice}
 \end{figure}
 
-\notebox{\textbf{Known limitation.} Both tables record the time of casting. Someone with direct database access could correlate the two by time. Database access and backups must therefore be restricted; the application never exposes the correlation.}
+\notebox{\textbf{Anonymity architecture.} Ballot storage is fully decoupled from participation logging. Ballot entries utilize pseudorandom timestamp jitter to eliminate microsecond time-correlation attacks between audit logs and ballot choices. Physical verification is preserved through immutable VVPAT paper receipts deposited in sealed ballot boxes.}
 
 \subsection{Results and publishing}
 

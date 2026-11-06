@@ -58,25 +58,27 @@ Equal top votes are shown as a draw; the system never picks a winner by chance.
 
 Click your name at the top right to open your profile: change the photo, change the password (using the current password, or an authenticator code if it was forgotten), and manage two-step verification. The audit log lists every important action, grouped into categories that can be filtered.
 
-\section{Desk Officer}
+\section{Polling and Desk Officers}
 
 \begin{enumerate}
-  \item \textbf{Register student:} enter the name, choose the programme, department or stream and the semester or year. A Voter Slip ID such as \code{SUE26-E1-483920} is generated and can be printed. A warning appears if the same student seems to be registered already.
-  \item \textbf{Registrations:} search by name or slip ID, filter, edit details (until the student has voted) and export a list. Statuses update live.
-  \item \textbf{Voter check-in:} enter the slip ID, check the status and press \textbf{Issue voting PIN}. A new PIN replaces the old one and is needed only if the PIN or slip was lost or locked, because every student already receives a PIN printed on the slip when registered. The PIN works once and stays valid until it is used or voting closes.
+  \item \textbf{Station 1 (ID Verification):} Verify the student's physical institutional identity card.
+  \item \textbf{Station 2 (Physical Voter Roll):} Record the student's physical signature on the printed roll.
+  \item \textbf{Station 3 (Slip Distribution):} Hand the student their pre-printed voter slip containing their sequential Voter Slip ID (e.g.\ \code{SUE26-B1-1001}) and 4-digit voting PIN, cut from the official 6-per-A4 printable sheets.
+  \item \textbf{Slip Management:} Monitor live booth sequential progress, void damaged or unissued slips, or download printable batch sheets by booth.
 \end{enumerate}
 
-\section{Voter}
+\section{Voter (Kiosk Booth)}
 
 \begin{enumerate}
-  \item Go to a free booth. The screen shows the election and the slip prefix, for example \code{SUE26-E1-}.
-  \item Type the six digits of the slip ID and the six-digit PIN.
-  \item Read the instructions. For every position choose one candidate or \emph{Abstain}.
-  \item Review the choices and press \textbf{Submit my vote}.
-  \item A confirmation appears and the booth clears itself for the next voter.
+  \item Go to the designated voting booth terminal. The screen displays the prefilled sequential Voter Slip ID (e.g.\ \code{SUE26-B1-1001}).
+  \item Enter the 4-digit voting PIN using the on-screen virtual numpad with the mouse.
+  \item View candidates with 1:1 square cropped photos, department, and bio. For every position, select one candidate or ``None of the Above'' (NOTA).
+  \item Review all selections on the summary screen and press \textbf{Submit my vote}.
+  \item The connected thermal printer silently prints the official physical \textbf{VVPAT} receipt slip.
+  \item Inspect the printed paper slip, drop it into the sealed physical ballot box, and exit. The booth automatically resets for the next sequential voter.
 \end{enumerate}
 
-\notebox{A submitted vote cannot be changed or looked up. It is stored without any link to the voter's name.}
+\notebox{A submitted ballot cannot be changed or looked up. Ballot records are stored completely decoupled from voter identity and timestamp correlation.}
 
 \section{Troubleshooting summary}
 

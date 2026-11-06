@@ -16,10 +16,10 @@
 | **100% Stateless Kiosk** | Zero voter receipts, ballots, or PDFs remain on the kiosk's hard drive. All receipt PDFs are streamed in real time to the central server via `/api/v1/booth/receipt-upload` |
 | **Silent Printing** | The vote copy prints silently to the selected printer without displaying any operating system dialogs, adhering to the Election Officer's **Settings → Booth printing** configuration |
 | **Auto-updater** | Integrates `electron-updater` to automatically check for releases on GitHub (`s0n4jit/e-voting`). Updates download silently in the background and install on application restart |
-| **Silent Slip Verification** | Verifies voter slips in real time against `/api/v1/auth/voter-verify-slip` as soon as the 6 digits are typed, and automatically jumps to the PIN field on valid entries |
+| **Sequential Slip Progression** | Displays the prefilled sequential Voter Slip ID for the booth (e.g. `SUE26-B1-1001`); voter enters the 4-digit voting PIN using the on-screen virtual numpad with mouse |
 | **Seamless Voting UI** | Anchored top header, zero-gap sticky subheadings, 3-column ballot card grid with NOTA wrapping to line 2, and review autoscroll to the submit button |
 | **Theme Control** | Kiosk theme defaults to White (Light mode) and hides the theme toggle unless explicitly enabled by the Election Officer in Settings |
-| **Maintenance Mode** | **Ctrl+Alt+Shift+Q** unlocks the maintenance screen: *Return to voting*, *Refresh voting page*, *Restart booth app*, *Address & printer*, *Check for updates*, *Reboot computer*, and *Quit*. Resumes voting automatically after 15 minutes |
+| **Maintenance Mode** | **Ctrl+Alt+Shift+Q** unlocks the maintenance screen: *Return to voting*, *Refresh voting page*, *Restart booth app*, *Address & printer*, *Check for updates*, *Reboot local machine* (runs strictly via local agent, never server), and *Quit*. Resumes voting automatically after 15 minutes |
 | **Network Resilience** | Displays an automatic retry overlay if the voting portal is unreachable, reconnecting seamlessly once service resumes |
 
 ---

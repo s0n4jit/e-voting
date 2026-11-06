@@ -2,18 +2,16 @@
 
 \section{Conclusion}
 
-The project turned an existing prototype into a complete election platform for a college: a guided installation, a server-controlled election lifecycle, desk registration with automatic Voter Slip IDs, supervised booths that are approved by the Election Officer, an animated voting experience, results that stay hidden until published, a projector reveal, a revocable public link and a readable audit log. The ballot is stored apart from the voter's identity, and one voter can cast only one ballot even when submissions arrive at the same moment. The system can be hosted by any institution with Docker Compose, and 147 automated tests together with manual checks on PostgreSQL support its correctness.
+The project delivered a complete, hardened election platform for a college campus: a guided first-run installation, server-enforced election lifecycle, high-density 6-per-A4 voter slip batches partitioned by booth with pre-issued 4-digit voting PINs, supervised booths running dedicated lockdown kiosks, an on-screen virtual numpad, secret ballot storage with decoupled timestamp jitter, silent physical VVPAT thermal printing, hidden results with projector reveal, and a tamper-evident audit log. The system is packaged with Docker Compose, and 205 automated tests confirm its correctness, concurrency safety, and security hardening.
 
 \section{Future scope}
 
 \begin{itemize}
-  \item Removal of the time-correlation limitation by storing ballots without a precise time stamp or by batching writes.
-  \item Shared rate-limit storage (Redis) for deployments with several API processes.
-  \item Automated browser tests and a load test for large electorates.
-  \item Ranked and multiple-choice ballots, and more than one election at a time.
-  \item Printed paper receipts and verifiable counting for stronger audits.
-  \item Translations of the interface into regional languages.
-  \item Upgrade of the front-end routing library to the current major version.
+  \item Shared rate-limit storage (Redis) for deployments with multiple clustered API workers.
+  \item Biometric or smartcard verification at check-in desks.
+  \item Ranked-choice (instant-runoff) and multi-seat proportional representation tallying.
+  \item Multi-lingual localized interfaces for regional institutions.
+  \item Real-time optical scanning for paper VVPAT recount reconciliation.
 \end{itemize}
 
 \appendix
@@ -90,11 +88,13 @@ The browser communicates with the server through a JSON interface under \code{/a
 
 \begin{description}[leftmargin=3.2cm, style=nextline]
   \item[Booth] A supervised computer approved by the Election Officer for voting.
+  \item[Booth App] Dedicated cross-platform Electron lockdown kiosk with low-level OS key blocking, virtual numpad, and thermal printer integration.
   \item[Booth token] A one-time code, valid for fifteen minutes, used together with the officer's authenticator code to approve a booth.
-  \item[Voter Slip ID] The identifier printed on a student's slip, for example \code{SUE26-E1-483920}.
-  \item[PIN] A single-use six-digit code, valid for twenty minutes, issued at check-in.
+  \item[Voter Slip ID] The sequential identifier printed on a student's slip, for example \code{SUE26-B1-1001}.
+  \item[PIN] A single-use 4-digit voting PIN pre-printed on the voter slip, valid until used or voting closes.
+  \item[VVPAT] Voter Verifiable Paper Audit Trail receipt printed on paper and deposited into a sealed ballot box.
   \item[TOTP] Time-based one-time password produced by an authenticator application.
-  \item[Audit log] Chronological list of important actions.
+  \item[Audit log] Chronological, categorised record of security, ballot, terminal, and administrative actions.
   \item[Lifecycle] The ordered stages of an election.
 \end{description}
 

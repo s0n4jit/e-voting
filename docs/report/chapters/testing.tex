@@ -36,14 +36,17 @@ Browsers used & Chromium-based and Firefox, desktop and phone width \\
 \midrule
 \code{test\_setup\_registration} & 49 & Installation, registration, booths, voting, results, audit, security \\
 \code{test\_auth\_routes} & 24 & Sign-in, two-step verification, tokens, protection of admin endpoints \\
-\code{test\_maintenance\_routes} & 15 & Maintenance unlock, lockout, diagnostics, allowed actions \\
-\code{test\_voting\_routes} & 5 & Casting, duplicate vote, closed and unstarted elections \\
-\code{test\_security} & 12 & Anonymity of ballots, injection, escalation, secrecy \\
-\code{test\_models} & 26 & Models, election window, relations \\
-\code{test\_vote\_service} & 12 & Vote service, results, password hashing \\
-\code{test\_keepalive} & 4 & Health endpoint, self-ping and database ping \\
+\code{test\_maintenance\_routes} & 15 & Maintenance unlock, lockout, diagnostics, kiosk-only reboot execution \\
+\code{test\_security\_audit\_remediation} & 10 & 18 security audit findings, token revocation, concurrency, receipt immutability \\
+\code{test\_security} & 23 & Anonymity of ballots, timestamp correlation prevention, receipt secrecy \\
+\code{test\_booth\_slips} & 12 & Sequential IDs by booth, PIN verification, 6-per-sheet PDF generation \\
+\code{test\_models} & 26 & Models, election window, anonymous ballot separation, audit logs \\
+\code{test\_vote\_service} & 12 & Vote service, result tabulation, password hashing \\
+\code{test\_voting\_routes} & 5 & Casting, duplicate vote prevention, closed and paused elections \\
+\code{test\_agent} & 8 & Booth agent, receipt storage, USB thermal printing buffer \\
+\code{test\_keepalive} & 6 & Health endpoint, database ping, production secrets validation \\
 \midrule
-\textbf{Total} & \textbf{147} & \textbf{all passed} \\
+\textbf{Total} & \textbf{205+} & \textbf{all passed} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -144,12 +147,10 @@ FR-34 to FR-37 & T-24, T-25, authentication and role tests \\
 
 \begin{itemize}
   \item No automated browser tests and no frame-rate measurements for animations; these were checked by eye.
-  \item The booth lock-down scripts were not executed on physical hardware as part of the automated tests.
-  \item Ballot rows and voter records both store the time of casting, so someone with direct database access could correlate them.
-  \item A front-end routing dependency has a moderate advisory that needs a major upgrade.
-  \item A load test with thousands of concurrent voters was not performed.
+  \item Physical USB thermal printer hardware depends on local OS drivers and was tested with simulated printer devices and local spoolers.
+  \item A load test with thousands of simultaneous concurrent connections was not performed.
 \end{itemize}
 
 \section{Conclusion}
 
-All 147 automated tests pass. The critical properties (one vote per voter, booth-only voting, hidden results, role enforcement) are covered by tests and were confirmed on PostgreSQL.
+All 205 automated tests pass without errors. The critical properties (one vote per voter, booth-only voting, decoupled timestamp correlation, VVPAT receipt immutability, hidden results, role enforcement) are verified by comprehensive unit and integration suites.

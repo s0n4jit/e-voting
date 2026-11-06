@@ -29,6 +29,6 @@ On the booth screen, press **Ctrl + Alt + Shift + Q** (or click the emergency ex
   - **Restart booth app:** Relaunches the booth application from scratch.
   - **Address and printer:** Re-configures the server URL or test-prints to the connected printer.
   - **Check for app updates:** Checks GitHub releases for newer booth app versions.
-  - **Reboot computer:** Issues a clean restart to the computer.
+  - **Reboot computer:** Issues a clean restart to the local booth computer via its local agent (central server reboot fallbacks are strictly prohibited).
   - **Quit the app:** Closes the booth app and cleanly restores the Windows Taskbar and Start button.
 - An unlocked maintenance session returns to the locked voting screen automatically after 15 minutes of inactivity.

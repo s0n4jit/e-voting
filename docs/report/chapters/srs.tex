@@ -17,12 +17,13 @@ A web application and booth kit for running one student election at a time on ca
 \midrule
 Election Officer & Administrator who installs, configures and runs the election (role \code{admin}) \\
 Desk Officer & Staff who register students and issue PINs (role \code{polling\_officer}) \\
-Voter & A registered student who votes at a booth \\
-Voter Slip ID & Generated identifier printed on the voter's slip, e.g.\ \code{SUE26-E1-483920} \\
-PIN & Single-use six-digit code created with each registration and printed on the voter slip, valid until used or until voting closes \\
-Booth & A locked-down computer authorised to accept votes \\
+Voter & A verified student who votes at a designated booth \\
+Voter Slip ID & Sequential identifier printed on the voter slip, e.g.\ \code{SUE26-B1-1001} \\
+PIN & Single-use 4-digit voting code pre-printed on the voter slip, valid until used or voting closes \\
+Booth & A locked-down computer authorised to accept votes and print VVPAT slips \\
 Booth token & Secret kept by a booth after set-up \\
-NOTA & ``None of the Above'' (abstain) \\
+VVPAT & Voter Verifiable Paper Audit Trail thermal receipt \\
+NOTA & ``None of the Above'' (abstain option) \\
 TOTP & Time-based one-time password (authenticator app code) \\
 \bottomrule
 \end{tabularx}
@@ -48,7 +49,7 @@ Technician & Sets up booths and servers (optional role, not an account) \\
 \end{center}
 
 \subsection{Operating environment}
-Server: any host running Docker, or a hosted API plus managed PostgreSQL. Clients: current Chrome, Edge, Firefox or Safari. Booths: Ubuntu 24.04/26.04 LTS with GNOME on Wayland and Firefox.
+Server: any host running Docker, or a hosted API plus managed PostgreSQL. Clients: current Chrome, Edge, Firefox or Safari. Booths: Windows 10/11 or Ubuntu LTS running the dedicated Campus E-Voting Booth application with native lockdown hooks and silent thermal receipt printing.
 
 \subsection{Constraints and assumptions}
 \begin{itemize}
@@ -108,9 +109,9 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \req{FR-15}{A Desk Officer shall register a student with name, programme, department or stream and semester or year.}{High}
 \req{FR-16}{The system shall generate a unique Voter Slip ID automatically; officers shall not type it.}{High}
 \req{FR-17}{The system shall warn about a possible duplicate and require confirmation.}{Medium}
-\req{FR-18}{Desk Officers shall search, filter, edit (until voted), print and export registrations.}{High}
-\req{FR-19}{A single-use PIN shall be created for every registered voter together with the slip, so that slips and PINs can be handed out before the election; a Desk Officer shall be able to replace a lost PIN.}{High}
-\req{FR-20}{Registration statuses shall update without page refresh.}{Low}
+\req{FR-18}{Desk Officers shall verify voter rolls and manage sequential slips partitioned by booth.}{High}
+\req{FR-19}{A single-use 4-digit PIN shall be created for every voter slip in high-density 6-per-A4 sheets; Desk Officers can void or re-issue damaged slips.}{High}
+\req{FR-20}{Voter slip statuses and booth counts shall update in real time.}{Low}
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -125,11 +126,12 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \req{FR-21}{The Election Officer shall generate a one-time booth token; a computer becomes a booth by entering the token and the officer's authenticator code.}{High}
 \req{FR-22}{Booth IDs shall be generated automatically per election (BOOTH-01, BOOTH-02, \ldots).}{Medium}
 \req{FR-23}{Deleting a booth shall revoke it immediately; the booth shall return to the set-up screen.}{High}
-\req{FR-24}{PIN login, ballot retrieval and ballot casting shall require a valid booth, and the voting session shall belong to that booth and its election.}{High}
-\req{FR-25}{A voter shall choose one candidate or abstain for each position, review the choices and confirm before submission.}{High}
-\req{FR-26}{A voter shall be able to cast one valid ballot per election; duplicate and concurrent submissions shall be rejected.}{High}
-\req{FR-27}{Choices shall not be stored in the browser; the voter session shall be cleared after voting or inactivity.}{High}
-\req{FR-28}{The audit log shall record the booth and session of each ballot, but never the choices.}{High}
+\req{FR-24}{Sequential slip IDs shall prefill at the booth; voters enter the 4-digit PIN using an on-screen virtual numpad.}{High}
+\req{FR-25}{A voter shall choose one candidate or abstain (NOTA) for each position, review choices and confirm before submission.}{High}
+\req{FR-26}{A voter shall cast one valid ballot per election; duplicate and concurrent submissions shall be rejected inside a locked transaction.}{High}
+\req{FR-27}{Choices shall not be stored in the browser; the voter session and JWT shall be revoked immediately after voting or timeout.}{High}
+\req{FR-28}{The booth shall silently print a physical VVPAT paper receipt and record immutable receipt verification data.}{High}
+\req{FR-29}{The audit log shall record participation and session metadata, but never candidate choices or correlated timestamps.}{High}
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -170,8 +172,8 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \begin{itemize}
   \item \textbf{User interface:} responsive web interface, light and dark themes, keyboard accessible, English.
   \item \textbf{Software interface:} JSON over HTTPS (\code{/api}); PostgreSQL via SQLAlchemy.
-  \item \textbf{Hardware interface:} booths are standard PCs with keyboard and display; a printer for voter slips.
-  \item \textbf{Communications:} HTTPS; the booth polls the API every three seconds.
+  \item \textbf{Hardware interface:} booths are standard PCs with mouse, screen and virtual numpad (physical keyboard shortcuts blocked); connected 80mm/58mm thermal printers for VVPAT receipts; office printer for A4 voter slips.
+  \item \textbf{Communications:} HTTPS; the booth polls the API every two seconds.
 \end{itemize}
 
 \section{Non-functional requirements}
@@ -182,14 +184,14 @@ Server: any host running Docker, or a hosted API plus managed PostgreSQL. Client
 \toprule
 \textbf{Quality} & \textbf{Requirement} \\
 \midrule
-Security & Passwords and PINs hashed with bcrypt; booth tokens hashed; rate limits on sign-in, PIN login, booth set-up; secrets only from environment variables; no default secrets in production \\
-Integrity & Ballot and voter record written in one transaction; foreign keys and uniqueness constraints \\
-Privacy & No link between voter identity and ballot; minimal personal data \\
-Reliability & Idempotent database migrations; health endpoint; watchdog restarts the booth browser \\
+Security & Passwords and 4-digit PINs hashed with bcrypt; instant JWT revocation on session end; booth tokens hashed; rate limits on sign-in, PIN login, booth set-up; CORS/CSP restrictions; secrets only from environment variables \\
+Integrity & Ballot and voter record written in one locked transaction; immutable vote receipts; concurrency row locking \\
+Privacy & No link between voter identity and ballot; timestamp jitter decoupling; minimal personal data \\
+Reliability & Idempotent database migrations; health endpoint; missed-print buffer for thermal receipts \\
 Performance & Typical page actions under one second for a campus-sized electorate (thousands of voters) \\
 Usability & A voter completes voting without training; officers are guided by a wizard and checklists \\
 Portability & Docker Compose on Linux, Windows or macOS; PostgreSQL configurable \\
-Maintainability & Layered code, automated tests (147), documented operations \\
+Maintainability & Layered code, automated tests (205), documented operations \\
 Accessibility & Keyboard navigation, visible focus, sufficient contrast, reduced-motion support \\
 \bottomrule
 \end{tabularx}
