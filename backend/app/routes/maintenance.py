@@ -97,7 +97,11 @@ def staff_pin_auth():
 
     # Check lockout status
     ip_state = _pin_attempts.get(client_ip, {"attempts": 0, "lockout_until": 0})
-    if ip_state["lockout_until"] > now_ts:
+    if ip_state["lockout_until"] > 0 and now_ts >= ip_state["lockout_until"]:
+        ip_state["attempts"] = 0
+        ip_state["lockout_until"] = 0
+        _pin_attempts[client_ip] = ip_state
+    elif ip_state["lockout_until"] > now_ts:
         remaining = int(ip_state["lockout_until"] - now_ts)
         return (
             jsonify({

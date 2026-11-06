@@ -60,6 +60,7 @@ class BoothSlip(db.Model):
     __table_args__ = (
         db.UniqueConstraint("election_id", "voting_id", name="uq_election_voting_id"),
         db.UniqueConstraint("election_id", "booth_number", "sequence_number", name="uq_election_booth_seq"),
+        db.Index("idx_slip_booth_used", "election_id", "booth_id", "is_used", "sequence_number"),
     )
 
     # Relationships
@@ -91,7 +92,7 @@ class BoothSlip(db.Model):
 
     @classmethod
     def hash_pin(cls, raw_pin: str) -> str:
-        return bcrypt.hashpw(raw_pin.strip().encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        return bcrypt.hashpw(raw_pin.strip().encode("utf-8"), bcrypt.gensalt(rounds=8)).decode("utf-8")
 
     def verify_pin(self, raw_pin: str) -> bool:
         """Constant-time verification of submitted PIN against salted bcrypt hash."""

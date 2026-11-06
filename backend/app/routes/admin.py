@@ -445,6 +445,7 @@ def get_audit_logs():
     stats = {
         "total_records": AuditLog.query.count(),
         "ballots_cast": actual_ballots,
+        "desk_enrollments": AuditLog.query.filter(AuditLog.action.in_(["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "PIN_ISSUED"])).count(),
         "pins_issued": AuditLog.query.filter(AuditLog.action.in_(["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"])).count(),
         "security_alerts": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("security", []))).count(),
         "kiosk_actions": AuditLog.query.filter(AuditLog.action.in_(CATEGORY_ACTIONS.get("booth", []))).count(),

@@ -4,18 +4,22 @@ app/audit_categories.py — Groups of audit actions shown as filters on the Audi
 
 # (id, filter label, actions). An action may be listed in more than one group.
 CATEGORIES = [
+    ("ballot", "Ballots Cast", [
+        "VOTE_CAST", "VOTE_CAST_BOOTH", "BALLOT_CAST", "RECEIPT_ARCHIVED",
+    ]),
+    ("pin", "Voter Slips & Credentials", [
+        "SLIPS_GENERATED", "SLIP_CANCELLED", "SLIPS_EXPORTED_PDF", "BOOTH_PIN_LOGIN",
+        "PIN_ISSUED", "PINS_ISSUED_BULK", "PIN_VIEWED", "PIN_LOGIN_SUCCESS", "PIN_LOCKED",
+    ]),
+    ("desk", "Desk & Registration", [
+        "DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "STUDENTS_REMOVED",
+        "STUDENT_UPDATED", "REGISTRATIONS_EXPORTED", "PIN_ISSUED",
+    ]),
     ("security", "Security & Tamper Attacks", [
         "SECURITY_ALERT", "TAMPER_DETECTED", "UNAUTHORIZED_BOOTH_ATTEMPT",
         "TAMPERED_BALLOT_REJECTED", "PIN_BRUTE_FORCE", "BOOTH_SETUP_FAILED",
         "TAMPERED_SESSION_REJECTED", "INVALID_TOKEN_ATTEMPT", "SUSPICIOUS_PAYLOAD",
         "RATE_LIMIT_EXCEEDED", "LOGIN_FAILED",
-    ]),
-    ("ballot", "Ballots Cast", [
-        "VOTE_CAST", "VOTE_CAST_BOOTH", "BALLOT_CAST", "RECEIPT_ARCHIVED",
-    ]),
-    ("slips", "Voter Slips & Credentials", [
-        "SLIPS_GENERATED", "SLIP_CANCELLED", "SLIPS_EXPORTED_PDF", "BOOTH_PIN_LOGIN",
-        "PIN_ISSUED", "PINS_ISSUED_BULK", "PIN_VIEWED", "PIN_LOGIN_SUCCESS", "PIN_LOCKED",
     ]),
     ("booth", "Booths & Terminals", [
         "BOOTH_TOKEN_GENERATED", "BOOTH_TOKEN_CREATED", "BOOTH_ACTIVATED", "BOOTH_SESSION_REVOKED",
@@ -32,16 +36,15 @@ CATEGORIES = [
         "LOGIN_SUCCESS", "LOGOUT", "TOTP_2FA_ENABLED", "TOTP_2FA_DISABLED", "PASSWORD_CHANGED", "PASSWORD_RESET",
     ]),
     ("admin", "Admin & Settings", [
-        "DESK_OFFICER_CREATED", "DESK_OFFICER_UPDATED", "DESK_OFFICER_REMOVED",
-        "SETTINGS_UPDATED", "SYSTEM_INSTALLED", "SYSTEM_BACKUP_DOWNLOADED",
+        "DESK_OFFICER_CREATED", "DESK_OFFICER_UPDATED", "DESK_OFFICER_REMOVED", "PROGRAMME_CREATED", "PROGRAMME_UPDATED",
+        "PROGRAMME_DELETED", "PROGRAMMES_IMPORTED", "SETTINGS_UPDATED", "SYSTEM_INSTALLED", "SYSTEM_BACKUP_DOWNLOADED",
     ]),
 ]
 ACTIONS = {cid: actions for cid, _, actions in CATEGORIES}
 ALIASES = {
     "kiosk": "booth",
-    "enroll": "slips",
-    "pin": "slips",
-    "desk": "slips",
+    "enroll": "desk",
+    "slips": "pin",
     "tamper": "security",
     "attack": "security",
     "attacks": "security",
