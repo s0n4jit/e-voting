@@ -18,6 +18,8 @@ matching the classic official slips layout:
 
 import io
 import base64
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import List, Optional
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -31,6 +33,43 @@ from app.services.default_logo import DEFAULT_LOGO
 
 
 class SlipPdfService:
+    @classmethod
+    def _format_election_schedule(cls, election: Optional[Election]) -> tuple[str, str]:
+        """Returns (voting_date, voting_time) formatted in the configured system timezone."""
+        if not election:
+            return "", ""
+        st = getattr(election, "start_time", None)
+        et = getattr(election, "end_time", None)
+        if not st:
+            return "", ""
+
+        tz_name = SystemSetting.get("timezone", "Asia/Kolkata") or "Asia/Kolkata"
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = ZoneInfo("Asia/Kolkata")
+
+        def to_local(dt):
+            if not dt:
+                return None
+            if not dt.tzinfo:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(tz)
+
+        try:
+            st_loc = to_local(st)
+            voting_date = st_loc.strftime("%d %b %Y")
+            s_str = st_loc.strftime("%I:%M %p").lstrip("0")
+            if et:
+                et_loc = to_local(et)
+                e_str = et_loc.strftime("%I:%M %p").lstrip("0")
+                voting_time = f"{s_str} – {e_str}"
+            else:
+                voting_time = s_str
+            return voting_date, voting_time
+        except Exception:
+            return st.strftime("%d %b %Y"), ""
+
     @classmethod
     def _get_logo_image(cls, logo_b64: Optional[str] = None) -> Optional[ImageReader]:
         """Safely loads the institution logo as an ImageReader instance."""
@@ -80,27 +119,9 @@ class SlipPdfService:
 
         slips_per_page = cols * rows
 
-        voting_date = ""
-        voting_time = ""
-        if election:
-            st = getattr(election, "start_time", None)
-            et = getattr(election, "end_time", None)
-            if st:
-                try:
-                    voting_date = st.strftime("%d %b %Y")
-                except Exception:
-                    pass
-                try:
-                    s_str = st.strftime("%I:%M %p").lstrip("0")
-                    if et:
-                        e_str = et.strftime("%I:%M %p").lstrip("0")
-                        voting_time = f"{s_str} – {e_str}"
-                    else:
-                        voting_time = s_str
-                except Exception:
-                    pass
+        el = election or (slips[0].election if slips and hasattr(slips[0], "election") else None)
+        voting_date, voting_time = cls._format_election_schedule(el)
         if not voting_date:
-            from datetime import datetime
             voting_date = datetime.now().strftime("%d %b %Y")
 
         for idx, slip in enumerate(slips):
@@ -177,28 +198,9 @@ class SlipPdfService:
         card_x = (page_w - card_w) / 2.0
         card_y = (page_h - card_h) / 2.0
 
-        voting_date = ""
-        voting_time = ""
-        el = election or slip.election
-        if el:
-            st = getattr(el, "start_time", None)
-            et = getattr(el, "end_time", None)
-            if st:
-                try:
-                    voting_date = st.strftime("%d %b %Y")
-                except Exception:
-                    pass
-                try:
-                    s_str = st.strftime("%I:%M %p").lstrip("0")
-                    if et:
-                        e_str = et.strftime("%I:%M %p").lstrip("0")
-                        voting_time = f"{s_str} – {e_str}"
-                    else:
-                        voting_time = s_str
-                except Exception:
-                    pass
+        el = election or getattr(slip, "election", None)
+        voting_date, voting_time = cls._format_election_schedule(el)
         if not voting_date:
-            from datetime import datetime
             voting_date = datetime.now().strftime("%d %b %Y")
 
         cls._draw_single_slip(
