@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ArrowDownTrayIcon, PlayIcon, PlusIcon, RectangleStackIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlayIcon, PlusIcon, PresentationChartBarIcon, RectangleStackIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { saveBlob, safeFileName } from '../../api/deskApi';
 import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
@@ -43,7 +43,7 @@ export const ElectionManager = () => {
   const [mockConfig, setMockConfig] = useState({
     booth_numbers: [1],
     slip_count: 10,
-    candidate_mode: 'demo',
+    candidate_mode: 'real',
   });
 
   const loadMockStatus = useCallback(async () => {
@@ -80,6 +80,11 @@ export const ElectionManager = () => {
   }, 2000);
 
   const move = async (election, status) => {
+    if (mockStatus?.is_running) {
+      toast.error('Mock election is currently active. The official election is locked in its current stage until the mock run is ended.');
+      setConfirm(null);
+      return;
+    }
     if (status === 'registration') {
       if (!election.positions || election.positions.length === 0) {
         toast.error('Setup incomplete: Add at least one position before proceeding to review.');
@@ -139,7 +144,7 @@ export const ElectionManager = () => {
       setMockConfig({
         booth_numbers: defaultBooths,
         slip_count: 10,
-        candidate_mode: 'demo',
+        candidate_mode: 'real',
       });
       setMockModalOpen(true);
     } catch (err) {
@@ -338,6 +343,13 @@ export const ElectionManager = () => {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Link
+              to={`/admin/results?election=${mockStatus.mock.id}`}
+              className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 font-semibold shadow-sm dark:text-white dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:border-amber-500/40"
+              title="Preview live tally and charts for this mock run"
+            >
+              <PresentationChartBarIcon className="w-4 h-4 text-amber-700 dark:text-amber-300" /> View Mock Results
+            </Link>
             <button
               type="button"
               className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 font-semibold shadow-sm dark:text-white dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:border-amber-500/40"
@@ -376,6 +388,11 @@ export const ElectionManager = () => {
                     <div className="flex items-center gap-3 flex-wrap">
                       <h2 className="font-semibold text-lg">{e.title}</h2>
                       <StatusBadge label={e.status_label} />
+                      {mockStatus?.is_running && (
+                        <span className="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
+                          Locked during mock run
+                        </span>
+                      )}
                     </div>
                     {e.description && <p className="text-sm text-muted mt-1">{e.description}</p>}
                     <p className="text-sm text-muted mt-2">
@@ -389,7 +406,14 @@ export const ElectionManager = () => {
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
                     {idx > 0 && idx <= 2 && (
-                      <button className="btn-ghost btn-sm" onClick={() => move(e, ORDER[idx - 1])} disabled={busy}>Back a stage</button>
+                      <button
+                        className="btn-ghost btn-sm"
+                        onClick={() => move(e, ORDER[idx - 1])}
+                        disabled={busy || mockStatus?.is_running}
+                        title={mockStatus?.is_running ? 'Official election is locked during mock run' : undefined}
+                      >
+                        Back a stage
+                      </button>
                     )}
                     {e.status === 'voting_active' && (
                       <button className="btn-secondary btn-sm" disabled={busy} onClick={() => pauseResume(e)}>
@@ -408,9 +432,9 @@ export const ElectionManager = () => {
                     {next && (
                       <button
                         className="btn-primary btn-sm"
-                        disabled={busy || (next[0] === 'voting_active' && mockStatus?.is_running)}
+                        disabled={busy || mockStatus?.is_running}
                         onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}
-                        title={next[0] === 'voting_active' && mockStatus?.is_running ? 'A mock election is currently active. End the mock run before opening live voting.' : undefined}
+                        title={mockStatus?.is_running ? 'Mock election is currently active. End the mock run before moving official stages.' : undefined}
                       >
                         {next[1]}
                       </button>
@@ -420,7 +444,14 @@ export const ElectionManager = () => {
                 <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-line">
                   <Link to={`/admin/candidates?election=${e.id}`} className="btn-secondary btn-sm">Candidates</Link>
                   {ORDER.indexOf(e.status) < ORDER.indexOf('ready') ? (
-                    <button className="btn-secondary btn-sm" onClick={() => openEditor(e)}>Edit details</button>
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => openEditor(e)}
+                      disabled={mockStatus?.is_running}
+                      title={mockStatus?.is_running ? 'Official election details cannot be edited during a mock run' : undefined}
+                    >
+                      Edit details
+                    </button>
                   ) : (
                     <button
                       className="btn-secondary btn-sm opacity-50 cursor-not-allowed"

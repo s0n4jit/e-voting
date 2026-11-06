@@ -283,6 +283,7 @@ export const VoterSlipsManager = () => {
         unused: metrics?.total_unused ?? 0,
         active: metrics?.total_active ?? 0,
         used: metrics?.total_used ?? 0,
+        cancelled: metrics?.total_cancelled ?? 0,
       };
     }
     if (boothFilter === 'unassigned') {
@@ -292,6 +293,7 @@ export const VoterSlipsManager = () => {
         unused: pool?.unused_slips ?? 0,
         active: pool?.active_slips ?? 0,
         used: pool?.used_slips ?? 0,
+        cancelled: pool?.cancelled_slips ?? 0,
       };
     }
     const bStat = (metrics?.booths || []).find((b) => String(b.booth_number) === String(boothFilter));
@@ -300,6 +302,7 @@ export const VoterSlipsManager = () => {
       unused: bStat?.unused_slips ?? 0,
       active: bStat?.active_slips ?? 0,
       used: bStat?.used_slips ?? 0,
+      cancelled: bStat?.cancelled_slips ?? 0,
     };
   }, [boothFilter, metrics, total]);
 
@@ -409,6 +412,7 @@ export const VoterSlipsManager = () => {
               ['unused', 'Unused', currentBoothStats.unused],
               ['active', 'Active', currentBoothStats.active],
               ['used', 'Used', currentBoothStats.used],
+              ...(currentBoothStats.cancelled > 0 ? [['cancelled', 'Cancelled', currentBoothStats.cancelled]] : []),
             ].map(([val, lbl, count]) => (
               <button
                 key={val}
@@ -529,7 +533,11 @@ export const VoterSlipsManager = () => {
                       )}
                     </td>
                     <td>
-                      {s.booth_id ? (
+                      {s.is_cancelled ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-recessed text-muted border border-line">
+                          <span>Unallotted</span>
+                        </span>
+                      ) : s.booth_id ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-ok-soft text-ok">
                           <CheckCircleIcon className="w-3.5 h-3.5" />
                           <span>Allotted to Machine</span>
@@ -567,7 +575,7 @@ export const VoterSlipsManager = () => {
                       )}
                     </td>
                     <td className="text-muted text-xs font-mono">
-                      {s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
+                      {!s.is_cancelled && s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">

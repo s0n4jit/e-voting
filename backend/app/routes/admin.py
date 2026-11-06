@@ -90,6 +90,9 @@ def list_elections():
 @admin_required
 def create_election():
     """Create a new election."""
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock:
+        return jsonify({"error": "A mock election is currently active. End the mock run before creating a new election."}), 409
     if any(e.effective_status != "archived" for e in Election.query.filter_by(is_mock=False).all()):
         return jsonify({"error": "Only one election can run at a time. Archive the current election first."}), 409
     payload = request.get_json(silent=True) or {}
@@ -161,6 +164,9 @@ def update_election(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and election.id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official election details cannot be changed until the mock run ends."}), 409
 
     payload = request.get_json(silent=True) or {}
     if "title" in payload:
@@ -197,6 +203,9 @@ def delete_election(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and election.id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official election cannot be deleted until the mock run ends."}), 409
 
     _audit("ELECTION_DELETED", f"Deleted the election \u201c{election.title}\u201d.")
     db.session.delete(election)
@@ -265,6 +274,9 @@ def add_candidate(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and election.id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
 
     payload = request.form  # multipart: fields plus the photo file
     name = sanitize_input(payload.get("name"))
@@ -1397,14 +1409,15 @@ def get_booths_slips_metrics():
             continue
         slips_query = BoothSlip.query.filter_by(election_id=election.id, booth_number=b_num)
         total_for_booth = slips_query.count()
-        used_for_booth = slips_query.filter_by(is_used=True).count()
+        used_for_booth = slips_query.filter_by(is_used=True, is_cancelled=False).count()
+        cancelled_for_booth = slips_query.filter_by(is_cancelled=True).count()
+        unused_for_booth = slips_query.filter_by(is_used=False, is_cancelled=False).count()
 
         cur_slip = BoothSlip.get_current_slip(election.id, b_num)
         cur_id = cur_slip.voting_id if cur_slip else ("Exhausted" if total_for_booth > 0 else "None")
 
         is_b_active = b_num in active_booth_numbers
         active_for_booth = 1 if (is_b_active and cur_slip and cur_slip.id in active_slip_ids) else 0
-        unused_for_booth = max(0, total_for_booth - used_for_booth)
 
         rate = round((used_for_booth / total_for_booth * 100), 1) if total_for_booth > 0 else 0.0
 
@@ -1415,6 +1428,7 @@ def get_booths_slips_metrics():
             "used_slips": used_for_booth,
             "active_slips": active_for_booth,
             "unused_slips": unused_for_booth,
+            "cancelled_slips": cancelled_for_booth,
             "current_voting_id": cur_id,
             "progress_rate": rate,
         })
@@ -1446,9 +1460,10 @@ def get_booths_slips_metrics():
 
     # Exact total from all slips
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
-    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
+    total_cancelled = BoothSlip.query.filter_by(election_id=election.id, is_cancelled=True).count()
+    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True, is_cancelled=False).count()
     total_active = len(active_slip_ids)
-    total_unused = max(0, total_gen - total_used)
+    total_unused = BoothSlip.query.filter_by(election_id=election.id, is_used=False, is_cancelled=False).count()
     overall_rate = round((total_used / total_gen * 100), 1) if total_gen > 0 else 0.0
 
     return jsonify({
@@ -1459,6 +1474,7 @@ def get_booths_slips_metrics():
         "total_used": total_used,
         "total_active": total_active,
         "total_unused": total_unused,
+        "total_cancelled": total_cancelled,
         "completion_rate": overall_rate,
         "booths": booth_stats,
     }), 200
@@ -1776,14 +1792,16 @@ def list_booth_slips():
     if status_filter:
         sf = status_filter.lower().strip()
         if sf == "used":
-            query = query.filter(BoothSlip.is_used == True)
+            query = query.filter(BoothSlip.is_used == True, BoothSlip.is_cancelled == False)
+        elif sf == "cancelled":
+            query = query.filter(BoothSlip.is_cancelled == True)
         elif sf == "active":
-            query = query.filter(BoothSlip.is_used == False, BoothSlip.id.in_(list(active_slip_ids) if active_slip_ids else [-1]))
+            query = query.filter(BoothSlip.is_used == False, BoothSlip.is_cancelled == False, BoothSlip.id.in_(list(active_slip_ids) if active_slip_ids else [-1]))
         elif sf == "unused":
-            query = query.filter(BoothSlip.is_used == False)
+            query = query.filter(BoothSlip.is_used == False, BoothSlip.is_cancelled == False)
     elif is_used is not None and is_used != "":
         used_bool = is_used.lower() in ("true", "1", "yes")
-        query = query.filter_by(is_used=used_bool)
+        query = query.filter_by(is_used=used_bool, is_cancelled=False)
 
     search = request.args.get("search", "").strip()
     if search:
@@ -1799,7 +1817,10 @@ def list_booth_slips():
     items = []
     for s in pagination.items:
         d = s.to_dict(include_pin=False)
-        if s.is_used:
+        if s.is_cancelled:
+            d["status"] = "cancelled"
+            d["booth_id"] = None
+        elif s.is_used:
             d["status"] = "used"
         elif s.id in active_slip_ids:
             d["status"] = "active"
@@ -1809,9 +1830,10 @@ def list_booth_slips():
         items.append(d)
 
     total_gen = BoothSlip.query.filter_by(election_id=election.id).count()
-    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count()
+    total_cancelled = BoothSlip.query.filter_by(election_id=election.id, is_cancelled=True).count()
+    total_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True, is_cancelled=False).count()
     total_active = len(active_slip_ids)
-    total_unused = max(0, total_gen - total_used)
+    total_unused = BoothSlip.query.filter_by(election_id=election.id, is_used=False, is_cancelled=False).count()
 
     return jsonify({
         "items": items,
@@ -1824,6 +1846,7 @@ def list_booth_slips():
             "total_used": total_used,
             "total_active": total_active,
             "total_unused": total_unused,
+            "total_cancelled": total_cancelled,
         }
     }), 200
 
@@ -1844,9 +1867,10 @@ def cancel_booth_slip(slip_id):
         return jsonify({"error": "This slip has already been cancelled."}), 400
 
     now = datetime.now(timezone.utc)
-    slip.is_used = True
+    slip.is_used = False
     slip.is_cancelled = True
-    slip.used_at = now
+    slip.booth_id = None
+    slip.used_at = None
     slip.cancelled_at = now
 
     _audit("SLIP_CANCELLED", f"Voter slip {slip.voting_id} (Booth {slip.booth_number or 'unassigned'}) was cancelled/voided by Election Authority.")

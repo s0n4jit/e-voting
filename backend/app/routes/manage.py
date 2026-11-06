@@ -343,6 +343,7 @@ def start_mock(election_id=None):
             db.session.add(mock_cand)
             db.session.flush()
             if cand.photo and cand.photo.data:
+                mock_cand.photo_url = f"/api/candidates/{mock_cand.id}/photo"
                 db.session.add(CandidatePhoto(
                     candidate_id=mock_cand.id,
                     content_type=cand.photo.content_type,
@@ -465,12 +466,7 @@ def end_mock(election_id=None):
     except Exception as e:
         logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
 
-    # Preserve all mock audit logs for accountability, unless it was a legacy in-place test run
-    if not (mock_election and mock_election.parent_election_id):
-        started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
-        if started_at:
-            AuditLog.query.filter(AuditLog.created_at >= started_at).delete(synchronize_session=False)
-
+    # Preserve all mock audit logs for immutable accountability (never deleted or tampered)
     KioskDevice.query.filter_by(election_id=active_mock_id).update({"election_id": parent_id})
     db.session.flush()
 
@@ -511,6 +507,9 @@ def put_positions(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and election.id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official election positions are locked until the mock run ends."}), 409
     if election_locked(election):
         return jsonify({"error": "Positions cannot be changed once voting has opened."}), 409
 
