@@ -20,6 +20,9 @@ class VoteReceipt(db.Model):
     choices_json = db.Column(db.Text, nullable=False)
     html_content = db.Column(db.Text, nullable=True)
     pdf_filename = db.Column(db.String(255), nullable=True)
+    is_printed = db.Column(db.Boolean, default=True, nullable=False, server_default=db.true(), index=True)
+    print_error = db.Column(db.String(255), nullable=True)
+    reprinted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -48,5 +51,8 @@ class VoteReceipt(db.Model):
             "is_mock": self.is_mock,
             "choices": self.get_choices(),
             "pdf_filename": self.pdf_filename,
+            "is_printed": bool(self.is_printed),
+            "print_error": self.print_error,
+            "reprinted_at": utc_iso(self.reprinted_at) if self.reprinted_at else None,
             "created_at": utc_iso(self.created_at),
         }

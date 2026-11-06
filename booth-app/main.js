@@ -63,6 +63,8 @@ let resumeTimer = null;
 // Ubuntu 23.10+ blocks the browser sandbox for unprivileged users (AppImage, .deb): without this the app does not start.
 // The window only ever loads the portal, so the loss of the extra sandbox layer is accepted.
 if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-pinch');
+app.commandLine.appendSwitch('disable-features', 'TouchpadOverscrollHistoryNavigation');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 if (process.env.EVOTE_NO_GPU) app.disableHardwareAcceleration();
@@ -172,6 +174,12 @@ function showUi(page, query = {}, opts = {}) {
   uiWin.setMenu(null);
   uiWin.loadFile(path.join(UI_DIR, page), { query });
   uiWin.on('closed', () => { uiWin = null; });
+}
+
+function ensureNumLock() {
+  if (process.platform === 'win32') {
+    execFile('powershell', ['-NoProfile', '-Command', '$w=New-Object -ComObject WScript.Shell; if([console]::NumberLock -eq $false){$w.SendKeys("{NUMLOCK}")}'], { windowsHide: true }, () => {});
+  }
 }
 
 let lockdownProc = null;
@@ -337,7 +345,7 @@ function startKiosk() {
       return;
     }
 
-    // 2. Swallow any Meta / Windows / Super key
+    // 2. Swallow any Meta / Windows / Super key (prevents desktop switching and Start menu)
     if (input.meta) {
       e.preventDefault();
       return;
@@ -349,20 +357,20 @@ function startKiosk() {
       return;
     }
 
-    // 4. Swallow ALL Control combinations (Ctrl+W, Ctrl+R, Ctrl+N, Ctrl+T, Ctrl+Q, Ctrl+Shift+..., etc.)
+    // 4. Swallow ALL Control combinations (Ctrl+W, Ctrl+R, Ctrl+N, Ctrl+T, Ctrl+Q, Ctrl+Win+Arrows, etc.)
     if (input.control) {
       e.preventDefault();
       return;
     }
 
-    // 5. Swallow all Function keys (F1-F12)
+    // 5. Swallow all Function keys (F1-F24)
     if (/^f\d+$/i.test(k)) {
       e.preventDefault();
       return;
     }
 
-    // 6. Swallow Escape
-    if (k === 'escape') {
+    // 6. Swallow non-typing navigation and system keys
+    if (['escape', 'contextmenu', 'insert', 'pageup', 'pagedown', 'home', 'end', 'printscreen', 'pause', 'scrolllock', 'help', 'select'].includes(k)) {
       e.preventDefault();
       return;
     }
@@ -401,6 +409,7 @@ function startKiosk() {
   mainWin.loadURL(cfg.url);
   registerLockdownShortcuts();
   startWindowsLockdown();
+  ensureNumLock();
 }
 
 function enterKiosk() {
@@ -420,6 +429,7 @@ function enterKiosk() {
   mainWin.focus();
   registerLockdownShortcuts();
   startWindowsLockdown();
+  ensureNumLock();
 }
 
 function openExitPrompt() {
@@ -437,9 +447,13 @@ function openExitPrompt() {
 function leaveKiosk() {
   stopWindowsLockdown();
   unregisterLockdownShortcuts();
-  mainWin.setKiosk(false);
-  mainWin.setAlwaysOnTop(false);
-  mainWin.minimize();
+  try {
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.setKiosk(false);
+      mainWin.setAlwaysOnTop(false);
+      mainWin.minimize();
+    }
+  } catch (_) {}
   showUi('maintenance.html');
   clearTimeout(resumeTimer);
   resumeTimer = setTimeout(enterKiosk, MAINTENANCE_MINUTES * 60 * 1000);
@@ -450,28 +464,30 @@ function leaveKiosk() {
 async function verifyOfficerCode(code) {
   const clean = String(code || '').trim().replace(/\D/g, '');
   const base = apiBase || `${config.originOf(cfg.url)}/api`;
+  const emergencyPin = String(cfg.exitCode || '').trim();
 
   let serverOnline = false;
   let authResponse = null;
 
   // 1. Try online verification against the Election Officer authenticator on the server
+  // AbortSignal.timeout(1500) ensures zero hangs when offline or network drops
   try {
     const res = await net.fetch(`${base}/maintenance/auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: clean.slice(0, 8) }),
+      signal: AbortSignal.timeout(1500),
     });
     serverOnline = true;
     authResponse = await res.json().catch(() => ({}));
     if (res.ok && authResponse.authenticated) {
       return { ok: true };
     }
-  } catch (netErr) {
+  } catch (_) {
     serverOnline = false;
   }
 
-  // If the server IS online: ONLY the officer's real authenticator TOTP code is accepted!
-  // Offline bypass codes are strictly disallowed while the server is live.
+  // If server is online, require live officer TOTP code
   if (serverOnline) {
     return {
       ok: false,
@@ -479,20 +495,18 @@ async function verifyOfficerCode(code) {
     };
   }
 
-  // 2. If the server is UNREACHABLE or booth is not yet set up:
-  // Allow the configured Emergency Offline Exit PIN (set during initial booth setup, default 888888)
-  const emergencyPin = String(cfg.exitCode || '888888').trim();
-  if (clean && clean === emergencyPin) {
+  // 2. If server is unreachable or offline: verify against configured emergency offline PIN
+  if (clean && emergencyPin && clean === emergencyPin) {
     return { ok: true, emergency: true };
   }
 
   return {
     ok: false,
-    message: 'Server unreachable. Enter your configured offline emergency PIN to unlock.',
+    message: 'Server unreachable. Enter your configured emergency offline exit PIN to unlock.',
   };
 }
 
-async function uploadReceiptToServer(r, html, pdfBuffer) {
+async function uploadReceiptToServer(r, html, pdfBuffer, isPrinted = true, printError = null) {
   let targetOrigin = '';
   try {
     if (cfg.url) targetOrigin = new URL(cfg.url).origin;
@@ -511,6 +525,10 @@ async function uploadReceiptToServer(r, html, pdfBuffer) {
   form.append('html', html || '');
   if (pdfBuffer) {
     form.append('pdf', new Blob([pdfBuffer], { type: 'application/pdf' }), `${r.slip}.pdf`);
+  }
+  form.append('is_printed', String(Boolean(isPrinted)));
+  if (printError) {
+    form.append('print_error', String(printError));
   }
 
   const headers = {};
@@ -539,16 +557,27 @@ ipcMain.handle('print-receipt', async (event, raw) => {
     console.warn('PDF render error:', e.message);
   }
 
-  // Real-time stream to the central election server (no local disk storage)
-  uploadReceiptToServer(r, html, pdfBuffer).catch((e) => {
-    console.warn('Real-time receipt upload failed:', e.message);
-  });
+  let printSuccess = false;
+  let printError = null;
 
   try {
     await printHtml(html, r.printer || cfg.printer, r.copies);
-    return { archived: true, printed: true };
+    printSuccess = true;
   } catch (e) {
-    return { archived: true, printed: false, error: e.message };
+    printSuccess = false;
+    printError = e.message || 'Printer did not accept print job';
+    console.warn('Physical print failed at booth:', printError);
+  }
+
+  // Stream receipt upload to server with print status
+  uploadReceiptToServer(r, html, pdfBuffer, printSuccess, printError).catch((e) => {
+    console.warn('Real-time receipt upload failed:', e.message);
+  });
+
+  if (printSuccess) {
+    return { archived: true, printed: true };
+  } else {
+    return { archived: true, printed: false, error: printError };
   }
 });
 

@@ -6,7 +6,7 @@ const say = (t, bad) => { $('msg').textContent = t; $('msg').className = 'msg' +
   const printers = await evoteUi.listPrinters();
   $('url').value = cfg.url || '';
   $('auto').checked = cfg.autoStart !== false;
-  $('exitCode').value = cfg.exitCode || '888888';
+  $('exitCode').value = cfg.exitCode || '';
   $('printer').innerHTML = '<option value="">(computer default printer)</option>'
     + printers.map((p) => `<option>${p.name.replace(/</g, '&lt;')}</option>`).join('');
   $('printer').value = cfg.printer || '';

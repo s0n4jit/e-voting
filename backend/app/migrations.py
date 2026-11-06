@@ -41,6 +41,9 @@ _COLUMNS = [
     ("booth_slips", "authenticated_at", "TIMESTAMP WITH TIME ZONE"),
     ("elections", "parent_election_id", "INTEGER"),
     ("booth_slips", "is_mock", "BOOLEAN NOT NULL DEFAULT false"),
+    ("vote_receipts", "is_printed", "BOOLEAN NOT NULL DEFAULT true"),
+    ("vote_receipts", "print_error", "VARCHAR(255)"),
+    ("vote_receipts", "reprinted_at", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 

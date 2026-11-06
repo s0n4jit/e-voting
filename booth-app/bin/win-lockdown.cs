@@ -9,8 +9,9 @@ class KioskLockdown {
     private const int VK_RWIN = 0x5C;
     private const int VK_TAB = 0x09;
     private const int VK_ESCAPE = 0x1B;
-    private const int VK_F4 = 0x73;
-    private const int VK_SPACE = 0x20;
+    private const int VK_NUMLOCK = 0x90;
+    private const uint KEYEVENTF_EXTENDEDKEY = 0x1;
+    private const uint KEYEVENTF_KEYUP = 0x2;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT {
@@ -36,6 +37,12 @@ class KioskLockdown {
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int keyCode);
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     [DllImport("user32.dll")]
     private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
@@ -85,14 +92,37 @@ class KioskLockdown {
         } catch (Exception) {}
     }
 
+    public static void EnsureNumLockOn() {
+        try {
+            bool isNumLockOn = (GetKeyState(VK_NUMLOCK) & 1) != 0;
+            if (!isNumLockOn) {
+                keybd_event((byte)VK_NUMLOCK, 0x45, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero);
+                keybd_event((byte)VK_NUMLOCK, 0x45, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+        } catch (Exception) {}
+    }
+
+    public static void SetTouchpadEnabled(bool enabled) {
+        try {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad\Status")) {
+                if (key != null) {
+                    key.SetValue("Enabled", enabled ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+                }
+            }
+        } catch (Exception) {}
+    }
+
     public static void Main(string[] args) {
-        // If run with 'restore', just restore taskbar and exit immediately
+        // If run with 'restore', restore taskbar & touchpad and exit immediately
         if (args.Length > 0 && args[0].ToLower() == "restore") {
-            SetTaskbarVisible(true);
+            Cleanup();
             return;
         }
 
         SetTaskbarVisible(false);
+        SetTouchpadEnabled(false);
+        EnsureNumLockOn();
+
         using (Process curProcess = Process.GetCurrentProcess())
         using (ProcessModule curModule = curProcess.MainModule) {
             _hookID = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
@@ -133,6 +163,7 @@ class KioskLockdown {
             _hookID = IntPtr.Zero;
         }
         SetTaskbarVisible(true);
+        SetTouchpadEnabled(true);
     }
 
     private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
@@ -149,25 +180,28 @@ class KioskLockdown {
                 return CallNextHookEx(_hookID, nCode, wParam, lParam);
             }
 
-            // 2. Block any Windows key press or release
-            if (vkCode == VK_LWIN || vkCode == VK_RWIN) {
+            // 2. Block ANY key if Windows key is involved (stops desktop switching, start menu, shortcuts)
+            if (vkCode == VK_LWIN || vkCode == VK_RWIN || winDown) {
                 return (IntPtr)1;
             }
 
-            // 3. Block ANY key pressed while the Windows key is down (e.g. Win+S, Win+R, Win+X, etc.)
-            if (winDown) {
-                return (IntPtr)1;
-            }
-
-            // 4. Block Alt key combinations: Alt+Tab, Alt+Esc, Alt+Space, Alt+F4
+            // 3. Block ANY key if Alt is down (stops Alt+Tab, Alt+Esc, Alt+F4, Alt+Space, etc.)
             if (altDown) {
-                if (vkCode == VK_TAB || vkCode == VK_ESCAPE || vkCode == VK_SPACE || vkCode == VK_F4) {
-                    return (IntPtr)1;
-                }
+                return (IntPtr)1;
             }
 
-            // 5. Block Ctrl+Esc (Start Menu) and Ctrl+Shift+Esc (Task Manager)
-            if (ctrlDown && vkCode == VK_ESCAPE) {
+            // 4. Block ANY key if Ctrl is down (stops Ctrl+Esc, Ctrl+W, Ctrl+Shift+Esc, Ctrl+Win+Arrows, etc.)
+            if (ctrlDown) {
+                return (IntPtr)1;
+            }
+
+            // 5. Block Function keys F1 - F24
+            if (vkCode >= 0x70 && vkCode <= 0x87) {
+                return (IntPtr)1;
+            }
+
+            // 6. Block Escape, Apps/ContextMenu (0x5D), Sleep (0x5F), PrintScreen (0x2C)
+            if (vkCode == VK_ESCAPE || vkCode == 0x5D || vkCode == 0x5F || vkCode == 0x2C) {
                 return (IntPtr)1;
             }
         }

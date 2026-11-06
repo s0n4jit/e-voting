@@ -1,15 +1,18 @@
 'use strict';
-// Booth settings kept in the user's app-data folder: portal address, printer, start-with-computer.
+// Booth settings kept in the user's app-data folder: portal address, printer, autoStart, exitCode.
 const fs = require('fs');
 
 const URL_RE = /^https?:\/\/[^/\s]+\/kiosk\/vote$/;
-const DEFAULTS = { url: '', printer: '', autoStart: true, exitCode: '888888' };
+const DEFAULTS = { url: '', printer: '', autoStart: true, exitCode: '' };
 
 function validate(c = {}) {
   const url = String(c.url || '').trim();
   if (!URL_RE.test(url)) return { error: 'The address must look like https://your-site.example/kiosk/vote' };
   const printer = String(c.printer || '').trim().slice(0, 200);
-  const exitCode = String(c.exitCode || '888888').trim().replace(/\D/g, '').slice(0, 8) || '888888';
+  const exitCode = String(c.exitCode || '').trim().replace(/\D/g, '').slice(0, 8);
+  if (!exitCode || exitCode.length < 4) {
+    return { error: 'Setting an Emergency Offline Exit PIN (4 to 8 digits) is mandatory with no predefined default.' };
+  }
   return { value: { url, printer, autoStart: c.autoStart !== false, exitCode } };
 }
 

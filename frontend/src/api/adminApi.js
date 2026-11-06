@@ -190,6 +190,7 @@ export const adminApi = {
     const res = await apiClient.get('/officer/receipts/export-zip', { params, responseType: 'blob' });
     return res.data;
   },
+  markReceiptPrinted: async (slipId) => (await apiClient.post(`/officer/receipts/${encodeURIComponent(slipId)}/mark-printed`)).data,
 
   // Pre-generated Booth Slips & PDF Export
   getBoothSlipsMetrics: async (electionId) => {

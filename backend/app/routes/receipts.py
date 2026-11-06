@@ -51,6 +51,7 @@ def list_receipts():
 
     live_count = VoteReceipt.query.filter_by(is_mock=False).count()
     mock_count = VoteReceipt.query.filter_by(is_mock=True).count()
+    unprinted_count = VoteReceipt.query.filter_by(is_mock=is_mock, is_printed=False).count()
 
     return jsonify({
         "items": [r.to_dict() for r in items],
@@ -60,6 +61,7 @@ def list_receipts():
         "pages": max(1, (total + per_page - 1) // per_page),
         "live_count": live_count,
         "mock_count": mock_count,
+        "unprinted_count": unprinted_count,
     }), 200
 
 
@@ -150,3 +152,24 @@ def clear_mock():
         "message": f"Successfully cleared {count} mock election receipt(s).",
         "cleared": count,
     }), 200
+
+
+@receipts_bp.post("/<slip_id>/mark-printed")
+@admin_required
+def mark_receipt_printed(slip_id):
+    """Mark a receipt as printed / reprinted from the election officer admin panel."""
+    from datetime import datetime, timezone
+    from app.extensions import db
+    from app.models.audit_log import AuditLog
+    receipt = VoteReceipt.query.filter_by(slip_id=slip_id).first_or_404()
+    receipt.is_printed = True
+    receipt.print_error = None
+    receipt.reprinted_at = datetime.now(timezone.utc)
+    db.session.add(AuditLog(
+        action="RECEIPT_REPRINTED",
+        details=f"Receipt slip {slip_id} ({receipt.booth_name}) marked as printed / reprinted remotely from election officer panel.",
+        ip_address=request.remote_addr or "",
+        user_agent=(request.user_agent.string or "")[:255],
+    ))
+    db.session.commit()
+    return jsonify(receipt.to_dict()), 200

@@ -327,6 +327,9 @@ def upload_booth_receipt():
                 pass
 
     now = datetime.now(timezone.utc)
+    is_printed = request.form.get("is_printed", "true").lower() in ("true", "1", "yes")
+    print_error = (request.form.get("print_error") or "").strip() or None
+
     receipt = VoteReceipt.query.filter_by(slip_id=slip_id).first()
     if not receipt:
         receipt = VoteReceipt(
@@ -337,6 +340,8 @@ def upload_booth_receipt():
             choices_json=choices_raw,
             html_content=html_content,
             pdf_filename=pdf_filename,
+            is_printed=is_printed,
+            print_error=print_error,
             created_at=now,
         )
         db.session.add(receipt)
@@ -347,6 +352,8 @@ def upload_booth_receipt():
         if html_content:
             receipt.html_content = html_content
         receipt.pdf_filename = pdf_filename
+        receipt.is_printed = is_printed
+        receipt.print_error = print_error
         receipt.created_at = now
 
     mode_str = "mock" if is_mock else "official"
@@ -364,6 +371,15 @@ def upload_booth_receipt():
         user_agent=(request.user_agent.string or "")[:255],
         created_at=now,
     ))
+
+    if not is_printed:
+        db.session.add(AuditLog(
+            action="PRINT_FAILED",
+            details=f"Physical receipt print missed/failed at {booth_name} for slip {slip_id}: {print_error or 'Printer did not accept print job'}.",
+            ip_address=request.remote_addr or "",
+            user_agent=(request.user_agent.string or "")[:255],
+            created_at=now,
+        ))
 
     db.session.commit()
     return jsonify({"success": True, "slip_id": slip_id}), 200

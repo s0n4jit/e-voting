@@ -11,7 +11,11 @@ import {
   TicketIcon,
   DocumentTextIcon,
   ClockIcon,
+  PrinterIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL } from '../../api/axiosConfig';
 import adminApi from '../../api/adminApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -24,6 +28,7 @@ const ReceiptManager = () => {
   const [pages, setPages] = useState(1);
   const [liveCount, setLiveCount] = useState(0);
   const [mockCount, setMockCount] = useState(0);
+  const [unprintedCount, setUnprintedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
@@ -53,6 +58,7 @@ const ReceiptManager = () => {
       setPages(data.pages || 1);
       setLiveCount(data.live_count || 0);
       setMockCount(data.mock_count || 0);
+      setUnprintedCount(data.unprinted_count || 0);
       setLastSyncTime(new Date());
     } catch (err) {
       if (!silent) {
@@ -113,6 +119,36 @@ const ReceiptManager = () => {
   const closePreview = () => {
     setPreviewSlip(null);
     setPreviewHtml('');
+  };
+
+
+  const printRemoteReceipt = async (r) => {
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      iframe.src = `${API_BASE_URL}/officer/receipts/${encodeURIComponent(r.slip_id)}/html`;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (_) {}
+        setTimeout(() => {
+          if (iframe.parentNode) document.body.removeChild(iframe);
+        }, 30000);
+      };
+
+      await adminApi.markReceiptPrinted(r.slip_id);
+      fetchReceipts(true);
+    } catch (e) {
+      console.warn('Remote print trigger notice:', e);
+    }
   };
 
   const downloadPdf = async (slipId) => {
@@ -315,6 +351,20 @@ const ReceiptManager = () => {
         </form>
       </div>
 
+      {unprintedCount > 0 && (
+        <div className="p-4 rounded-2xl bg-bad-soft border border-bad/30 flex items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-bad text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <ExclamationTriangleIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-bad">Attention: {unprintedCount} vote receipt(s) missed physical printing at the booth machines.</p>
+              <p className="text-[11px] text-muted mt-0.5">Choices are fully archived in the server database. Click &ldquo;Print&rdquo; on any missed receipt below to output it remotely from this desk.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-4 rounded-xl bg-bad-soft border border-bad/30 text-bad text-xs font-medium">
           {error}
@@ -342,6 +392,7 @@ const ReceiptManager = () => {
                 <tr>
                   <th className="px-5 py-3.5">Voter Slip ID</th>
                   <th className="px-5 py-3.5">Voting Terminal / Booth</th>
+                  <th className="px-5 py-3.5">Print Status</th>
                   <th className="px-5 py-3.5">Timestamp (UTC)</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
@@ -355,6 +406,24 @@ const ReceiptManager = () => {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-fg font-semibold">{r.booth_name || 'Booth'}</td>
+                    <td className="px-5 py-3.5">
+                      {!r.is_printed ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-bad-soft text-bad border border-bad/30" title={r.print_error || 'Printing failed at booth machine'}>
+                          <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>Missed Print</span>
+                        </span>
+                      ) : r.reprinted_at ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-brand-soft text-brand-fg border border-brand/20" title={`Reprinted remotely at ${new Date(r.reprinted_at).toLocaleTimeString()}`}>
+                          <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>Reprinted</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-ok-soft text-ok border border-ok/20">
+                          <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>Printed</span>
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 text-muted text-xs font-mono">
                       {new Date(r.created_at).toLocaleString()}
                     </td>
@@ -368,6 +437,15 @@ const ReceiptManager = () => {
                         >
                           <EyeIcon className="w-3.5 h-3.5 text-muted" />
                           <span>View</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => printRemoteReceipt(r)}
+                          className="px-2.5 py-1.5 rounded-xl border border-line bg-surface hover:bg-recessed text-brand-fg hover:text-brand text-xs font-bold shadow-2xs flex items-center gap-1 transition-colors"
+                          title="Print this receipt remotely from admin panel"
+                        >
+                          <PrinterIcon className="w-3.5 h-3.5" />
+                          <span>Print</span>
                         </button>
                         <button
                           type="button"
