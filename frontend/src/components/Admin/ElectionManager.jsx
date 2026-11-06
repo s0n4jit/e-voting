@@ -43,7 +43,7 @@ export const ElectionManager = () => {
   const [mockConfig, setMockConfig] = useState({
     booth_numbers: [1],
     slip_count: 10,
-    candidate_mode: 'real',
+    candidate_mode: 'demo',
   });
 
   const loadMockStatus = useCallback(async () => {
@@ -144,7 +144,7 @@ export const ElectionManager = () => {
       setMockConfig({
         booth_numbers: defaultBooths,
         slip_count: 10,
-        candidate_mode: 'real',
+        candidate_mode: 'demo',
       });
       setMockModalOpen(true);
     } catch (err) {
@@ -584,20 +584,20 @@ export const ElectionManager = () => {
                 <input
                   type="radio"
                   name="candidate_mode"
-                  value="real"
-                  checked={mockConfig.candidate_mode === 'real'}
-                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'real' })}
+                  value="demo"
+                  checked={mockConfig.candidate_mode === 'demo'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'demo' })}
                   className="mt-1 text-primary focus:ring-primary"
                 />
                 <div>
                   <div className="text-sm font-semibold flex items-center gap-2">
-                    Official Election Candidates
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    Dummy Candidates (10 Positions · 20 Politicians)
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                       Recommended
                     </span>
                   </div>
                   <div className="text-xs text-muted mt-0.5">
-                    Clone current election candidates, photos, positions, departments, and bios into the mock dry run.
+                    Full 10-position test slate with photos (President, Vice President, Secretaries, etc.). Simulates the complete election experience while keeping real student candidates separate.
                   </div>
                 </div>
               </label>
@@ -606,15 +606,15 @@ export const ElectionManager = () => {
                 <input
                   type="radio"
                   name="candidate_mode"
-                  value="demo"
-                  checked={mockConfig.candidate_mode === 'demo'}
-                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'demo' })}
+                  value="real"
+                  checked={mockConfig.candidate_mode === 'real'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'real' })}
                   className="mt-1 text-primary focus:ring-primary"
                 />
                 <div>
-                  <div className="text-sm font-medium">Demo Candidates (Politicians / Sample)</div>
+                  <div className="text-sm font-medium">Official Election Candidates</div>
                   <div className="text-xs text-muted mt-0.5">
-                    Use pre-configured sample candidates (Narendra Modi, Donald Trump, Barack Obama, Sarah Chen, Vikram Malhotra).
+                    Clone current candidate nominations directly from the official election.
                   </div>
                 </div>
               </label>

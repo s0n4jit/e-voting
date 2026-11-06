@@ -326,8 +326,8 @@ def start_mock(election_id=None):
     db.session.add(mock_election)
     db.session.flush()
 
-    use_real = (candidate_mode == "real" or (candidate_mode != "demo" and bool(real_election.candidates)))
-    if use_real and (real_election.positions or real_election.candidates):
+    use_real = (candidate_mode == "real" and bool(real_election.candidates))
+    if use_real:
         from app.models.candidate_photo import CandidatePhoto
         if real_election.positions:
             for pos in real_election.positions:
@@ -359,49 +359,56 @@ def start_mock(election_id=None):
             )
             db.session.add(mock_cand)
             db.session.flush()
-            if cand.photo and cand.photo.data:
-                mock_cand.photo_url = f"/api/candidates/{mock_cand.id}/photo"
+            cand_photo = CandidatePhoto.query.filter_by(candidate_id=cand.id).first()
+            if cand_photo and cand_photo.data:
+                mock_cand.photo_url = f"/api/photos/{mock_cand.id}"
                 db.session.add(CandidatePhoto(
                     candidate_id=mock_cand.id,
-                    content_type=cand.photo.content_type,
-                    data=cand.photo.data,
+                    content_type=cand_photo.content_type,
+                    data=cand_photo.data,
                 ))
+            elif cand.photo_url:
+                mock_cand.photo_url = cand.photo_url
     else:
-        demo_positions = [
-            {
-                "name": "President",
-                "sort_order": 1,
-                "candidates": [
-                    {"name": "Narendra Modi", "party": "Progress Alliance", "bio": "Progress & Development Alliance."},
-                    {"name": "Donald Trump", "party": "Liberty Movement", "bio": "Liberty & Prosperity Movement."},
-                    {"name": "Barack Obama", "party": "Progressive Unity", "bio": "Progressive Student Coalition."},
-                ],
-            },
-            {
-                "name": "General Secretary",
-                "sort_order": 2,
-                "candidates": [
-                    {"name": "Sarah Chen (Demo)", "party": "Campus Voice", "bio": "Campus Welfare & Activity Board."},
-                    {"name": "Vikram Malhotra (Demo)", "party": "Students United", "bio": "Students Democratic Union."},
-                ],
-            },
-        ]
-        for p_info in demo_positions:
-            pos = ElectionPosition(
-                election_id=mock_election.id,
-                name=p_info["name"],
-                sort_order=p_info["sort_order"],
-            )
-            db.session.add(pos)
-            for c_info in p_info["candidates"]:
-                cand = Candidate(
+        # Use the comprehensive 10-position, 20-candidate dummy slate with full photos
+        from app.mock_seed import populate_mock_dummy_roster
+        seeded = populate_mock_dummy_roster(mock_election.id)
+        if not seeded:
+            demo_positions = [
+                {
+                    "name": "President",
+                    "sort_order": 1,
+                    "candidates": [
+                        {"name": "Narendra Modi", "party": "Progress Alliance", "bio": "Progress & Development Alliance."},
+                        {"name": "Donald Trump", "party": "Liberty Movement", "bio": "Liberty & Prosperity Movement."},
+                        {"name": "Barack Obama", "party": "Progressive Unity", "bio": "Progressive Student Coalition."},
+                    ],
+                },
+                {
+                    "name": "General Secretary",
+                    "sort_order": 2,
+                    "candidates": [
+                        {"name": "Sarah Chen (Demo)", "party": "Campus Voice", "bio": "Campus Welfare & Activity Board."},
+                        {"name": "Vikram Malhotra (Demo)", "party": "Students United", "bio": "Students Democratic Union."},
+                    ],
+                },
+            ]
+            for p_info in demo_positions:
+                pos = ElectionPosition(
                     election_id=mock_election.id,
-                    name=c_info["name"],
-                    position=p_info["name"],
-                    party=c_info.get("party"),
-                    bio=c_info.get("bio"),
+                    name=p_info["name"],
+                    sort_order=p_info["sort_order"],
                 )
-                db.session.add(cand)
+                db.session.add(pos)
+                for c_info in p_info["candidates"]:
+                    cand = Candidate(
+                        election_id=mock_election.id,
+                        name=c_info["name"],
+                        position=p_info["name"],
+                        party=c_info.get("party"),
+                        bio=c_info.get("bio"),
+                    )
+                    db.session.add(cand)
 
     db.session.flush()
 
