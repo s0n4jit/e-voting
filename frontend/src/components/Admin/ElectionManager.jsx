@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ArrowDownTrayIcon, PlusIcon, RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlayIcon, PlusIcon, RectangleStackIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { saveBlob, safeFileName } from '../../api/deskApi';
 import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
@@ -36,10 +36,33 @@ export const ElectionManager = () => {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Mock Election state
+  const [mockStatus, setMockStatus] = useState(null);
+  const [mockModalOpen, setMockModalOpen] = useState(false);
+  const [availableKiosks, setAvailableKiosks] = useState([]);
+  const [mockConfig, setMockConfig] = useState({
+    booth_numbers: [1],
+    slip_count: 10,
+    candidate_mode: 'demo',
+  });
+
+  const loadMockStatus = useCallback(async () => {
+    try {
+      const res = await adminApi.getMockStatus();
+      setMockStatus(res);
+    } catch {
+      setMockStatus(null);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
-      const data = await adminApi.getElections();
+      const [data, mStatus] = await Promise.all([
+        adminApi.getElections(),
+        adminApi.getMockStatus().catch(() => null),
+      ]);
       setElections(Array.isArray(data) ? data : data.elections || []);
+      if (mStatus) setMockStatus(mStatus);
     } catch (err) {
       toast.error(errorMessage(err));
       setElections([]);
@@ -49,8 +72,12 @@ export const ElectionManager = () => {
   useEffect(() => {
     load();
   }, [load]);
-  // the list follows what happens elsewhere (status changes, votes) without a refresh
-  usePolling(() => adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {}), 2000);
+
+  // Polling keeps list and mock status updated
+  usePolling(() => {
+    adminApi.getElections().then((d) => setElections(Array.isArray(d) ? d : d.elections || [])).catch(() => {});
+    loadMockStatus();
+  }, 2000);
 
   const move = async (election, status) => {
     if (status === 'registration') {
@@ -66,7 +93,7 @@ export const ElectionManager = () => {
       }
     }
     if (status === 'voting_active') {
-      if (election.is_mock) {
+      if (mockStatus?.is_running || election.is_mock) {
         toast.error('Mock election is currently active. End the mock run before opening live voting.');
         setConfirm(null);
         return;
@@ -102,13 +129,41 @@ export const ElectionManager = () => {
     }
   };
 
-  const startMock = async (election) => {
+  const openMockModal = async () => {
     setBusy(true);
     try {
-      await adminApi.startMock(election.id);
-      toast.success('Mock election started');
+      const kiosksRes = await adminApi.getKiosks();
+      const list = Array.isArray(kiosksRes) ? kiosksRes : kiosksRes?.kiosks || [];
+      setAvailableKiosks(list);
+      const defaultBooths = list.length > 0 ? [list[0].number || 1] : [1];
+      setMockConfig({
+        booth_numbers: defaultBooths,
+        slip_count: 10,
+        candidate_mode: 'demo',
+      });
+      setMockModalOpen(true);
+    } catch (err) {
+      toast.error('Failed to load booth machines: ' + errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLaunchMock = async (e) => {
+    e.preventDefault();
+    if (!mockConfig.booth_numbers || mockConfig.booth_numbers.length === 0) {
+      toast.error('Select at least one booth machine for the mock run.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const targetElection = (elections || []).find((el) => el.status !== 'archived') || elections?.[0];
+      await adminApi.startMock(targetElection?.id, mockConfig);
+      toast.success(`Mock run started on Booth ${mockConfig.booth_numbers.join(', ')} with ${mockConfig.slip_count} slips.`);
+      setMockModalOpen(false);
       window.dispatchEvent(new CustomEvent('election-state-change'));
       await load();
+      await loadMockStatus();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -116,19 +171,31 @@ export const ElectionManager = () => {
     }
   };
 
-  const endMock = async (election) => {
+  const endMock = async (target) => {
     setBusy(true);
     try {
-      await adminApi.endMock(election.id);
-      toast.success('Mock election reset');
+      const id = target?.id || mockStatus?.mock?.id;
+      await adminApi.endMock(id);
+      toast.success('Mock run ended. Booths restored to official election.');
       window.dispatchEvent(new CustomEvent('election-state-change'));
       setMockEnding(null);
       setResetWord('');
       await load();
+      await loadMockStatus();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const downloadMockSlips = async () => {
+    try {
+      const blob = await adminApi.downloadAllSlipsPdf({ election_id: mockStatus?.mock?.id });
+      saveBlob(blob, `mock-voting-slips-election-${mockStatus?.mock?.id || 'run'}.pdf`);
+      toast.success('Mock voter slips downloaded');
+    } catch (err) {
+      toast.error('Failed to download mock slips: ' + errorMessage(err));
     }
   };
 
@@ -215,16 +282,73 @@ export const ElectionManager = () => {
         title="Elections"
         subtitle="One election runs at a time. Archive it to start the next."
         actions={
-          <button
-            className="btn-primary"
-            onClick={() => openEditor(null)}
-            disabled={busyElection}
-            title={busyElection ? 'Only one election can run at a time. Archive the current one first.' : undefined}
-          >
-            <PlusIcon className="w-4 h-4" /> New election
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {mockStatus?.is_running ? (
+              <button
+                type="button"
+                className="btn-danger flex items-center gap-1.5"
+                onClick={() => { setMockEnding(mockStatus.mock); setResetWord(''); }}
+                disabled={busy}
+              >
+                <StopIcon className="w-4 h-4" /> End mock election
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-secondary flex items-center gap-1.5"
+                onClick={openMockModal}
+                disabled={busy || !elections?.some((e) => e.status !== 'archived')}
+                title={!elections?.some((e) => e.status !== 'archived') ? 'Create an election first' : 'Run a mock dry run before official voting'}
+              >
+                <PlayIcon className="w-4 h-4" /> Start mock election
+              </button>
+            )}
+            <button
+              className="btn-primary flex items-center gap-1"
+              onClick={() => openEditor(null)}
+              disabled={busyElection}
+              title={busyElection ? 'Only one election can run at a time. Archive the current one first.' : undefined}
+            >
+              <PlusIcon className="w-4 h-4" /> New election
+            </button>
+          </div>
         }
       />
+
+      {mockStatus?.is_running && (
+        <div className="mb-5 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-slide-up shadow-sm">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-amber-500/25 text-amber-300 border border-amber-500/40">
+                Mock Run In Progress
+              </span>
+              <span className="font-semibold text-white">
+                Active on Booth {mockStatus.mock.booth_numbers?.join(', ') || '1'}
+              </span>
+            </div>
+            <p className="text-xs text-amber-200/90 leading-relaxed">
+              {mockStatus.mock.slips_total} mock slips generated ({mockStatus.mock.slips_used} used, {mockStatus.mock.slips_remaining} remaining).
+              <span className="text-white/90 font-medium ml-1">Real election slips, candidates, and setup remain completely separate and safe.</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              className="btn-secondary btn-sm flex items-center gap-1.5 text-white bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40"
+              onClick={downloadMockSlips}
+            >
+              <ArrowDownTrayIcon className="w-4 h-4" /> Download Mock Slips (PDF)
+            </button>
+            <button
+              type="button"
+              className="btn-danger btn-sm flex items-center gap-1.5"
+              onClick={() => { setMockEnding(mockStatus.mock); setResetWord(''); }}
+            >
+              <StopIcon className="w-4 h-4" /> End mock & reset
+            </button>
+          </div>
+        </div>
+      )}
 
       {!elections ? (
         <div className="card"><TableSkeleton rows={3} cols={3} /></div>
@@ -268,20 +392,20 @@ export const ElectionManager = () => {
                     )}
                     {e.is_mock ? (
                       <button
-                        className="btn-danger btn-sm"
+                        className="btn-danger btn-sm flex items-center gap-1"
                         disabled={busy}
                         onClick={() => { setMockEnding(e); setResetWord(''); }}
                       >
-                        End mock & reset
+                        <StopIcon className="w-3.5 h-3.5" /> End mock & reset
                       </button>
                     ) : (
                       e.status === 'ready' && (
                         <button
-                          className="btn-secondary btn-sm"
+                          className="btn-secondary btn-sm flex items-center gap-1"
                           disabled={busy}
-                          onClick={() => startMock(e)}
+                          onClick={openMockModal}
                         >
-                          Start mock election
+                          <PlayIcon className="w-3.5 h-3.5" /> Start mock election
                         </button>
                       )
                     )}
@@ -339,7 +463,10 @@ export const ElectionManager = () => {
         {mockEnding && (
           <div className="space-y-4">
             <p className="text-sm">
-              This deletes all mock ballots, PINs, voter slips, and log entries recorded since the mock started, and returns the election to Ready. This cannot be undone.
+              This will purge all mock ballots, mock tokens, and mock slips, restoring assigned booth machines back to the official election.
+            </p>
+            <p className="text-xs text-muted">
+              Official election voter slips and real candidate setup are 100% safe and will NOT be touched.
             </p>
             <input
               className="input"
@@ -360,6 +487,115 @@ export const ElectionManager = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal isOpen={mockModalOpen} onClose={() => setMockModalOpen(false)} title="Start Mock Election Run" maxWidth="max-w-lg">
+        <form onSubmit={handleLaunchMock} className="space-y-5">
+          <p className="text-sm text-muted">
+            Conduct a dry run 30 minutes before official voting starts. This generates isolated mock slips for testing booth hardware. Official election slips and candidates remain completely untouched.
+          </p>
+
+          <Field label="Target Booth Machine(s)" hint="Select which booth(s) will participate in the mock run. Usually 1 or 2 booths are tested.">
+            <div className="space-y-2 mt-1">
+              {availableKiosks.length === 0 ? (
+                <label className="flex items-center gap-2 p-2.5 rounded-lg border border-line bg-surface/50 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mockConfig.booth_numbers.includes(1)}
+                    onChange={(e) => {
+                      setMockConfig({
+                        ...mockConfig,
+                        booth_numbers: e.target.checked ? [1] : [],
+                      });
+                    }}
+                    className="rounded text-primary focus:ring-primary"
+                  />
+                  <span>Booth 1 (Default kiosk)</span>
+                </label>
+              ) : (
+                availableKiosks.map((k) => {
+                  const bNum = k.number || 1;
+                  const isChecked = mockConfig.booth_numbers.includes(bNum);
+                  return (
+                    <label key={k.id || bNum} className="flex items-center justify-between p-2.5 rounded-lg border border-line bg-surface/50 hover:bg-surface text-sm cursor-pointer transition">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const cur = new Set(mockConfig.booth_numbers);
+                            if (e.target.checked) cur.add(bNum);
+                            else cur.delete(bNum);
+                            setMockConfig({ ...mockConfig, booth_numbers: Array.from(cur) });
+                          }}
+                          className="rounded text-primary focus:ring-primary"
+                        />
+                        <span className="font-medium">Booth {bNum}</span>
+                        <span className="text-xs text-muted font-mono">({k.device_name || k.booth_id})</span>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded ${k.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-500/10 text-muted'}`}>
+                        {k.is_active ? 'Online' : 'Offline'}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </Field>
+
+          <Field label="Number of Mock Voter Slips" hint="Separate slips prefixed with MOCK- to test sequential voting at the booth.">
+            <input
+              type="number"
+              min="1"
+              max="100"
+              required
+              className="input"
+              value={mockConfig.slip_count}
+              onChange={(e) => setMockConfig({ ...mockConfig, slip_count: parseInt(e.target.value, 10) || 10 })}
+            />
+          </Field>
+
+          <Field label="Candidate Roster">
+            <div className="space-y-2 mt-1">
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-line bg-surface/50 hover:bg-surface cursor-pointer transition">
+                <input
+                  type="radio"
+                  name="candidate_mode"
+                  value="demo"
+                  checked={mockConfig.candidate_mode === 'demo'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'demo' })}
+                  className="mt-1 text-primary focus:ring-primary"
+                />
+                <div>
+                  <div className="text-sm font-medium">Demo Candidates</div>
+                  <div className="text-xs text-muted">Use pre-configured mock candidates (Narendra Modi, Donald Trump, Barack Obama, Sarah Chen, Vikram Malhotra).</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-line bg-surface/50 hover:bg-surface cursor-pointer transition">
+                <input
+                  type="radio"
+                  name="candidate_mode"
+                  value="real"
+                  checked={mockConfig.candidate_mode === 'real'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'real' })}
+                  className="mt-1 text-primary focus:ring-primary"
+                />
+                <div>
+                  <div className="text-sm font-medium">Real Election Candidates</div>
+                  <div className="text-xs text-muted">Copy official positions and candidate nominations from this election.</div>
+                </div>
+              </label>
+            </div>
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-line">
+            <button type="button" className="btn-ghost" onClick={() => setMockModalOpen(false)}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={busy || mockConfig.booth_numbers.length === 0}>
+              {busy ? 'Launching...' : 'Launch Mock Run'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       <Modal isOpen={Boolean(editor)} onClose={() => setEditor(null)} title={editing ? 'Edit election' : 'New election'} maxWidth="max-w-xl">

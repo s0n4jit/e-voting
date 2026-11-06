@@ -48,6 +48,7 @@ class BoothSlip(db.Model):
     pin_enc = db.Column(db.Text, nullable=True)  # Fernet encrypted for PDF export
     is_used = db.Column(db.Boolean, default=False, nullable=False, index=True)
     is_cancelled = db.Column(db.Boolean, default=False, nullable=False, server_default=db.false(), index=True)
+    is_mock = db.Column(db.Boolean, default=False, nullable=False, server_default=db.false(), index=True)
     authenticated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     used_at = db.Column(db.DateTime(timezone=True), nullable=True)
     cancelled_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -119,17 +120,21 @@ class BoothSlip(db.Model):
         return q.order_by(cls.sequence_number.asc()).first()
 
     @classmethod
-    def generate_batch(cls, election_id: int, booth_number: int = None, count: int = 50, booth_id: int = None):
+    def generate_batch(cls, election_id: int, booth_number: int = None, count: int = 50, booth_id: int = None, is_mock: bool = False):
         """
         Generates 'count' sequential slips for the given election.
-        IDs are formatted with the election slip prefix: e.g. SUE26-E1-1001.
+        IDs are formatted with the election slip prefix: e.g. SUE26-E1-1001 or MOCK-B01-1001.
         """
         if count <= 0:
             return []
 
         from app.models.election import Election
         election = db.session.get(Election, election_id)
-        prefix = election.ensure_slip_prefix() if election else f"SUE{datetime.now(timezone.utc).year % 100:02d}-E{election_id}-"
+        mock_run = is_mock or bool(election and election.is_mock)
+        if mock_run:
+            prefix = f"MOCK-B{booth_number:02d}-" if booth_number else "MOCK-"
+        else:
+            prefix = election.ensure_slip_prefix() if election else f"SUE{datetime.now(timezone.utc).year % 100:02d}-E{election_id}-"
 
         # Collect all existing voting IDs for this election to guarantee uniqueness
         existing_vids = {r[0] for r in db.session.query(cls.voting_id).filter_by(election_id=election_id).all() if r[0]}
@@ -194,6 +199,7 @@ class BoothSlip(db.Model):
                 pin_hash=pin_hash,
                 pin_enc=pin_enc,
                 is_used=False,
+                is_mock=mock_run,
             )
             slip.raw_pin = raw_pin  # In-memory only for immediate PDF rendering
             db.session.add(slip)
@@ -212,6 +218,7 @@ class BoothSlip(db.Model):
             "voting_id": self.voting_id,
             "is_used": self.is_used,
             "is_cancelled": bool(self.is_cancelled),
+            "is_mock": bool(self.is_mock),
             "authenticated_at": self.authenticated_at.isoformat() if self.authenticated_at else None,
             "used_at": self.used_at.isoformat() if self.used_at else None,
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,

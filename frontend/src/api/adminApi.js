@@ -103,8 +103,9 @@ export const adminApi = {
   // Officer dashboard, lifecycle, positions, programmes, settings
   getPrinting: async () => (await apiClient.get('/admin/settings/printing')).data,
   savePrinting: async (data) => (await apiClient.put('/admin/settings/printing', data)).data,
-  startMock: async (id) => (await apiClient.post(`/admin/elections/${id}/mock/start`)).data,
-  endMock: async (id) => (await apiClient.post(`/admin/elections/${id}/mock/end`, { confirm: 'RESET' })).data,
+  startMock: async (id, data) => (await apiClient.post(id ? `/admin/elections/${id}/mock/start` : '/admin/mock/start', data || {})).data,
+  endMock: async (id) => (await apiClient.post(id ? `/admin/elections/${id}/mock/end` : '/admin/mock/end', { confirm: 'RESET' })).data,
+  getMockStatus: async () => (await apiClient.get('/admin/mock/status')).data,
   getOverview: async () => (await apiClient.get('/admin/overview')).data,
   pauseVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/pause`)).data,
   resumeVoting: async (electionId) => (await apiClient.post(`/admin/elections/${electionId}/resume`)).data,

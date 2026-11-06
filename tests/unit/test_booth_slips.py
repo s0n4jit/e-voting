@@ -283,3 +283,74 @@ class TestBoothTokenAllotment:
             pfx = test_election.ensure_slip_prefix()
             assert [s.voting_id for s in unallotted] == [f"{pfx}{i}" for i in ["1006", "1007", "1008", "1009", "1010"]]
 
+
+class TestMockElectionIsolation:
+    def test_mock_election_does_not_destroy_real_slips(self, app, db_session, test_election):
+        with app.app_context():
+            # 1. Real election has 10 slips
+            real_slips = BoothSlip.generate_batch(election_id=test_election.id, booth_number=1, count=10)
+            assert len(real_slips) == 10
+            assert BoothSlip.query.filter_by(election_id=test_election.id).count() == 10
+
+            # 2. Setup Kiosks: Booth 1 and Booth 2
+            k1 = KioskDevice(device_name="BOOTH-01", booth_number=1, kiosk_token="tok1", election_id=test_election.id, is_active=True)
+            k2 = KioskDevice(device_name="BOOTH-02", booth_number=2, kiosk_token="tok2", election_id=test_election.id, is_active=True)
+            db_session.add_all([k1, k2])
+            db_session.commit()
+
+            # 3. Simulate calling separate mock election on Booth 1 with 5 mock slips
+            from app.routes.manage import start_mock, end_mock
+            from app.models.user import User
+            from flask_jwt_extended import create_access_token
+            admin = User(name="Admin Officer", student_id="admin_officer", email="admin@example.com", password_hash="dummy_hash", role="admin", is_admin=True, otp_enabled=True, is_active=True)
+            db_session.add(admin)
+            db_session.commit()
+            admin_tok = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+            headers = {"Authorization": f"Bearer {admin_tok}"}
+
+            with app.test_request_context(
+                "/api/admin/mock/start",
+                method="POST",
+                headers=headers,
+                json={"election_id": test_election.id, "booth_numbers": [1], "slip_count": 5, "candidate_mode": "demo"}
+            ):
+                res, code = start_mock()
+                assert code == 200
+                data = res.get_json()
+                mock_id = data["id"]
+                assert data["is_mock"] is True
+                assert data["parent_election_id"] == test_election.id
+
+            # Verify mock slips exist with MOCK- prefix and real slips remain
+            mock_slips = BoothSlip.query.filter_by(election_id=mock_id).all()
+            assert len(mock_slips) == 5
+            for s in mock_slips:
+                assert s.voting_id.startswith("MOCK-B01-")
+                assert s.is_mock is True
+
+            # Real slips still 10!
+            assert BoothSlip.query.filter_by(election_id=test_election.id).count() == 10
+            # Kiosk 1 points to mock, Kiosk 2 points to real
+            assert db_session.get(KioskDevice, k1.id).election_id == mock_id
+            assert db_session.get(KioskDevice, k2.id).election_id == test_election.id
+
+            # 4. End mock election
+            with app.test_request_context(
+                "/api/admin/mock/end",
+                method="POST",
+                headers=headers,
+                json={"confirm": "RESET"}
+            ):
+                res2, code2 = end_mock()
+                assert code2 == 200
+
+            # 5. Verify real slips are STILL 10 and mock slips are gone!
+            assert BoothSlip.query.filter_by(election_id=test_election.id).count() == 10
+            assert BoothSlip.query.filter_by(election_id=mock_id).count() == 0
+            # Kiosk 1 restored to real election
+            assert db_session.get(KioskDevice, k1.id).election_id == test_election.id
+            assert db_session.get(KioskDevice, k2.id).election_id == test_election.id
+            # Mock election record removed
+            assert db_session.get(Election, mock_id) is None
+
+

@@ -175,7 +175,7 @@ def get_current_slip():
         return jsonify({"error": "Unauthorized booth"}), 403
 
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and (not device.election_id or device.election_id == active_mock.id):
+    if active_mock and device.election_id == active_mock.id:
         election = active_mock
     else:
         election = device.election or Election.current()
@@ -230,7 +230,7 @@ def status():
         return jsonify({"valid": False}), 200
     commit_or_flush()  # keeps the "last seen" time
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and (not device.election_id or device.election_id == active_mock.id):
+    if active_mock and device.election_id == active_mock.id:
         election = active_mock
     else:
         election = device.election or Election.current()

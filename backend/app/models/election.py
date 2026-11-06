@@ -46,6 +46,7 @@ class Election(db.Model):
     # Mock election: a dry run of the real election; everything it records is wiped when the officer ends it.
     is_mock = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     mock_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    parent_election_id = db.Column(db.Integer, db.ForeignKey("elections.id", ondelete="SET NULL"), nullable=True)
     voting_paused = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     created_by = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = db.Column(
@@ -90,13 +91,16 @@ class Election(db.Model):
 
     @classmethod
     def current(cls):
-        """The election desks and kiosks work against: ongoing, else newest non-archived."""
-        active = cls.query.filter_by(is_active=True).all()
+        """The election desks and kiosks work against: ongoing, else newest non-archived (excluding mock runs)."""
+        active = cls.query.filter_by(is_active=True, is_mock=False).all()
         ongoing = [e for e in active if e.is_ongoing]
         if ongoing:
             return ongoing[0]
         if active:
             return active[0]
+        non_mock = cls.query.filter(cls.status != "archived", cls.is_mock == False).order_by(cls.created_at.desc()).first()
+        if non_mock:
+            return non_mock
         return cls.query.filter(cls.status != "archived").order_by(cls.created_at.desc()).first()
 
     def set_status(self, status: str) -> None:
@@ -172,6 +176,7 @@ class Election(db.Model):
             else self.STATUS_LABELS.get(self.effective_status, self.status),
             "voting_paused": bool(self.voting_paused),
             "is_mock": bool(self.is_mock),
+            "parent_election_id": self.parent_election_id,
             "positions": [p.name for p in self.positions] if self.positions else list(dict.fromkeys([c.position for c in self.candidates if c.position])),
             "is_ongoing": self.is_ongoing,
             "results_published": self.results_published,

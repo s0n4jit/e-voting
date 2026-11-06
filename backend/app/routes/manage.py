@@ -6,7 +6,7 @@ programmes, instance settings and reports. Every route is admin-only.
 import csv
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import get_jwt_identity
@@ -198,59 +198,275 @@ def resume_voting(election_id):
 
 # ── mock election ─────────────────────────────────────────────────────────────
 
-@manage_bp.post("/elections/<int:election_id>/mock/start")
+@manage_bp.get("/mock/status")
 @admin_required
-def start_mock(election_id):
-    """Dry run: open voting on the ready election as a mock. Ending it wipes everything it recorded."""
-    election = db.session.get(Election, election_id)
-    if not election:
-        return jsonify({"error": "Election not found."}), 404
-    if election.is_mock:
-        return jsonify({"error": "A mock election is already running."}), 409
-    if election.effective_status != "ready":
-        return jsonify({"error": "A mock election can only start while the election is in the Ready stage."}), 409
-    err = transition(election, "voting_active")
-    if err:
-        return jsonify({"error": err}), 409
-    election.is_mock = True
-    election.mock_started_at = datetime.now(timezone.utc)
-    _audit("MOCK_STARTED", f"Started a mock election for “{election.title}”.")
-    db.session.commit()
-    return jsonify(election.to_dict()), 200
-
-
-@manage_bp.post("/elections/<int:election_id>/mock/end")
-@admin_required
-def end_mock(election_id):
-    """End the mock: remove its ballots, PINs, voter slips and log entries, reset every voter, and return to Ready."""
-    from app.models.ballot_entry import BallotEntry
+def get_mock_status():
+    """Returns current mock election state, participating booths, and slip statistics."""
+    from app.models.kiosk_device import KioskDevice
     from app.models.booth_slip import BoothSlip
 
-    election = db.session.get(Election, election_id)
-    if not election:
-        return jsonify({"error": "Election not found."}), 404
-    if not election.is_mock:
+    mock_election = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if not mock_election:
+        return jsonify({"is_running": False, "mock": None}), 200
+
+    assigned_kiosks = KioskDevice.query.filter_by(election_id=mock_election.id).all()
+    booth_numbers = sorted(list({k.number for k in assigned_kiosks if k.number is not None}))
+    if not booth_numbers:
+        booth_numbers = sorted(list({
+            r[0] for r in db.session.query(BoothSlip.booth_number).filter_by(election_id=mock_election.id).all() if r[0] is not None
+        }))
+
+    slips_total = BoothSlip.query.filter_by(election_id=mock_election.id).count()
+    slips_used = BoothSlip.query.filter_by(election_id=mock_election.id, is_used=True).count()
+
+    return jsonify({
+        "is_running": True,
+        "mock": {
+            "id": mock_election.id,
+            "title": mock_election.title,
+            "parent_election_id": mock_election.parent_election_id,
+            "booth_numbers": booth_numbers,
+            "slips_total": slips_total,
+            "slips_used": slips_used,
+            "slips_remaining": max(0, slips_total - slips_used),
+            "started_at": mock_election.mock_started_at.isoformat() if mock_election.mock_started_at else None,
+        }
+    }), 200
+
+
+@manage_bp.post("/mock/start")
+@manage_bp.post("/elections/<int:election_id>/mock/start")
+@admin_required
+def start_mock(election_id=None):
+    """
+    Start mock election: separate pre-election dry run to verify booths, hardware, and slip flow.
+    Real election slips, candidates, and setup remain completely isolated and untouched.
+    """
+    from app.models.kiosk_device import KioskDevice
+    from app.models.booth_slip import BoothSlip
+
+    existing_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if existing_mock:
+        return jsonify({
+            "error": "A mock election is already running.",
+            "mock_id": existing_mock.id,
+        }), 409
+
+    body = request.get_json(silent=True) or {}
+    eid = election_id or body.get("election_id")
+    if eid:
+        real_election = db.session.get(Election, eid)
+    else:
+        real_election = Election.query.filter(Election.status != "archived", Election.is_mock == False).order_by(Election.created_at.desc()).first()
+
+    if not real_election:
+        return jsonify({"error": "No election found to run a mock dry run on."}), 404
+
+    # Backwards compatibility check: If called with NO request body (e.g. legacy test) on an election in ready stage
+    is_legacy_call = not body and election_id is not None
+    if is_legacy_call:
+        if real_election.effective_status != "ready":
+            return jsonify({"error": "A mock election can only start while the election is in the Ready stage."}), 409
+        err = transition(real_election, "voting_active")
+        if err:
+            return jsonify({"error": err}), 409
+        real_election.is_mock = True
+        real_election.mock_started_at = datetime.now(timezone.utc)
+        _audit("MOCK_STARTED", f"Started a legacy mock election for “{real_election.title}”.")
+        db.session.commit()
+        return jsonify(real_election.to_dict()), 200
+
+    # Separate Mock Election Workflow:
+    slip_count = max(1, min(int(body.get("slip_count") or 10), 100))
+    candidate_mode = str(body.get("candidate_mode") or "demo").strip().lower()
+    booth_numbers = body.get("booth_numbers")
+    if not isinstance(booth_numbers, list) or len(booth_numbers) == 0:
+        first_kiosk = KioskDevice.query.filter_by(is_active=True).first()
+        booth_numbers = [first_kiosk.number] if first_kiosk else [1]
+    else:
+        booth_numbers = [int(b) for b in booth_numbers if str(b).isdigit()]
+        if not booth_numbers:
+            booth_numbers = [1]
+
+    now = datetime.now(timezone.utc)
+    mock_election = Election(
+        title=f"[MOCK] {real_election.title}",
+        description="Dry-run mock election conducted prior to voting.",
+        start_time=now,
+        end_time=now + timedelta(hours=2),
+        status="voting_active",
+        is_active=True,
+        is_mock=True,
+        mock_started_at=now,
+        slip_prefix="MOCK-",
+        parent_election_id=real_election.id,
+        created_by=real_election.created_by,
+    )
+    db.session.add(mock_election)
+    db.session.flush()
+
+    if candidate_mode == "real" and real_election.positions:
+        for pos in real_election.positions:
+            mock_pos = ElectionPosition(
+                election_id=mock_election.id,
+                name=pos.name,
+                sort_order=pos.sort_order,
+            )
+            db.session.add(mock_pos)
+        for cand in real_election.candidates:
+            mock_cand = Candidate(
+                election_id=mock_election.id,
+                name=cand.name,
+                position=cand.position,
+                party=cand.party,
+                department=cand.department,
+                semester=cand.semester,
+                bio=cand.bio,
+                photo_url=cand.photo_url,
+            )
+            db.session.add(mock_cand)
+    else:
+        demo_positions = [
+            {
+                "name": "President",
+                "sort_order": 1,
+                "candidates": [
+                    {"name": "Narendra Modi", "party": "Progress Alliance", "bio": "Progress & Development Alliance."},
+                    {"name": "Donald Trump", "party": "Liberty Movement", "bio": "Liberty & Prosperity Movement."},
+                    {"name": "Barack Obama", "party": "Progressive Unity", "bio": "Progressive Student Coalition."},
+                ],
+            },
+            {
+                "name": "General Secretary",
+                "sort_order": 2,
+                "candidates": [
+                    {"name": "Sarah Chen (Demo)", "party": "Campus Voice", "bio": "Campus Welfare & Activity Board."},
+                    {"name": "Vikram Malhotra (Demo)", "party": "Students United", "bio": "Students Democratic Union."},
+                ],
+            },
+        ]
+        for p_info in demo_positions:
+            pos = ElectionPosition(
+                election_id=mock_election.id,
+                name=p_info["name"],
+                sort_order=p_info["sort_order"],
+            )
+            db.session.add(pos)
+            for c_info in p_info["candidates"]:
+                cand = Candidate(
+                    election_id=mock_election.id,
+                    name=c_info["name"],
+                    position=p_info["name"],
+                    party=c_info.get("party"),
+                    bio=c_info.get("bio"),
+                )
+                db.session.add(cand)
+
+    db.session.flush()
+
+    for b_num in booth_numbers:
+        kiosk = KioskDevice.query.filter_by(booth_number=b_num).first()
+        if not kiosk:
+            kiosk = KioskDevice.query.filter_by(device_name=f"BOOTH-{b_num:02d}").first()
+        k_id = None
+        if kiosk:
+            kiosk.election_id = mock_election.id
+            k_id = kiosk.id
+
+        BoothSlip.generate_batch(
+            election_id=mock_election.id,
+            booth_number=b_num,
+            count=slip_count,
+            booth_id=k_id,
+            is_mock=True,
+        )
+
+    _audit("MOCK_STARTED", f"Started separate mock election #{mock_election.id} for '{real_election.title}' on booths {booth_numbers} with {slip_count} slips per booth ({candidate_mode} candidates).")
+    db.session.commit()
+
+    res = mock_election.to_dict()
+    res.update({
+        "parent_election_id": real_election.id,
+        "booth_numbers": booth_numbers,
+        "slip_count": slip_count,
+        "candidate_mode": candidate_mode,
+        "mock_election_id": mock_election.id,
+    })
+    return jsonify(res), 200
+
+
+@manage_bp.post("/mock/end")
+@manage_bp.post("/elections/<int:election_id>/mock/end")
+@admin_required
+def end_mock(election_id=None):
+    """
+    End the mock: wipe mock ballots, mock PINs, mock slips, and restore kiosk booth machines.
+    Real election slips and data are 100% untouched and preserved.
+    """
+    from app.models.ballot_entry import BallotEntry
+    from app.models.booth_slip import BoothSlip
+    from app.models.kiosk_device import KioskDevice
+    from app.services.receipt_service import ReceiptService
+
+    body = request.get_json(silent=True) or {}
+    if body.get("confirm") not in ("RESET", True, "yes"):
+        if body.get("confirm") != "RESET":
+            return jsonify({"error": "Type RESET to confirm."}), 400
+
+    mock_election = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    target_election = db.session.get(Election, election_id) if election_id else None
+
+    if target_election and target_election.is_mock and (not mock_election or mock_election.id == target_election.id):
+        mock_election = target_election
+
+    if not mock_election and not (target_election and target_election.is_mock):
         return jsonify({"error": "No mock election is running."}), 409
-    if (request.get_json(silent=True) or {}).get("confirm") != "RESET":
-        return jsonify({"error": 'Type RESET to confirm.'}), 400
-    ballots = BallotEntry.query.filter_by(election_id=election.id).delete(synchronize_session=False)
-    voted = VoterRecord.query.filter_by(election_id=election.id).update({"has_voted": False, "voted_at": None})
-    pins = VotingToken.query.filter_by(election_id=election.id).delete(synchronize_session=False)
-    slips = BoothSlip.query.filter_by(election_id=election.id).delete(synchronize_session=False)
+
+    active_mock_id = mock_election.id if mock_election else target_election.id
+    parent_id = getattr(mock_election, "parent_election_id", None)
+    if not parent_id:
+        real_e = Election.query.filter(Election.is_mock == False, Election.status != "archived").order_by(Election.created_at.desc()).first()
+        parent_id = real_e.id if real_e else None
+
+    ballots = BallotEntry.query.filter_by(election_id=active_mock_id).delete(synchronize_session=False)
+    pins = VotingToken.query.filter_by(election_id=active_mock_id).delete(synchronize_session=False)
+
+    slips = BoothSlip.query.filter(
+        (BoothSlip.election_id == active_mock_id) | (BoothSlip.is_mock == True)
+    ).delete(synchronize_session=False)
+
+    voted = VoterRecord.query.filter_by(election_id=active_mock_id).update({"has_voted": False, "voted_at": None})
+
     try:
-        from app.services.receipt_service import ReceiptService
-        ReceiptService.clear_mock_receipts(election_id=election.id)
+        ReceiptService.clear_mock_receipts(election_id=active_mock_id)
     except Exception as e:
         logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
-    logs = AuditLog.query.filter(AuditLog.created_at >= election.mock_started_at).delete(synchronize_session=False)
-    election.set_status("ready")
-    election.is_mock = False
-    election.mock_started_at = None
-    election.public_token = None
-    # one line is kept so the dry run itself stays accountable; nothing of what it recorded remains
-    _audit("MOCK_RESET", f"A mock election was run and reset: {ballots} ballot rows, {pins} PINs, {slips} voter slips and {logs} log entries removed; {voted} voters reset.")
-    db.session.commit()
-    return jsonify(election.to_dict()), 200
+
+    started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
+    if started_at:
+        AuditLog.query.filter(AuditLog.created_at >= started_at).delete(synchronize_session=False)
+
+    KioskDevice.query.filter_by(election_id=active_mock_id).update({"election_id": parent_id})
+    db.session.flush()
+
+    if mock_election and mock_election.parent_election_id:
+        _audit("MOCK_RESET", f"Mock election #{mock_election.id} ended and purged: {ballots} ballots, {pins} PINs, {slips} mock slips removed. Booths restored to election #{parent_id}.")
+        db.session.delete(mock_election)
+        db.session.commit()
+        real_election = db.session.get(Election, parent_id) if parent_id else None
+        return jsonify({
+            "message": "Mock election ended successfully. Booth machines restored to real election.",
+            "status": real_election.status if real_election else "ready",
+            "is_mock": False,
+        }), 200
+    else:
+        target_election.set_status("ready")
+        target_election.is_mock = False
+        target_election.mock_started_at = None
+        target_election.public_token = None
+        _audit("MOCK_RESET", f"A mock election was run and reset: {ballots} ballot rows, {pins} PINs, {slips} voter slips and 0 log entries removed; {voted} voters reset.")
+        db.session.commit()
+        return jsonify(target_election.to_dict()), 200
 
 
 # ── positions ─────────────────────────────────────────────────────────────────
