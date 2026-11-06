@@ -42,7 +42,12 @@ def normalise(token) -> str:
 
 
 def booth_token_from_request():
-    return (request.headers.get("X-Kiosk-Token") or (request.get_json(silent=True) or {}).get("kiosk_token") or "").strip()
+    return (
+        request.headers.get("X-Kiosk-Token")
+        or request.form.get("kiosk_token")
+        or (request.get_json(silent=True) or {}).get("kiosk_token")
+        or ""
+    ).strip()
 
 
 def require_booth(claims=None, election_id=None):
@@ -240,15 +245,17 @@ def status():
     if not current_slip and election:
         current_slip = BoothSlip.get_current_slip(election.id, device.number, booth_id=device.id)
 
-    total_slips = BoothSlip.query.filter(
-        BoothSlip.election_id == election.id,
-        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number)
-    ).count() if election else 0
-    used_slips = BoothSlip.query.filter(
-        BoothSlip.election_id == election.id,
-        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
-        BoothSlip.is_used == True
-    ).count() if election else 0
+    if election:
+        counts = db.session.query(
+            db.func.count(BoothSlip.id),
+            db.func.count(db.case((BoothSlip.is_used == True, 1))),
+        ).filter(
+            BoothSlip.election_id == election.id,
+            (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
+        ).first()
+        total_slips, used_slips = (counts[0] or 0), (counts[1] or 0)
+    else:
+        total_slips, used_slips = 0, 0
     remaining = total_slips - used_slips
 
     return jsonify({

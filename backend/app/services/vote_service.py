@@ -740,7 +740,7 @@ class VoteService:
         audit_entry = AuditLog(
             user_id=None,
             action="VOTE_CAST_BOOTH",
-            details=f"Ballot cast by Voter with Voting ID {booth_slip.voting_id} ({len(validated_entries)} positions){_at_booth(booth)}.",
+            details=f"Ballot cast ({len(validated_entries)} positions){_at_booth(booth)}.",
             ip_address=ip_address,
             user_agent=user_agent,
             created_at=now,
