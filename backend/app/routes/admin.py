@@ -1493,6 +1493,13 @@ def generate_voter_slips():
     if not election:
         return jsonify({"error": "No active election found."}), 404
 
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and (not election_id or int(election_id) != active_mock.id):
+        return jsonify({
+            "error": "Mock election in progress",
+            "message": "Cannot generate official voter slips while a mock election is in progress. Official slips must be created before starting a mock run."
+        }), 409
+
     if count <= 0 or count > 2000:
         return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
 
@@ -1539,6 +1546,13 @@ def generate_booth_slips(booth_number):
     if not election:
         return jsonify({"error": "No active election found."}), 404
 
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and (not election_id or int(election_id) != active_mock.id):
+        return jsonify({
+            "error": "Mock election in progress",
+            "message": "Cannot generate official voter slips while a mock election is in progress. Official slips must be created before starting a mock run."
+        }), 409
+
     if count <= 0 or count > 2000:
         return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400
 
@@ -1579,6 +1593,13 @@ def generate_all_booth_slips():
     election = db.session.get(Election, int(election_id)) if election_id else Election.current()
     if not election:
         return jsonify({"error": "No active election found."}), 404
+
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and (not election_id or int(election_id) != active_mock.id):
+        return jsonify({
+            "error": "Mock election in progress",
+            "message": "Cannot generate official voter slips while a mock election is in progress. Official slips must be created before starting a mock run."
+        }), 409
 
     if count_per_booth <= 0 or count_per_booth > 2000:
         return jsonify({"error": "Invalid count", "message": "Slip count must be between 1 and 2,000."}), 400

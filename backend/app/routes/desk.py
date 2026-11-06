@@ -152,15 +152,23 @@ def list_programmes():
 @desk_bp.get("/state")
 @desk_required
 def desk_state():
-    """Polled by the desk screens: false once the officer has closed voting."""
+    """Polled by the desk screens and AppShell header: reflects both real election and mock status."""
     election = Election.current()
-    return jsonify({"open": bool(election.desk_open) if election else True,
-                    "paused": bool(election and election.voting_paused),
-                    "mock": bool(election and election.is_mock),
-                    "is_mock": bool(election and election.is_mock),
-                    "is_active": bool(election and election.is_active),
-                    "title": election.title if election else None,
-                    "status": election.effective_status if election else None}), 200
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    has_mock = bool(active_mock)
+    return jsonify({
+        "open": bool(election.desk_open) if election else True,
+        "paused": bool(election and election.voting_paused),
+        "mock": has_mock or bool(election and election.is_mock),
+        "is_mock": has_mock or bool(election and election.is_mock),
+        "is_active": bool(election and election.is_active),
+        "title": election.title if election else None,
+        "status": election.effective_status if election else None,
+        "mock_info": {
+            "id": active_mock.id,
+            "title": active_mock.title,
+        } if active_mock else None,
+    }), 200
 
 
 # ── registration ──────────────────────────────────────────────────────────────

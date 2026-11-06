@@ -53,6 +53,10 @@ def election_locked(election) -> bool:
 
 def transition(election, target):
     """Apply a lifecycle change. Returns an error message, or None on success."""
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and election.id != active_mock.id:
+        return "A mock election is currently active. The official election is locked in its current stage until the mock run is ended."
+
     cur = election.effective_status
     order = Election.STATUSES
     if target not in order:
@@ -65,7 +69,6 @@ def transition(election, target):
         return f"An election cannot move from {Election.STATUS_LABELS[cur]} to {Election.STATUS_LABELS[target]}."
 
     if target == "voting_active":
-        active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
         if active_mock or election.is_mock:
             return "A mock election is currently active. Please end the mock election and reset before opening live voting."
         names = [p.name for p in election.positions]
@@ -279,7 +282,7 @@ def start_mock(election_id=None):
 
     # Separate Mock Election Workflow:
     slip_count = max(1, min(int(body.get("slip_count") or 10), 100))
-    candidate_mode = str(body.get("candidate_mode") or "demo").strip().lower()
+    candidate_mode = str(body.get("candidate_mode") or "real").strip().lower()
     booth_numbers = body.get("booth_numbers")
     if not isinstance(booth_numbers, list) or len(booth_numbers) == 0:
         first_kiosk = KioskDevice.query.filter_by(is_active=True).first()
@@ -306,14 +309,26 @@ def start_mock(election_id=None):
     db.session.add(mock_election)
     db.session.flush()
 
-    if candidate_mode == "real" and real_election.positions:
-        for pos in real_election.positions:
-            mock_pos = ElectionPosition(
-                election_id=mock_election.id,
-                name=pos.name,
-                sort_order=pos.sort_order,
-            )
-            db.session.add(mock_pos)
+    use_real = (candidate_mode == "real" or (candidate_mode != "demo" and bool(real_election.candidates)))
+    if use_real and (real_election.positions or real_election.candidates):
+        from app.models.candidate_photo import CandidatePhoto
+        if real_election.positions:
+            for pos in real_election.positions:
+                mock_pos = ElectionPosition(
+                    election_id=mock_election.id,
+                    name=pos.name,
+                    sort_order=pos.sort_order,
+                )
+                db.session.add(mock_pos)
+        else:
+            derived = list(dict.fromkeys([c.position for c in real_election.candidates if c.position]))
+            for idx, p_name in enumerate(derived, 1):
+                db.session.add(ElectionPosition(
+                    election_id=mock_election.id,
+                    name=p_name,
+                    sort_order=idx,
+                ))
+
         for cand in real_election.candidates:
             mock_cand = Candidate(
                 election_id=mock_election.id,
@@ -326,6 +341,13 @@ def start_mock(election_id=None):
                 photo_url=cand.photo_url,
             )
             db.session.add(mock_cand)
+            db.session.flush()
+            if cand.photo and cand.photo.data:
+                db.session.add(CandidatePhoto(
+                    candidate_id=mock_cand.id,
+                    content_type=cand.photo.content_type,
+                    data=cand.photo.data,
+                ))
     else:
         demo_positions = [
             {
@@ -443,9 +465,11 @@ def end_mock(election_id=None):
     except Exception as e:
         logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
 
-    started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
-    if started_at:
-        AuditLog.query.filter(AuditLog.created_at >= started_at).delete(synchronize_session=False)
+    # Preserve all mock audit logs for accountability, unless it was a legacy in-place test run
+    if not (mock_election and mock_election.parent_election_id):
+        started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
+        if started_at:
+            AuditLog.query.filter(AuditLog.created_at >= started_at).delete(synchronize_session=False)
 
     KioskDevice.query.filter_by(election_id=active_mock_id).update({"election_id": parent_id})
     db.session.flush()

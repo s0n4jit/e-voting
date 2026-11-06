@@ -138,6 +138,18 @@ export const VoterSlipsManager = () => {
   usePolling(fetchMetrics, 2000);
   usePolling(() => fetchSlips(true), 2500);
 
+  // Prevent closing or refreshing tab while slips are generating
+  useEffect(() => {
+    if (!generating) return undefined;
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [generating]);
+
   const handleGenerate = async (e) => {
     e.preventDefault();
     if (!targetBooth || targetBooth === 'none' || targetBooth === 'all') {
@@ -172,6 +184,8 @@ export const VoterSlipsManager = () => {
         const percent = Math.min(100, Math.round((totalDone / totalNeeded) * 100));
         setGenerateProgress({ done: totalDone, total: totalNeeded, percent });
       }
+      setGenerateProgress({ done: totalDone, total: totalNeeded, percent: 100 });
+      await new Promise((r) => setTimeout(r, 600));
       toast.success(lastResult?.message || `Successfully generated all ${totalDone} voting slips for Booth ${bNum}.`);
       setGenerateModalOpen(false);
       setPage(1);
@@ -658,6 +672,7 @@ export const VoterSlipsManager = () => {
         <Modal
           isOpen={generateModalOpen}
           onClose={() => { if (!generating) setGenerateModalOpen(false); }}
+          showCloseButton={!generating}
           title={!targetBooth || targetBooth === 'none' || targetBooth === 'all' ? 'Generate Voter Slips' : `Generate Slips for Booth ${targetBooth}`}
         >
         {availableBooths.length === 0 ? (
@@ -754,7 +769,7 @@ export const VoterSlipsManager = () => {
                 />
               </div>
               <p className="text-[11px] text-muted">
-                Encrypting and securing 4-digit voting PINs in batches. Please keep this modal open until finished.
+                Encrypting and securing 4-digit voting PINs in batches. The modal is locked and cannot be closed until 100% completed.
               </p>
             </div>
           )}
@@ -767,14 +782,15 @@ export const VoterSlipsManager = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={generating}
-              onClick={() => setGenerateModalOpen(false)}
-            >
-              Cancel
-            </button>
+            {!generating && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setGenerateModalOpen(false)}
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="submit"
               disabled={generating}
