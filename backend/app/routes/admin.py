@@ -325,6 +325,9 @@ def update_candidate(candidate_id, election_id=None):
     candidate = db.session.get(Candidate, candidate_id)
     if not candidate or (election_id is not None and candidate.election_id != election_id):
         return jsonify({"error": "Candidate not found in this election."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and candidate.election_id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
     if election_locked(candidate.election):
         return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 
@@ -373,6 +376,9 @@ def delete_candidate(candidate_id, election_id=None):
     candidate = db.session.get(Candidate, candidate_id)
     if not candidate or (election_id is not None and candidate.election_id != election_id):
         return jsonify({"error": "Candidate not found in this election."}), 404
+    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if active_mock and candidate.election_id != active_mock.id:
+        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
     if election_locked(candidate.election):
         return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 

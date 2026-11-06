@@ -29,7 +29,20 @@ const STAGES = [
   ['archived', 'Archived'],
 ];
 
-const ACTION_LABEL = (a) => a.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+const ACTION_LABEL = (a) => {
+  const map = {
+    SLIP_CANCELLED: 'Voter slip cancelled / voided',
+    BOOTHSLIPS_GENERATED: 'Voter slips generated',
+    SLIPS_GENERATED: 'Voter slips generated',
+    BOOTH_PIN_LOGIN: 'Booth PIN login',
+    BOOTH_SETUP_FAILED: 'Wrong PIN / booth setup attempt',
+    PIN_BRUTE_FORCE: 'Wrong PIN entered at booth',
+    SECURITY_ALERT: 'Security alert',
+    VOTE_CAST_BOOTH: 'Ballot cast at booth',
+    VOTE_CAST: 'Ballot cast',
+  };
+  return map[a] || a.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+};
 
 export const AdminDashboard = () => {
   const [data, setData] = useState(null);
@@ -137,7 +150,17 @@ export const AdminDashboard = () => {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} label="Total voter slips" value={s?.registered_voters} icon={UsersIcon} />
+        <StatCard
+          loading={loading}
+          label="Total voter slips"
+          value={s?.total_slips ?? s?.registered_voters}
+          hint={
+            s?.cancelled_slips > 0 ? (
+              <span className="text-bad font-medium">{s.cancelled_slips} cancelled</span>
+            ) : undefined
+          }
+          icon={TicketIcon}
+        />
         <StatCard loading={loading} label="Votes cast" value={s?.votes_cast} icon={CheckCircleIcon} />
         <StatCard loading={loading} label="Unused slips remaining" value={s?.remaining_voters} icon={UserGroupIcon} />
         <StatCard loading={loading} label="Turnout" value={s && `${s.turnout_percent}%`} icon={ClipboardDocumentCheckIcon} />
@@ -162,7 +185,7 @@ export const AdminDashboard = () => {
             <div className="h-full bg-brand rounded-full transition-[width] duration-700 ease-out" style={{ width: `${s?.turnout_percent || 0}%` }} />
           </div>
           <p className="text-xs text-muted mt-2">
-            {s ? `${s.votes_cast} of ${s.registered_voters} voting slips cast` : ' '}
+            {s ? `${s.votes_cast} of ${s.registered_voters} valid voting slips cast${s.cancelled_slips > 0 ? ` (${s.cancelled_slips} cancelled)` : ''}` : ' '}
           </p>
         </div>
       </div>

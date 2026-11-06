@@ -2,8 +2,8 @@ import apiClient from './axiosConfig';
 
 export const adminApi = {
   // Elections
-  getElections: async () => {
-    const response = await apiClient.get('/admin/elections');
+  getElections: async (params) => {
+    const response = await apiClient.get('/admin/elections', { params });
     return response.data;
   },
 

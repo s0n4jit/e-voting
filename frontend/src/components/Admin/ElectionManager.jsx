@@ -420,21 +420,12 @@ export const ElectionManager = () => {
                         {e.voting_paused ? 'Resume voting' : 'Pause voting'}
                       </button>
                     )}
-                    {e.status === 'ready' && !mockStatus?.is_running && (
-                      <button
-                        className="btn-secondary btn-sm flex items-center gap-1"
-                        disabled={busy}
-                        onClick={openMockModal}
-                      >
-                        <PlayIcon className="w-3.5 h-3.5" /> Start mock election
-                      </button>
-                    )}
                     {next && (
                       <button
-                        className="btn-primary btn-sm"
+                        className={`btn-primary btn-sm ${mockStatus?.is_running ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={busy || mockStatus?.is_running}
                         onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}
-                        title={mockStatus?.is_running ? 'Mock election is currently active. End the mock run before moving official stages.' : undefined}
+                        title={mockStatus?.is_running ? 'Mock election is currently active. Official election cannot be moved or modified until mock run ends.' : undefined}
                       >
                         {next[1]}
                       </button>
@@ -593,14 +584,21 @@ export const ElectionManager = () => {
                 <input
                   type="radio"
                   name="candidate_mode"
-                  value="demo"
-                  checked={mockConfig.candidate_mode === 'demo'}
-                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'demo' })}
+                  value="real"
+                  checked={mockConfig.candidate_mode === 'real'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'real' })}
                   className="mt-1 text-primary focus:ring-primary"
                 />
                 <div>
-                  <div className="text-sm font-medium">Demo Candidates</div>
-                  <div className="text-xs text-muted">Use pre-configured mock candidates (Narendra Modi, Donald Trump, Barack Obama, Sarah Chen, Vikram Malhotra).</div>
+                  <div className="text-sm font-semibold flex items-center gap-2">
+                    Official Election Candidates
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                      Recommended
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted mt-0.5">
+                    Clone current election candidates, photos, positions, departments, and bios into the mock dry run.
+                  </div>
                 </div>
               </label>
 
@@ -608,14 +606,16 @@ export const ElectionManager = () => {
                 <input
                   type="radio"
                   name="candidate_mode"
-                  value="real"
-                  checked={mockConfig.candidate_mode === 'real'}
-                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'real' })}
+                  value="demo"
+                  checked={mockConfig.candidate_mode === 'demo'}
+                  onChange={() => setMockConfig({ ...mockConfig, candidate_mode: 'demo' })}
                   className="mt-1 text-primary focus:ring-primary"
                 />
                 <div>
-                  <div className="text-sm font-medium">Real Election Candidates</div>
-                  <div className="text-xs text-muted">Copy official positions and candidate nominations from this election.</div>
+                  <div className="text-sm font-medium">Demo Candidates (Politicians / Sample)</div>
+                  <div className="text-xs text-muted mt-0.5">
+                    Use pre-configured sample candidates (Narendra Modi, Donald Trump, Barack Obama, Sarah Chen, Vikram Malhotra).
+                  </div>
                 </div>
               </label>
             </div>

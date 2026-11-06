@@ -12,14 +12,19 @@ export function useSelectedElection() {
 
   useEffect(() => {
     adminApi
-      .getElections()
+      .getElections({ include_mock: 'true' })
       .then((d) => setElections(Array.isArray(d) ? d : d.elections || []))
       .catch(() => setElections([]));
   }, []);
 
   const wanted = params.get('election');
   const election =
-    (elections && (elections.find((e) => String(e.id) === wanted) || elections.find((e) => e.status !== 'archived') || elections[0])) || null;
+    (elections && (
+      (wanted ? elections.find((e) => String(e.id) === wanted) : null) ||
+      elections.find((e) => !e.is_mock && e.status !== 'archived') ||
+      elections.find((e) => e.status !== 'archived') ||
+      elections[0]
+    )) || null;
 
   return {
     elections,

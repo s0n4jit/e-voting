@@ -79,6 +79,18 @@ export const ResultsPage = () => {
 
   return (
     <div className="space-y-6">
+      {data.mock && (
+        <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40">
+              Mock Dry Run Results Preview
+            </span>
+            <span className="text-xs sm:text-sm font-semibold">
+              Live preview showing exact turnout, winner calculations, letterhead formatting, and vote counts for the pre-election dry run.
+            </span>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <ElectionPicker elections={elections} value={electionId} onChange={select} />

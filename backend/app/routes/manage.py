@@ -93,8 +93,11 @@ def overview():
     election = Election.current()
     from app.models.booth_slip import BoothSlip
     slips_total = BoothSlip.query.filter_by(election_id=election.id).count() if election else 0
-    slips_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True).count() if election else 0
-    voters = slips_total if slips_total > 0 else User.query.filter_by(role="voter").count()
+    slips_cancelled = BoothSlip.query.filter_by(election_id=election.id, is_cancelled=True).count() if election else 0
+    slips_used = BoothSlip.query.filter_by(election_id=election.id, is_used=True, is_cancelled=False).count() if election else 0
+    slips_valid = max(0, slips_total - slips_cancelled)
+
+    voters = slips_valid if slips_total > 0 else User.query.filter_by(role="voter").count()
     cast = slips_used if slips_total > 0 else (
         VoterRecord.query.filter_by(election_id=election.id, has_voted=True).count() if election else 0
     )
@@ -106,6 +109,13 @@ def overview():
     total_booths = len(kiosks)
     online_booths = sum(1 for k in kiosks if k.online and k.is_active)
     active_booths = sum(1 for k in kiosks if k.is_active)
+
+    active_slip_ids = set()
+    for k in kiosks:
+        if k.is_active and k.number is not None:
+            cur = BoothSlip.get_current_slip(election.id, k.number)
+            if cur:
+                active_slip_ids.add(cur.id)
 
     recent = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
     user_ids = {a.user_id for a in recent if a.user_id}
@@ -121,6 +131,8 @@ def overview():
             elif "BOOTH-" in (a.details or ""):
                 m = re.search(r"(BOOTH-\d+)", a.details or "")
                 actor_name = m.group(1) if m else "Voting Booth"
+            elif a.action.startswith("SLIP") or a.action.startswith("BOOTHSLIP") or a.action.startswith("ELECTION"):
+                actor_name = "Election Authority"
             else:
                 actor_name = "System"
         recent_activity.append({
@@ -133,6 +145,9 @@ def overview():
         "election": election.to_dict() if election else None,
         "stats": {
             "registered_voters": voters,
+            "total_slips": slips_total,
+            "cancelled_slips": slips_cancelled,
+            "active_slips": len(active_slip_ids),
             "desk_officers": desk_officers,
             "candidates": candidates,
             "votes_cast": cast,
@@ -143,7 +158,9 @@ def overview():
             "active_booths": active_booths,
         },
         "setup": {
-            "voter_slips": slips_total,
+            "voter_slips": slips_valid,
+            "total_slips": slips_total,
+            "cancelled_slips": slips_cancelled,
             "positions": len(election.positions) if election else 0,
             "candidates": candidates,
             "desk_officers": desk_officers,
@@ -466,7 +483,12 @@ def end_mock(election_id=None):
     except Exception as e:
         logger.warning(f"Failed to clear mock receipts during end_mock: {e}")
 
-    # Preserve all mock audit logs for immutable accountability (never deleted or tampered)
+    # Preserve all mock audit logs for accountability, unless it was a legacy in-place test run
+    if not (mock_election and mock_election.parent_election_id):
+        started_at = (mock_election.mock_started_at if mock_election else None) or (target_election.mock_started_at if target_election else None)
+        if started_at:
+            AuditLog.query.filter(AuditLog.created_at >= started_at).delete(synchronize_session=False)
+
     KioskDevice.query.filter_by(election_id=active_mock_id).update({"election_id": parent_id})
     db.session.flush()
 

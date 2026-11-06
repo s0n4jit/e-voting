@@ -46,6 +46,16 @@ export const VoterSlipsManager = () => {
   const [downloadBoothTarget, setDownloadBoothTarget] = useState('all');
   const [cancellingSlip, setCancellingSlip] = useState(null);
   const [cancellingBusy, setCancellingBusy] = useState(false);
+  const [mockStatus, setMockStatus] = useState(null);
+
+  const fetchMockStatus = useCallback(async () => {
+    try {
+      const data = await adminApi.getMockStatus();
+      setMockStatus(data);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const handleCancelSlip = async () => {
     if (!cancellingSlip) return;
@@ -131,11 +141,13 @@ export const VoterSlipsManager = () => {
   useEffect(() => {
     fetchKiosks();
     fetchMetrics();
+    fetchMockStatus();
     fetchSlips(false);
-  }, [fetchKiosks, fetchMetrics, fetchSlips]);
+  }, [fetchKiosks, fetchMetrics, fetchMockStatus, fetchSlips]);
 
   usePolling(fetchKiosks, 4000);
   usePolling(fetchMetrics, 2000);
+  usePolling(fetchMockStatus, 3000);
   usePolling(() => fetchSlips(true), 2500);
 
   // Prevent closing or refreshing tab while slips are generating
@@ -152,6 +164,11 @@ export const VoterSlipsManager = () => {
 
   const handleGenerate = async (e) => {
     e.preventDefault();
+    if (mockStatus?.is_running) {
+      toast.error('Mock election is currently active. Official voter slips cannot be generated during a mock run.');
+      setGenerateModalOpen(false);
+      return;
+    }
     if (!targetBooth || targetBooth === 'none' || targetBooth === 'all') {
       toast.error('Please select a specific Voting Booth.');
       return;
@@ -353,12 +370,18 @@ export const VoterSlipsManager = () => {
               <button
                 type="button"
                 onClick={() => {
+                  if (mockStatus?.is_running) {
+                    toast.error('Mock election is currently active. Official voter slips cannot be generated during a mock run.');
+                    return;
+                  }
                   const first = availableBooths[0]?.number || 1;
                   setTargetBooth(String(first));
                   setSlipCount(50);
                   setGenerateModalOpen(true);
                 }}
-                className="btn-primary flex items-center gap-2"
+                disabled={generating || mockStatus?.is_running}
+                title={mockStatus?.is_running ? 'Mock election in progress. Official voter slips cannot be generated during a mock run.' : undefined}
+                className={`btn-primary flex items-center gap-2 ${mockStatus?.is_running ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <PlusIcon className="w-4 h-4" />
                 <span>Generate Slips</span>
@@ -367,6 +390,19 @@ export const VoterSlipsManager = () => {
           </div>
         }
       />
+
+      {mockStatus?.is_running && (
+        <div className="mb-5 p-4 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40">
+              Mock Election Active
+            </span>
+            <span className="text-xs sm:text-sm font-semibold">
+              Official voter slips cannot be generated while a mock election is in progress. Official slips must be generated prior to mock testing.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -486,10 +522,15 @@ export const VoterSlipsManager = () => {
                     <div>
                       <button
                         onClick={() => {
+                          if (mockStatus?.is_running) {
+                            toast.error('Mock election is currently active. Official voter slips cannot be generated during a mock run.');
+                            return;
+                          }
                           setTargetBooth('none');
                           setGenerateModalOpen(true);
                         }}
-                        className="btn-primary inline-flex items-center gap-1.5"
+                        disabled={mockStatus?.is_running}
+                        className={`btn-primary inline-flex items-center gap-1.5 ${mockStatus?.is_running ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <PlusIcon className="w-4 h-4" />
                         <span>Generate Slips Now</span>

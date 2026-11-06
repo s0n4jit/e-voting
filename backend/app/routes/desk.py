@@ -162,8 +162,8 @@ def desk_state():
         "mock": has_mock or bool(election and election.is_mock),
         "is_mock": has_mock or bool(election and election.is_mock),
         "is_active": bool(election and election.is_active),
-        "title": election.title if election else None,
-        "status": election.effective_status if election else None,
+        "title": election.title if election else (active_mock.title if active_mock else None),
+        "status": election.effective_status if election else (active_mock.effective_status if active_mock else None),
         "mock_info": {
             "id": active_mock.id,
             "title": active_mock.title,

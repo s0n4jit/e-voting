@@ -83,7 +83,9 @@ export const ElectionPicker = ({ elections, value, onChange }) =>
   elections && elections.length > 1 ? (
     <select className="input w-auto max-w-xs" aria-label="Election" value={value || ''} onChange={(e) => onChange(e.target.value)}>
       {elections.map((e) => (
-        <option key={e.id} value={e.id}>{e.title} ({e.status_label})</option>
+        <option key={e.id} value={e.id}>
+          {e.is_mock ? `[MOCK] ${e.title}` : e.title} ({e.is_mock ? 'Mock Dry Run' : e.status_label})
+        </option>
       ))}
     </select>
   ) : null;

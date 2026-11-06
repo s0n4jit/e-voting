@@ -1250,3 +1250,65 @@ def test_individual_and_bulk_delete_and_selected_pins(client, installed, desk_to
     assert client.get(f"/api/desk/registrations/{s3['slip_id']}", headers=H(desk_token)).status_code == 404
     assert client.get(f"/api/desk/registrations/{s4['slip_id']}", headers=H(desk_token)).status_code == 404
 
+
+def test_separate_mock_election_workflow(client, installed, desk_token, booth):
+    from app.models.audit_log import AuditLog
+    from app.models.election import Election
+
+    eid = _open_election(client, installed)
+    cpost(client, f"/api/admin/elections/{eid}/candidates", headers=H(installed), json={"name": "Alice Real", "position": "President", "department": DEPT})
+
+    # Start separate mock election using real candidates
+    start_res = client.post("/api/admin/mock/start", headers=H(installed), json={
+        "election_id": eid,
+        "booth_numbers": [1],
+        "slip_count": 5,
+        "candidate_mode": "real",
+    })
+    assert start_res.status_code == 200
+    mock_data = start_res.get_json()
+    mock_id = mock_data["id"]
+    assert mock_data["is_mock"] is True
+
+    # Check desk state returns mock info and mock is true
+    st = client.get("/api/desk/state", headers=H(installed)).get_json()
+    assert st["is_mock"] is True
+    assert st["mock_info"]["id"] == mock_id
+
+    # Verify real election cannot transition stages while mock runs
+    trans_err = client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": "registration"})
+    assert trans_err.status_code == 409
+    assert "mock election is currently active" in trans_err.get_json()["error"].lower()
+
+    # Verify real election details cannot be updated while mock runs
+    update_err = client.put(f"/api/admin/elections/{eid}", headers=H(installed), json={"title": "New Title"})
+    assert update_err.status_code == 409
+
+    # Verify official slips cannot be generated while mock runs
+    slip_err = client.post("/api/admin/booths/1/generate-slips", headers=H(installed), json={"count": 5})
+    assert slip_err.status_code == 409
+
+    # Verify mock candidates were copied from real election
+    from app.extensions import db
+    mock_election = db.session.get(Election, mock_id)
+    assert any(c.name == "Alice Real" for c in mock_election.candidates)
+
+    # Verify mock results can be viewed
+    results_res = client.get(f"/api/admin/elections/{mock_id}/results", headers=H(installed))
+    assert results_res.status_code == 200
+    assert results_res.get_json()["mock"] is True
+
+    # End mock election
+    end_res = client.post("/api/admin/mock/end", headers=H(installed), json={"confirm": "RESET"})
+    assert end_res.status_code == 200
+
+    # Verify mock election was deleted from DB but real election remains
+    assert db.session.get(Election, mock_id) is None
+    real_e = db.session.get(Election, eid)
+    assert real_e is not None
+    assert real_e.status == "setup"
+
+    # Verify mock start and end audit logs are preserved
+    mock_logs = AuditLog.query.filter(AuditLog.action.in_(["MOCK_STARTED", "MOCK_RESET"])).all()
+    assert len(mock_logs) >= 2
+
