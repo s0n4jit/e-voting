@@ -574,7 +574,7 @@ export const VoterSlipsManager = () => {
                       )}
                     </td>
                     <td>
-                      {s.is_cancelled ? (
+                      {s.is_cancelled || s.status === 'cancelled' ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-recessed text-muted border border-line">
                           <span>Unallotted</span>
                         </span>
@@ -590,7 +590,7 @@ export const VoterSlipsManager = () => {
                       )}
                     </td>
                     <td>
-                      {s.is_cancelled ? (
+                      {s.is_cancelled || s.status === 'cancelled' ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-bad-soft text-bad border border-bad/20">
                           <XCircleIcon className="w-3.5 h-3.5" />
                           <span>Cancelled</span>
@@ -616,11 +616,11 @@ export const VoterSlipsManager = () => {
                       )}
                     </td>
                     <td className="text-muted text-xs font-mono">
-                      {!s.is_cancelled && s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
+                      {!s.is_cancelled && s.status !== 'cancelled' && s.used_at ? new Date(s.used_at).toLocaleTimeString() : '—'}
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {isAdmin && !s.is_used && !s.is_cancelled && (
+                        {isAdmin && !s.is_used && !s.is_cancelled && s.status !== 'cancelled' && (
                           <button
                             type="button"
                             onClick={() => setCancellingSlip(s)}

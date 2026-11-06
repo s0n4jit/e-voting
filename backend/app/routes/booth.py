@@ -149,8 +149,8 @@ def activate():
         device, raw = KioskDevice.activate(booth_id, request.remote_addr or "", election.id)
         device.booth_number = booth_num
 
-    # Ensure unlinked slips matching this booth number get associated
-    BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, booth_id=None).update(
+    # Ensure unlinked slips matching this booth number get associated (excluding cancelled slips)
+    BoothSlip.query.filter_by(election_id=election.id, booth_number=device.number, booth_id=None, is_cancelled=False).update(
         {"booth_id": device.id}, synchronize_session=False
     )
     db.session.add(AuditLog(
@@ -191,7 +191,7 @@ def get_current_slip():
         }), 200
 
     current_slip = (
-        BoothSlip.query.filter_by(election_id=election.id, booth_id=device.id, is_used=False)
+        BoothSlip.query.filter_by(election_id=election.id, booth_id=device.id, is_used=False, is_cancelled=False)
         .order_by(BoothSlip.sequence_number.asc())
         .first()
     )
@@ -200,12 +200,14 @@ def get_current_slip():
 
     total_slips = BoothSlip.query.filter(
         BoothSlip.election_id == election.id,
-        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number)
+        (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
+        BoothSlip.is_cancelled == False
     ).count()
     used_slips = BoothSlip.query.filter(
         BoothSlip.election_id == election.id,
         (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
-        BoothSlip.is_used == True
+        BoothSlip.is_used == True,
+        BoothSlip.is_cancelled == False
     ).count()
     remaining = total_slips - used_slips
 
@@ -248,9 +250,10 @@ def status():
     if election:
         counts = db.session.query(
             db.func.count(BoothSlip.id),
-            db.func.count(db.case((BoothSlip.is_used == True, 1))),
+            db.func.count(db.case(((BoothSlip.is_used == True) & (BoothSlip.is_cancelled == False), 1))),
         ).filter(
             BoothSlip.election_id == election.id,
+            BoothSlip.is_cancelled == False,
             (BoothSlip.booth_id == device.id) | (BoothSlip.booth_number == device.number),
         ).first()
         total_slips, used_slips = (counts[0] or 0), (counts[1] or 0)

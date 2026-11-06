@@ -60,11 +60,12 @@ def get_election_ballot(election_id):
     if slip_id:
         from app.models.booth_slip import BoothSlip
         slip = db.session.get(BoothSlip, slip_id)
-        if not slip or slip.is_used:
+        if not slip or slip.is_used or slip.is_cancelled:
             return jsonify({
-                "error": "Already Voted",
-                "message": "This voting slip has already been used to cast a ballot.",
-                "already_voted": True,
+                "error": "Slip Not Usable",
+                "message": "This voting slip has already been used to cast a ballot or has been cancelled.",
+                "already_voted": bool(slip and slip.is_used),
+                "is_cancelled": bool(slip and slip.is_cancelled),
             }), 403
         if booth and slip.booth_number != booth.number:
             return jsonify({

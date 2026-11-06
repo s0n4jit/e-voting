@@ -878,7 +878,7 @@ def booth_pin_login():
 
     # Resolve active sequential slip for this booth
     current_slip = (
-        BoothSlip.query.filter_by(election_id=election.id, booth_id=kiosk_device.id, is_used=False)
+        BoothSlip.query.filter_by(election_id=election.id, booth_id=kiosk_device.id, is_used=False, is_cancelled=False)
         .order_by(BoothSlip.sequence_number.asc())
         .first()
     )

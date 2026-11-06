@@ -7,10 +7,12 @@ const config = require('../lib/config');
 const receipt = require('../lib/receipt');
 
 test('portal address must end with /kiosk/vote and may carry a port', () => {
-  assert.ok(config.validate({ url: 'http://192.168.1.13:8080/kiosk/vote' }).value);
-  assert.ok(config.validate({ url: 'https://vote.example.edu/kiosk/vote' }).value);
-  assert.ok(config.validate({ url: 'javascript:alert(1)' }).error);
-  assert.ok(config.validate({ url: 'https://vote.example.edu/' }).error);
+  assert.ok(config.validate({ url: 'http://192.168.1.13:8080/kiosk/vote', exitCode: '1234' }).value);
+  assert.ok(config.validate({ url: 'https://vote.example.edu/kiosk/vote', exitCode: '9999' }).value);
+  assert.ok(config.validate({ url: 'javascript:alert(1)', exitCode: '1234' }).error);
+  assert.ok(config.validate({ url: 'https://vote.example.edu/', exitCode: '1234' }).error);
+  assert.ok(config.validate({ url: 'https://vote.example.edu/kiosk/vote' }).error);
+  assert.ok(config.validate({ url: 'https://vote.example.edu/kiosk/vote', exitCode: '12' }).error);
 });
 
 test('only the portal origin is allowed', () => {
@@ -49,7 +51,9 @@ test('config round trip, and a missing file falls back to defaults', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-'));
   const file = path.join(dir, 'config.json');
   assert.strictEqual(config.load(file).url, '');
-  config.save(file, { url: 'https://v.example.edu/kiosk/vote', printer: 'HP' });
+  config.save(file, { url: 'https://v.example.edu/kiosk/vote', printer: 'HP', exitCode: '1234' });
   assert.strictEqual(config.load(file).printer, 'HP');
-  assert.throws(() => config.save(file, { url: 'nope' }));
+  assert.strictEqual(config.load(file).exitCode, '1234');
+  assert.throws(() => config.save(file, { url: 'nope', exitCode: '1234' }));
+  assert.throws(() => config.save(file, { url: 'https://v.example.edu/kiosk/vote', exitCode: '12' }));
 });
