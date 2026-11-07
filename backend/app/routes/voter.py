@@ -24,7 +24,7 @@ voter_bp = Blueprint("voter", __name__)
 @voter_required
 def get_active_elections():
     """List elections that are currently ongoing and open for voting."""
-    elections = Election.query.filter_by(is_active=True).all()
+    elections = Election.query.filter(Election.status != "archived").all()
     ongoing = [e.to_dict(include_candidates=True) for e in elections if e.is_ongoing]
     return jsonify(ongoing), 200
 

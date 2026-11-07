@@ -53,6 +53,18 @@ def election_locked(election) -> bool:
 
 def transition(election, target):
     """Apply a lifecycle change. Returns an error message, or None on success."""
+    if election.is_mock:
+        if target == "voting_closed":
+            election.mock_status = "voting_closed"
+            now = datetime.now(timezone.utc)
+            VotingToken.query.filter_by(election_id=election.id, is_used=False).update({"expires_at": now})
+            return None
+        elif target == "results_published":
+            election.mock_status = "results_published"
+            return None
+        elif target not in ("voting_closed", "results_published"):
+            return "A mock election is currently active. Mock elections can only be stopped, published, or reset."
+
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
     if active_mock:
         if active_mock.id != election.id:

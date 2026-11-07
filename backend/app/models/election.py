@@ -92,17 +92,18 @@ class Election(db.Model):
 
     @classmethod
     def current(cls):
-        """The election desks and kiosks work against: ongoing, else newest non-archived (excluding mock runs)."""
-        active = cls.query.filter_by(is_active=True, is_mock=False).all()
-        ongoing = [e for e in active if e.is_ongoing]
+        """The election desks and kiosks work against: ongoing, else newest non-archived."""
+        all_non_archived = cls.query.filter(cls.status != "archived").order_by(cls.created_at.desc()).all()
+        ongoing = [e for e in all_non_archived if e.is_ongoing]
         if ongoing:
             return ongoing[0]
+        active = [e for e in all_non_archived if e.is_active]
         if active:
             return active[0]
-        non_mock = cls.query.filter(cls.status != "archived", cls.is_mock == False).order_by(cls.created_at.desc()).first()
+        non_mock = [e for e in all_non_archived if not e.is_mock]
         if non_mock:
-            return non_mock
-        return cls.query.filter(cls.status != "archived").order_by(cls.created_at.desc()).first()
+            return non_mock[0]
+        return all_non_archived[0] if all_non_archived else None
 
     def set_status(self, status: str) -> None:
         """Move to a lifecycle status, keeping the legacy is_active / results_published flags in sync."""

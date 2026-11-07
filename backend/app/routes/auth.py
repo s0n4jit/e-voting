@@ -518,7 +518,7 @@ def get_active_election():
     Public/Kiosk discovery endpoint for the current campus election.
     Accessible without JWT so unauthenticated kiosk booths can discover election details.
     """
-    active_elections = Election.query.filter_by(is_active=True).all()
+    active_elections = [e for e in Election.query.filter(Election.status != "archived").all() if e.is_ongoing or e.is_active]
     election = Election.current()
 
     if not election:
@@ -700,7 +700,7 @@ def voter_pin_login():
         except (ValueError, TypeError):
             return jsonify({"error": "election_id must be an integer."}), 400
     else:
-        active_elections = Election.query.filter_by(is_active=True).all()
+        active_elections = [e for e in Election.query.filter(Election.status != "archived").all() if e.is_ongoing or e.is_active]
         ongoing = [e for e in active_elections if e.is_ongoing]
         election = ongoing[0] if ongoing else (
             active_elections[0] if active_elections else None
@@ -870,11 +870,12 @@ def booth_pin_login():
     if not election:
         return jsonify({"error": "No election", "message": "No active election configured for this booth."}), 404
 
-    if not election.is_active:
-        return jsonify({"error": "Voting closed", "message": "Voting is not currently open for this election."}), 403
-
-    if election.voting_paused:
-        return jsonify({"error": "Voting paused", "message": "Voting is temporarily paused. Please wait for the election officer."}), 403
+    if not election.is_ongoing:
+        is_paused = bool(election.voting_paused or (election.is_mock and election.mock_status == "voting_paused"))
+        return jsonify({
+            "error": "Voting paused" if is_paused else "Voting closed",
+            "message": "Voting is temporarily paused. Please wait for the election officer." if is_paused else "Voting is not currently open for this election."
+        }), 403
 
     # Resolve active sequential slip for this booth
     current_slip = (
