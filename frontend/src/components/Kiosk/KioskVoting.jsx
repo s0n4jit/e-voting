@@ -363,6 +363,7 @@ export const KioskVoting = () => {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState('next');
   const [choices, setChoices] = useState({}); // position -> candidate | 'NOTA'  (memory only, never persisted)
+  const choicesRef = useRef({});
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [alreadyRecorded, setAlreadyRecorded] = useState(false);
@@ -374,6 +375,7 @@ export const KioskVoting = () => {
   const [printState, setPrintState] = useState('idle'); // idle | sending | printed | failed | browser | off
   const { branding } = useBrand();
   const [fromReview, setFromReview] = useState(false);
+  const fromReviewRef = useRef(false);
   const submitting = useRef(false);
   const submitBtnRef = useRef(null);
   const autoAdvanceTimer = useRef(null);
@@ -388,6 +390,11 @@ export const KioskVoting = () => {
       voterApi.endSession(token).catch(() => {});
     }
     ['access_token', 'refresh_token', 'user', 'voting_id', 'booth_id'].forEach((k) => localStorage.removeItem(k));
+    choicesRef.current = {};
+    fromReviewRef.current = false;
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
     setChoices({});
     setSubmitError('');
     if (reason) {
@@ -395,6 +402,14 @@ export const KioskVoting = () => {
     }
     navigate('/kiosk/vote', { replace: true });
   }, [navigate]);
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimer.current) {
+        clearTimeout(autoAdvanceTimer.current);
+      }
+    };
+  }, []);
 
   const finish = useCallback(() => {
     revokeSession();
@@ -621,9 +636,27 @@ export const KioskVoting = () => {
 
   const total = positions.length;
   const current = positions[step];
-  const answered = positions.filter((p) => choices[p.position]).length;
+  const answered = positions.filter((p) => choices[p.position] || choicesRef.current[p.position]).length;
 
   const go = (to, dir) => {
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
+    if (to >= total) {
+      // Transitioning to review: guarantee any skipped positions default to NOTA
+      let hasMissing = false;
+      const updated = { ...choicesRef.current };
+      positions.forEach((p) => {
+        if (!updated[p.position]) {
+          updated[p.position] = 'NOTA';
+          hasMissing = true;
+        }
+      });
+      if (hasMissing) {
+        choicesRef.current = updated;
+        setChoices(updated);
+      }
+    }
     setDirection(dir || (to > step ? 'next' : 'prev'));
     setStep(to);
     setStage(to >= total ? 'review' : 'ballot');
@@ -632,31 +665,56 @@ export const KioskVoting = () => {
   // Enter moves on once the position has an answer (on the review screen it opens the submit prompt)
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key !== 'Enter' || confirmOpen || maintenanceOpen || e.target.closest?.('button,[role="radio"]')) return;
-      if (stage === 'ballot' && choices[positions[step]?.position]) next();
+      if (e.key !== 'Enter' || confirmOpen || e.target.closest?.('button,[role="radio"]')) return;
+      if (stage === 'ballot') next();
       else if (stage === 'review' && answered === total) setConfirmOpen(true);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // after "Change" on the review screen, Next returns to the review instead of the following position
+  // after "Change" on the review screen, Next or selection returns to review
   const next = () => {
-    if (fromReview) {
-      setFromReview(false);
-      go(total, 'next');
-    } else go(step + 1, 'next');
-  };
-
-  const select = (value) => {
-    setChoices((c) => ({ ...c, [current.position]: value }));
     if (autoAdvanceTimer.current) {
       clearTimeout(autoAdvanceTimer.current);
     }
-    // Automatically advance to the next position after a brief visual confirmation delay
+    if (stage === 'ballot' && current) {
+      const pos = current.position;
+      // Auto-select NOTA ONLY IF no candidate or choice was selected for this position!
+      if (!choicesRef.current[pos]) {
+        choicesRef.current = { ...choicesRef.current, [pos]: 'NOTA' };
+        setChoices((c) => ({ ...c, [pos]: 'NOTA' }));
+      }
+    }
+    if (fromReviewRef.current) {
+      fromReviewRef.current = false;
+      setFromReview(false);
+      go(total, 'next');
+    } else {
+      go(step + 1, 'next');
+    }
+  };
+
+  const select = (value) => {
+    if (!current) return;
+    const pos = current.position;
+    choicesRef.current = { ...choicesRef.current, [pos]: value };
+    setChoices((c) => ({ ...c, [pos]: value }));
+
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
+
+    // Automatically advance to the next position (or return to review if came from review)
     autoAdvanceTimer.current = setTimeout(() => {
-      next();
-    }, 320);
+      if (fromReviewRef.current) {
+        fromReviewRef.current = false;
+        setFromReview(false);
+        go(total, 'next');
+      } else {
+        go(step + 1, 'next');
+      }
+    }, 300);
   };
 
   const submit = async () => {
@@ -666,7 +724,7 @@ export const KioskVoting = () => {
     setSubmitError('');
     setStage('submitting');
     const selections = positions.map((p) => {
-      const c = choices[p.position];
+      const c = choicesRef.current[p.position] || choices[p.position] || 'NOTA';
       return { position: p.position, candidate_id: c === 'NOTA' ? null : c.id, is_nota: c === 'NOTA' };
     });
     const minimum = new Promise((r) => setTimeout(r, 1400)); // let the animation be seen
@@ -709,7 +767,7 @@ export const KioskVoting = () => {
         logo: activeLogo,
         institution_name: activeInst,
         is_mock: Boolean(isMock || election?.is_mock),
-        lines: positions.map((p) => ({ position: p.position, choice: choices[p.position] === 'NOTA' ? 'NOTA' : choices[p.position].name })),
+        lines: positions.map((p) => ({ position: p.position, choice: (choices[p.position] === 'NOTA' || !choices[p.position]) ? 'None of the above (NOTA)' : choices[p.position].name })),
       });
       setChoices({});
       setStage('done');
@@ -814,7 +872,7 @@ export const KioskVoting = () => {
           <p className="font-semibold text-fg">How voting works</p>
           <ul className="space-y-2 text-muted">
             <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />There {total === 1 ? 'is' : 'are'} {total} {total === 1 ? 'position' : 'positions'} on your ballot.</li>
-            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Choose one candidate for each, or NOTA.</li>
+            <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Choose one candidate for each, or None of the above (NOTA).</li>
             <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />You will review everything before you submit.</li>
             <li className="flex gap-2"><CheckIcon className="w-4 h-4 mt-0.5 text-ok shrink-0" />Once submitted, your vote cannot be changed.</li>
           </ul>
@@ -924,13 +982,13 @@ export const KioskVoting = () => {
                             {p.position}
                           </p>
                           <p className="text-[15px] sm:text-base font-extrabold text-fg truncate">
-                            {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                            {isNota ? 'None of the above (NOTA)' : c ? c.name : 'Not selected'}
                           </p>
                         </div>
                         <button
                           type="button"
                           className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
-                          onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                          onClick={() => { fromReviewRef.current = true; setFromReview(true); go(i, 'prev'); }}
                         >
                           Change
                         </button>
@@ -962,13 +1020,13 @@ export const KioskVoting = () => {
                             {p.position}
                           </p>
                           <p className="text-[15px] sm:text-base font-extrabold text-fg truncate">
-                            {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                            {isNota ? 'None of the above (NOTA)' : c ? c.name : 'Not selected'}
                           </p>
                         </div>
                         <button
                           type="button"
                           className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
-                          onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                          onClick={() => { fromReviewRef.current = true; setFromReview(true); go(i, 'prev'); }}
                         >
                           Change
                         </button>
@@ -1000,13 +1058,13 @@ export const KioskVoting = () => {
                           {p.position}
                         </p>
                         <p className="text-lg font-black text-fg truncate">
-                          {isNota ? 'NOTA (I do not choose anyone)' : c ? c.name : 'Not selected'}
+                          {isNota ? 'None of the above (NOTA)' : c ? c.name : 'Not selected'}
                         </p>
                       </div>
                       <button
                         type="button"
                         className="btn-ghost btn-sm text-brand hover:text-brand-hover hover:bg-brand-soft/50 font-bold px-3.5 py-1.5 text-xs rounded-lg shrink-0 border border-line/60"
-                        onClick={() => { setFromReview(true); go(i, 'prev'); }}
+                        onClick={() => { fromReviewRef.current = true; setFromReview(true); go(i, 'prev'); }}
                       >
                         Change
                       </button>
@@ -1134,15 +1192,29 @@ export const KioskVoting = () => {
                   {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
                 <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-lg sm:text-xl font-black leading-tight text-fg">NOTA</p>
+                  <p className="text-base sm:text-lg font-black leading-tight text-fg">None of the above (NOTA)</p>
                   <p className="text-xs sm:text-sm text-muted font-medium mt-1">I do not choose anyone</p>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between mt-4 sm:mt-5 max-w-6xl mx-auto w-full">
-              <button className="btn-secondary py-2 px-5" onClick={() => go(step - 1, 'prev')} disabled={step === 0}><ArrowLeftIcon className="w-4 h-4" /> Back</button>
-              <button className="btn-primary btn-lg py-2.5 px-7 text-sm font-semibold" onClick={() => next()} disabled={!choices[current.position]}>
+              <button
+                className="btn-secondary py-2 px-5"
+                onClick={() => {
+                  if (fromReviewRef.current || fromReview) {
+                    fromReviewRef.current = false;
+                    setFromReview(false);
+                    go(total, 'prev');
+                  } else {
+                    go(step - 1, 'prev');
+                  }
+                }}
+                disabled={!fromReview && step === 0}
+              >
+                <ArrowLeftIcon className="w-4 h-4" /> {fromReview ? 'Back to Review' : 'Back'}
+              </button>
+              <button className="btn-primary btn-lg py-2.5 px-7 text-sm font-semibold" onClick={() => next()}>
                 {fromReview || step === total - 1 ? 'Review' : 'Next'} <ArrowRightIcon className="w-5 h-5" />
               </button>
             </div>
