@@ -1,0 +1,4 @@
+# Keep directory in git
+*.crt
+*.key
+*.sha256
