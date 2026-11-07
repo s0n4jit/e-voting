@@ -165,7 +165,7 @@ def update_election(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and election.id != active_mock.id:
+    if active_mock:
         return jsonify({"error": "A mock election is currently active. Official election details cannot be changed until the mock run ends."}), 409
 
     payload = request.get_json(silent=True) or {}
@@ -204,7 +204,7 @@ def delete_election(election_id):
     if not election:
         return jsonify({"error": "Election not found."}), 404
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and election.id != active_mock.id:
+    if active_mock:
         return jsonify({"error": "A mock election is currently active. Official election cannot be deleted until the mock run ends."}), 409
     if election.effective_status == "voting_active":
         return jsonify({

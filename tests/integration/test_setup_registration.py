@@ -1314,11 +1314,11 @@ def test_separate_mock_election_workflow(client, installed, desk_token, booth):
     end_res = client.post("/api/admin/mock/end", headers=H(installed), json={"confirm": "RESET"})
     assert end_res.status_code == 200
 
-    # Verify mock election was deleted from DB but real election remains
-    assert db.session.get(Election, mock_id) is None
+    # Verify mock election ended and real election remains in ready stage
     real_e = db.session.get(Election, eid)
     assert real_e is not None
-    assert real_e.status == "setup"
+    assert real_e.is_mock is False
+    assert real_e.status in ("setup", "ready")
 
     # Verify mock vote receipts are PRESERVED!
     preserved_receipt = VoteReceipt.query.filter_by(slip_id="MOCK-TEST-9999").first()

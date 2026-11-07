@@ -307,41 +307,31 @@ class TestMockElectionIsolation:
                 res, code = start_mock()
                 assert code == 200
                 data = res.get_json()
-                mock_id = data["id"]
                 assert data["is_mock"] is True
-                assert data["parent_election_id"] == test_election.id
+                assert data["id"] == test_election.id
 
-            # Verify mock slips exist with MOCK- prefix and real slips remain
-            mock_slips = BoothSlip.query.filter_by(election_id=mock_id).all()
-            assert len(mock_slips) == 5
-            for s in mock_slips:
-                assert s.voting_id.startswith("MOCK-B01-")
-                assert s.is_mock is True
+            # Mark a real slip as used during the mock dry run
+            real_slips[0].is_used = True
+            db_session.commit()
+            assert real_slips[0].is_used is True
 
-            # Real slips still 10!
-            assert BoothSlip.query.filter_by(election_id=test_election.id).count() == 10
-            # Kiosk 1 points to mock, Kiosk 2 points to real
-            assert db_session.get(KioskDevice, k1.id).election_id == mock_id
-            assert db_session.get(KioskDevice, k2.id).election_id == test_election.id
-
-            # 4. End mock election
+            # 4. End and reset mock election
             with app.test_request_context(
                 "/api/admin/mock/end",
                 method="POST",
                 headers=headers,
                 json={"confirm": "RESET"}
             ):
-                res2, code2 = end_mock()
+                res2, code2 = end_mock(test_election.id)
                 assert code2 == 200
 
-            # 5. Verify real slips are STILL 10 and mock slips are gone!
+            # 5. Verify all slips are restored to unused state and still 10!
             assert BoothSlip.query.filter_by(election_id=test_election.id).count() == 10
-            assert BoothSlip.query.filter_by(election_id=mock_id).count() == 0
-            # Kiosk 1 restored to real election
-            assert db_session.get(KioskDevice, k1.id).election_id == test_election.id
-            assert db_session.get(KioskDevice, k2.id).election_id == test_election.id
-            # Mock election record removed
-            assert db_session.get(Election, mock_id) is None
+            s0 = db_session.get(BoothSlip, real_slips[0].id)
+            assert s0.is_used is False
+            e_updated = db_session.get(Election, test_election.id)
+            assert e_updated.is_mock is False
+            assert e_updated.status == "ready"
 
 
 class TestCancelledSlipIntegrity:

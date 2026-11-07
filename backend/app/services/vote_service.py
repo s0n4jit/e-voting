@@ -712,6 +712,7 @@ class VoteService:
                 "voting_id": booth_slip.voting_id,
                 "next_voting_id": next_voting_id,
                 "positions_count": len(validated_entries),
+                "is_mock": bool(election.is_mock),
                 "cast_at": now.isoformat(),
             }
         )
