@@ -77,11 +77,8 @@ def read_photo(upload):
 @admin_bp.get("/elections")
 @admin_required
 def list_elections():
-    """List all elections. Mock elections are filtered out by default to avoid duplicate cards."""
-    include_mock = request.args.get("include_mock", "false").lower() in ("true", "1")
-    q = Election.query
-    if not include_mock:
-        q = q.filter_by(is_mock=False)
+    """List all elections. Cloned mock runs are filtered to avoid duplicates; in-place elections are always included."""
+    q = Election.query.filter(Election.parent_election_id.is_(None))
     elections = q.order_by(Election.created_at.desc()).all()
     return jsonify([e.to_dict(include_candidates=True) for e in elections]), 200
 

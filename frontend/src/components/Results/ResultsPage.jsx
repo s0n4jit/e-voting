@@ -77,7 +77,7 @@ export const ResultsPage = () => {
   const activeMock = (elections || []).find((e) => e.is_mock && e.status !== 'archived');
 
   const state = data.mock
-    ? 'Mock Dry Run'
+    ? (data.locked ? 'Mock Voting' : 'Mock Results')
     : data.published
     ? 'Published'
     : data.status_label || (data.status ? data.status.replace('_', ' ').toUpperCase() : (data.locked ? 'Locked' : 'Ready'));
@@ -88,10 +88,12 @@ export const ResultsPage = () => {
         <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40">
-              Mock Dry Run Results Preview
+              {data.locked ? 'Mock Election Dry Run' : 'Mock Election Results'}
             </span>
             <span className="text-xs sm:text-sm font-semibold">
-              Live preview showing exact turnout, winner calculations, letterhead formatting, and vote counts for the pre-election dry run.
+              {data.locked
+                ? 'Mock dry run is live. Test vote counts remain sealed during voting and will be revealed when results are published.'
+                : 'Dry run complete. Below is the test turnout, winner calculations, and test vote counts.'}
             </span>
           </div>
         </div>
@@ -137,16 +139,20 @@ export const ResultsPage = () => {
               {['setup', 'registration', 'ready'].includes(data.status)
                 ? 'Voting Has Not Started'
                 : data.voting_over
-                ? 'Voting Closed'
-                : 'Official Voting Active'}
+                ? (data.mock ? 'Mock Voting Closed' : 'Voting Closed')
+                : (data.mock ? 'Mock Voting Active' : 'Official Voting Active')}
             </h2>
           </div>
           <p className="text-sm text-muted">
             {['setup', 'registration', 'ready'].includes(data.status)
               ? `This election is currently in the ${data.status_label || 'Setup'} stage. Voting has not opened yet. Results, candidate vote counts, and winner determinations will become available once voting is conducted and closed.`
               : data.voting_over
-              ? 'Voting has closed. Turnout has been finalized. Publish the results on the Elections page to reveal winner declarations, present on the projector, and print the result sheet.'
-              : 'Official voting is currently live at the booth terminals. Candidate vote counts and winner tallies remain securely sealed until voting is closed and results are published.'}
+              ? (data.mock
+                  ? 'Mock voting has closed. Publish mock results on the Elections page to reveal winner declarations, present on the projector, and print the test result sheet.'
+                  : 'Voting has closed. Turnout has been finalized. Publish the results on the Elections page to reveal winner declarations, present on the projector, and print the result sheet.')
+              : (data.mock
+                  ? 'Mock voting is currently live at the booth terminals. Candidate vote counts and winner tallies remain securely sealed until mock voting is closed and results are published.'
+                  : 'Official voting is currently live at the booth terminals. Candidate vote counts and winner tallies remain securely sealed until voting is closed and results are published.')}
           </p>
           <p className="text-sm font-medium">
             <strong>{data.turnout.ballots_cast}</strong> of {data.turnout.total_registered} voter slips cast

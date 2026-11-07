@@ -238,7 +238,7 @@ export const ElectionManager = () => {
     }
   };
 
-  const busyElection = (elections || []).some((e) => !e.is_mock && e.status !== 'archived');
+  const busyElection = (elections || []).some((e) => e.status !== 'archived');
   const editing = editor?.election;
   const lockedEditing = editing && ORDER.indexOf(editing.status) >= ORDER.indexOf('ready');
   const displayElections = elections || [];
