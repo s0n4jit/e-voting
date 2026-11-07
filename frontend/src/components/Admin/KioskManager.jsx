@@ -381,35 +381,6 @@ export const KioskManager = () => {
               <p className="text-[11px] text-muted pt-1">Valid for 15 minutes</p>
             </div>
 
-            {/* Officer Authenticator Code (TOTP) if available */}
-            {(issued.totp_code || issued.current_totp) && (
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-700 dark:text-amber-300">
-                    Officer Authenticator Code (TOTP)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-base text-amber-600 dark:text-amber-400 tracking-widest select-all">
-                      {issued.totp_code || issued.current_totp}
-                    </span>
-                    <button
-                      type="button"
-                      className="p-1 rounded text-amber-700 hover:bg-amber-500/20 transition-colors"
-                      title="Copy Authenticator Code"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(issued.totp_code || issued.current_totp);
-                        toast.success('Authenticator code copied');
-                      }}
-                    >
-                      <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted">
-                  Current code from your authenticator app (valid for 30s) or read from your phone app.
-                </p>
-              </div>
-            )}
 
             {/* Instructions */}
             <div className="p-3.5 rounded-xl bg-surface border border-line text-left text-xs space-y-1.5 text-muted leading-relaxed">
