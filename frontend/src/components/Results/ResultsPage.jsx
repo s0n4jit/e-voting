@@ -34,7 +34,6 @@ export const ResultsPage = () => {
     load();
   }, [load]);
   usePolling(load, 2000);
-  useEffect(() => { if (data?.mock) setShowAll(true); }, [data?.mock]); // a mock election shows its live results
 
   if (elections && elections.length === 0) {
     return <div className="card"><EmptyState title="No elections yet">Results appear here once an election has run.</EmptyState></div>;

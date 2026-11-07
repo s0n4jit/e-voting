@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { usePolling } from '../../hooks/usePolling';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ArrowDownTrayIcon, ArrowPathIcon, PlayIcon, PlusIcon, PresentationChartBarIcon, RectangleStackIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, ArrowPathIcon, CheckCircleIcon, PauseIcon, PlayIcon, PlusIcon, PresentationChartBarIcon, RectangleStackIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { saveBlob, safeFileName } from '../../api/deskApi';
 import { EmptyState, Field, PageHeader, TableSkeleton, errorMessage, formatSchedule } from '../ui';
@@ -241,7 +241,7 @@ export const ElectionManager = () => {
   const busyElection = (elections || []).some((e) => !e.is_mock && e.status !== 'archived');
   const editing = editor?.election;
   const lockedEditing = editing && ORDER.indexOf(editing.status) >= ORDER.indexOf('ready');
-  const displayElections = (elections || []).filter((e) => !e.is_mock);
+  const displayElections = elections || [];
 
   return (
     <div>
@@ -257,7 +257,7 @@ export const ElectionManager = () => {
                 onClick={() => setMockEnding(mockStatus.mock || true)}
                 disabled={busy}
               >
-                <ArrowPathIcon className="w-4 h-4" /> Reset mock election
+                <ArrowPathIcon className="w-4 h-4" /> Reset mock & slips
               </button>
             ) : (
               <button
@@ -287,31 +287,63 @@ export const ElectionManager = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40">
-                Mock Election Running
+                Mock Election {mockStatus?.mock?.voting_paused ? 'Paused' : mockStatus?.mock?.status === 'voting_closed' ? 'Closed' : mockStatus?.mock?.status === 'results_published' ? 'Results Published' : 'Running'}
               </span>
               <span className="font-bold text-amber-950 dark:text-white">
-                Live on Booth Terminals
+                {mockStatus?.mock?.status === 'voting_closed' ? 'Voting Finished' : mockStatus?.mock?.status === 'results_published' ? 'Results Unlocked' : 'Live on Booth Terminals'}
               </span>
             </div>
             <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-medium">
-              Voters can test voting with your already-printed slips and official candidates. Receipts will be stamped <strong>MOCK ELECTION</strong>.
+              Voters can test voting with your already-printed slips and official candidates. Receipts are stamped <strong>MOCK ELECTION</strong>. Results remain locked until published.
               <span className="text-amber-950 dark:text-white font-bold ml-1">When you click Reset, vote count returns to 0 and all slips are restored for the official election.</span>
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {mockStatus?.mock?.status === 'voting_active' && (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 font-semibold shadow-sm dark:text-white dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:border-amber-500/40"
+                  onClick={() => pauseResume(mockStatus.mock)}
+                  disabled={busy}
+                >
+                  {mockStatus.mock.voting_paused ? <PlayIcon className="w-4 h-4" /> : <PauseIcon className="w-4 h-4" />}
+                  {mockStatus.mock.voting_paused ? 'Resume Mock Voting' : 'Pause Mock Voting'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 font-semibold shadow-sm dark:text-white dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:border-amber-500/40"
+                  onClick={() => advance(mockStatus.mock, 'voting_closed')}
+                  disabled={busy}
+                >
+                  <StopIcon className="w-4 h-4" /> Stop Mock Voting
+                </button>
+              </>
+            )}
+            {mockStatus?.mock?.status === 'voting_closed' && (
+              <button
+                type="button"
+                className="btn-primary btn-sm flex items-center gap-1.5"
+                onClick={() => advance(mockStatus.mock, 'results_published')}
+                disabled={busy}
+              >
+                <CheckCircleIcon className="w-4 h-4" /> Publish Mock Results
+              </button>
+            )}
             <Link
               to="/admin/results"
               className="btn-secondary btn-sm flex items-center gap-1.5 text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 font-semibold shadow-sm dark:text-white dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:border-amber-500/40"
-              title="Preview live tally and charts for this mock run"
+              title="Preview results"
             >
-              <PresentationChartBarIcon className="w-4 h-4 text-amber-700 dark:text-amber-300" /> View Mock Results
+              <PresentationChartBarIcon className="w-4 h-4 text-amber-700 dark:text-amber-300" /> View Results
             </Link>
             <button
               type="button"
               className="btn-danger btn-sm flex items-center gap-1.5"
               onClick={() => setMockEnding(mockStatus.mock || true)}
+              disabled={busy}
             >
-              <ArrowPathIcon className="w-4 h-4" /> Reset mock & slips
+              <ArrowPathIcon className="w-4 h-4" /> Reset Mock & Slips
             </button>
           </div>
         </div>
@@ -337,7 +369,11 @@ export const ElectionManager = () => {
                     <div className="flex items-center gap-3 flex-wrap">
                       <h2 className="font-semibold text-lg">{e.title}</h2>
                       <StatusBadge label={e.status_label} />
-                      {mockStatus?.is_running && (
+                      {e.is_mock ? (
+                        <span className="text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
+                          Mock Mode Active
+                        </span>
+                      ) : mockStatus?.is_running && (
                         <span className="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
                           Locked during mock run
                         </span>
@@ -354,30 +390,71 @@ export const ElectionManager = () => {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
-                    {idx > 0 && idx <= 2 && (
-                      <button
-                        className="btn-ghost btn-sm"
-                        onClick={() => move(e, ORDER[idx - 1])}
-                        disabled={busy || mockStatus?.is_running}
-                        title={mockStatus?.is_running ? 'Official election is locked during mock run' : undefined}
-                      >
-                        Back a stage
-                      </button>
-                    )}
-                    {e.status === 'voting_active' && (
-                      <button className="btn-secondary btn-sm" disabled={busy} onClick={() => pauseResume(e)}>
-                        {e.voting_paused ? 'Resume voting' : 'Pause voting'}
-                      </button>
-                    )}
-                    {next && (
-                      <button
-                        className={`btn-primary btn-sm ${mockStatus?.is_running ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        disabled={busy || mockStatus?.is_running}
-                        onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}
-                        title={mockStatus?.is_running ? 'Mock election is currently active. Official election cannot be moved or modified until mock run ends.' : undefined}
-                      >
-                        {next[1]}
-                      </button>
+                    {e.is_mock ? (
+                      <>
+                        {e.status === 'voting_active' && (
+                          <>
+                            <button
+                              className="btn-secondary btn-sm"
+                              disabled={busy}
+                              onClick={() => pauseResume(e)}
+                            >
+                              {e.voting_paused ? 'Resume Mock Voting' : 'Pause Mock Voting'}
+                            </button>
+                            <button
+                              className="btn-secondary btn-sm"
+                              disabled={busy}
+                              onClick={() => advance(e, 'voting_closed')}
+                            >
+                              Stop Mock Voting
+                            </button>
+                          </>
+                        )}
+                        {e.status === 'voting_closed' && (
+                          <button
+                            className="btn-primary btn-sm"
+                            disabled={busy}
+                            onClick={() => advance(e, 'results_published')}
+                          >
+                            Publish Mock Results
+                          </button>
+                        )}
+                        <button
+                          className="btn-danger btn-sm"
+                          disabled={busy}
+                          onClick={() => setMockEnding(e)}
+                        >
+                          Reset Mock & Slips
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {idx > 0 && idx <= 2 && (
+                          <button
+                            className="btn-ghost btn-sm"
+                            onClick={() => move(e, ORDER[idx - 1])}
+                            disabled={busy || mockStatus?.is_running}
+                            title={mockStatus?.is_running ? 'Official election is locked during mock run' : undefined}
+                          >
+                            Back a stage
+                          </button>
+                        )}
+                        {e.status === 'voting_active' && (
+                          <button className="btn-secondary btn-sm" disabled={busy} onClick={() => pauseResume(e)}>
+                            {e.voting_paused ? 'Resume voting' : 'Pause voting'}
+                          </button>
+                        )}
+                        {next && (
+                          <button
+                            className={`btn-primary btn-sm ${mockStatus?.is_running ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={busy || mockStatus?.is_running}
+                            onClick={() => (next[2] ? setConfirm({ election: e, next }) : move(e, next[0]))}
+                            title={mockStatus?.is_running ? 'Mock election is currently active. Official election cannot be moved or modified until mock run ends.' : undefined}
+                          >
+                            {next[1]}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

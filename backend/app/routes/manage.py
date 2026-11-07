@@ -54,8 +54,11 @@ def election_locked(election) -> bool:
 def transition(election, target):
     """Apply a lifecycle change. Returns an error message, or None on success."""
     active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and election.id != active_mock.id:
-        return "A mock election is currently active. The official election is locked in its current stage until the mock run is ended."
+    if active_mock:
+        if active_mock.id != election.id:
+            return "A mock election is currently active. The official election is locked in its current stage until the mock run is ended."
+        elif target not in ("voting_closed", "results_published"):
+            return "A mock election is currently active. Mock elections can only be stopped, published, or reset."
 
     cur = election.effective_status
     order = Election.STATUSES
@@ -176,9 +179,6 @@ def set_election_status(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
-    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock:
-        return jsonify({"error": "A mock election is currently active. Official election stage cannot be changed until the mock run ends."}), 409
     target = (request.get_json(silent=True) or {}).get("status")
     err = transition(election, target)
     if err:
@@ -248,6 +248,8 @@ def get_mock_status():
         "mock": {
             "id": mock_election.id,
             "title": mock_election.title,
+            "status": mock_election.status,
+            "voting_paused": bool(mock_election.voting_paused),
             "parent_election_id": mock_election.parent_election_id,
             "booth_numbers": booth_numbers,
             "slips_total": slips_total,
@@ -604,7 +606,7 @@ def election_results(election_id):
         return jsonify({"error": "Election not found."}), 404
     published = election.effective_status in ("results_published", "archived")
     voting_over = election.effective_status not in ("setup", "registration", "ready", "voting_active")
-    if published or election.is_mock:  # a mock election shows live results so the whole run can be checked
+    if published:
         data = results_payload(election, force=True)
     else:
         # Counts, winners and candidates' votes stay hidden until the officer publishes the results.

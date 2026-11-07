@@ -1180,7 +1180,12 @@ def test_mock_election_runs_and_resets_everything(client, installed, desk_token,
     assert client.post(f"/api/voter/elections/{eid}/cast-ballot", headers=H(login["access_token"]), json={"selections": sel, "kiosk_token": booth}).status_code in (200, 201)
     assert BallotEntry.query.filter_by(election_id=eid).count() > 0
     live = client.get(f"/api/admin/elections/{eid}/results", headers=H(installed)).get_json()
-    assert not live.get("locked") and live["mock"] is True                                   # a mock shows live results
+    assert live.get("locked") is True and live["mock"] is True                                   # results locked during mock voting
+    # Test stop and publish mock results
+    assert client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": "voting_closed"}).status_code == 200
+    assert client.post(f"/api/admin/elections/{eid}/status", headers=H(installed), json={"status": "results_published"}).status_code == 200
+    pub = client.get(f"/api/admin/elections/{eid}/results", headers=H(installed)).get_json()
+    assert not pub.get("locked") and pub["mock"] is True                                         # published mock reveals tally
     assert client.post(f"/api/admin/elections/{eid}/mock/end", headers=H(installed), json={}).status_code == 400   # needs RESET
     r = client.post(f"/api/admin/elections/{eid}/mock/end", headers=H(installed), json={"confirm": "RESET"})
     assert r.status_code == 200 and r.get_json()["status"] == "ready" and r.get_json()["is_mock"] is False

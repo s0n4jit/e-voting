@@ -1,7 +1,7 @@
 # Self-host WITHOUT building: uses the images published by .github/workflows/docker-publish.yml.
 #   cp .env.example .env   # fill it in
-#   docker compose -f docker-compose.ghcr.yml up -d
-# Update later with:  docker compose -f docker-compose.ghcr.yml pull && docker compose -f docker-compose.ghcr.yml up -d
+#   docker compose -f deployment/docker-compose.ghcr.yml up -d
+# Update later with:  docker compose -f deployment/docker-compose.ghcr.yml pull && docker compose -f deployment/docker-compose.ghcr.yml up -d
 # Set IMAGE_TAG (default latest) to pin a release, e.g. IMAGE_TAG=1.0.0.
 name: evoting
 
