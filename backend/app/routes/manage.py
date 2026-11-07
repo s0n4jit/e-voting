@@ -248,8 +248,8 @@ def get_mock_status():
         "mock": {
             "id": mock_election.id,
             "title": mock_election.title,
-            "status": mock_election.status,
-            "voting_paused": bool(mock_election.voting_paused),
+            "status": mock_election.mock_status or "voting_active",
+            "voting_paused": mock_election.mock_status == "voting_paused",
             "parent_election_id": mock_election.parent_election_id,
             "booth_numbers": booth_numbers,
             "slips_total": slips_total,
@@ -287,10 +287,9 @@ def start_mock(election_id=None):
 
     now = datetime.now(timezone.utc)
     election.is_mock = True
+    election.mock_status = "voting_active"
     election.mock_started_at = now
-    election.status = "voting_active"
-    election.is_active = True
-    election.voting_paused = False
+    # Note: real election status and is_active are NOT modified
 
     _audit("MOCK_STARTED", f"Started mock election dry run for '{election.title}'. Kiosks can accept votes using existing printed slips.")
     db.session.commit()
@@ -302,6 +301,58 @@ def start_mock(election_id=None):
         "message": f"Mock election started for '{election.title}'.",
     })
     return jsonify(res), 200
+
+
+@manage_bp.post("/mock/pause")
+@manage_bp.post("/elections/<int:election_id>/mock/pause")
+@admin_required
+def pause_mock(election_id=None):
+    election = db.session.get(Election, election_id) if election_id else Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if not election or not election.is_mock:
+        return jsonify({"error": "No mock election is running."}), 404
+    election.mock_status = "voting_paused"
+    _audit("MOCK_PAUSED", f"Paused mock voting for '{election.title}'.")
+    db.session.commit()
+    return jsonify({"success": True, "status": election.mock_status, "mock_status": election.mock_status, "voting_paused": True}), 200
+
+
+@manage_bp.post("/mock/resume")
+@manage_bp.post("/elections/<int:election_id>/mock/resume")
+@admin_required
+def resume_mock(election_id=None):
+    election = db.session.get(Election, election_id) if election_id else Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if not election or not election.is_mock:
+        return jsonify({"error": "No mock election is running."}), 404
+    election.mock_status = "voting_active"
+    _audit("MOCK_RESUMED", f"Resumed mock voting for '{election.title}'.")
+    db.session.commit()
+    return jsonify({"success": True, "status": election.mock_status, "mock_status": election.mock_status, "voting_paused": False}), 200
+
+
+@manage_bp.post("/mock/stop")
+@manage_bp.post("/elections/<int:election_id>/mock/stop")
+@admin_required
+def stop_mock(election_id=None):
+    election = db.session.get(Election, election_id) if election_id else Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if not election or not election.is_mock:
+        return jsonify({"error": "No mock election is running."}), 404
+    election.mock_status = "voting_closed"
+    _audit("MOCK_STOPPED", f"Closed mock voting for '{election.title}'.")
+    db.session.commit()
+    return jsonify({"success": True, "status": election.mock_status, "mock_status": election.mock_status}), 200
+
+
+@manage_bp.post("/mock/publish")
+@manage_bp.post("/elections/<int:election_id>/mock/publish")
+@admin_required
+def publish_mock(election_id=None):
+    election = db.session.get(Election, election_id) if election_id else Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+    if not election or not election.is_mock:
+        return jsonify({"error": "No mock election is running."}), 404
+    election.mock_status = "results_published"
+    _audit("MOCK_RESULTS_PUBLISHED", f"Published mock results for '{election.title}'.")
+    db.session.commit()
+    return jsonify({"success": True, "status": election.mock_status, "mock_status": election.mock_status}), 200
 
 
 @manage_bp.post("/mock/end")
@@ -386,11 +437,14 @@ def end_mock(election_id=None):
     if parent_id and mock_election.id != real_election.id:
         db.session.delete(mock_election)
 
-    # 7. Reset election status back to ready, deactivate mock mode
+    # 7. Reset mock flags, restore election cleanly
     real_election.is_mock = False
+    real_election.mock_status = None
     real_election.mock_started_at = None
-    real_election.status = "ready"
-    real_election.is_active = False
+    real_election.results_published = False
+    if real_election.status in ("voting_active", "voting_closed", "results_published"):
+        real_election.status = "ready"
+        real_election.is_active = False
     real_election.voting_paused = False
 
     _audit("MOCK_RESET", f"Mock election reset for '{real_election.title}': {ballots} test ballots cleared (vote count reset to 0), {slips} slips restored to unused state.")
@@ -604,8 +658,12 @@ def election_results(election_id):
     election = db.session.get(Election, election_id)
     if not election:
         return jsonify({"error": "Election not found."}), 404
-    published = election.effective_status in ("results_published", "archived")
-    voting_over = election.effective_status not in ("setup", "registration", "ready", "voting_active")
+    if election.is_mock:
+        published = election.mock_status == "results_published"
+        voting_over = election.mock_status in ("voting_closed", "results_published")
+    else:
+        published = election.effective_status in ("results_published", "archived")
+        voting_over = election.effective_status not in ("setup", "registration", "ready", "voting_active")
     if published:
         data = results_payload(election, force=True)
     else:
@@ -621,8 +679,8 @@ def election_results(election_id):
         }
     data["published"] = published
     data["mock"] = bool(election.is_mock)
-    data["status"] = election.effective_status
-    data["status_label"] = ("Mock " + election.STATUS_LABELS.get(election.effective_status, election.status)) if election.is_mock else election.STATUS_LABELS.get(election.effective_status, election.status)
+    data["status"] = (election.mock_status if election.is_mock else election.effective_status)
+    data["status_label"] = (("Mock " + election.mock_status.replace('_', ' ').title()) if election.is_mock and election.mock_status else election.STATUS_LABELS.get(election.effective_status, election.status))
     data["voting_over"] = voting_over
     data["public_path"] = f"/results/{election.public_token}" if election.public_token else None
     return jsonify(data), 200

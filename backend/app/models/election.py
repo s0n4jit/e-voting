@@ -45,6 +45,7 @@ class Election(db.Model):
     # end_time are the announced schedule and are shown for information only.
     # Mock election: a dry run of the real election; everything it records is wiped when the officer ends it.
     is_mock = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    mock_status = db.Column(db.String(20), nullable=True)  # "voting_active", "voting_paused", "voting_closed", "results_published"
     mock_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
     parent_election_id = db.Column(db.Integer, db.ForeignKey("elections.id", ondelete="SET NULL"), nullable=True)
     voting_paused = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
@@ -141,11 +142,15 @@ class Election(db.Model):
     @property
     def desk_open(self) -> bool:
         """Students can be registered and PINs issued until the officer closes voting."""
+        if self.is_mock:
+            return self.mock_status in ("voting_active", "voting_paused")
         return self.effective_status in ("setup", "registration", "ready", "voting_active")
 
     @property
     def is_ongoing(self) -> bool:
         """True while the officer has voting open and not paused. The scheduled times play no part."""
+        if self.is_mock:
+            return self.mock_status == "voting_active"
         return bool(self.is_active) and not self.voting_paused
 
     def to_dict(self, include_candidates: bool = False) -> dict:
@@ -172,17 +177,11 @@ class Election(db.Model):
             "end_time": utc_iso(self.end_time),
             "is_active": self.is_active,
             "status": self.effective_status,
-            "status_label": (
-                ("Mock " + ("Results Published" if self.effective_status == "results_published"
-                 else "Voting Closed" if self.effective_status == "voting_closed"
-                 else "Voting Paused" if self.voting_paused
-                 else "Voting Active"))
-                if self.is_mock
-                else ("Voting Paused" if self.is_active and self.voting_paused
-                      else self.STATUS_LABELS.get(self.effective_status, self.status))
-            ),
+            "status_label": "Voting Paused" if self.is_active and self.voting_paused
+            else self.STATUS_LABELS.get(self.effective_status, self.status),
             "voting_paused": bool(self.voting_paused),
             "is_mock": bool(self.is_mock),
+            "mock_status": self.mock_status if self.is_mock else None,
             "parent_election_id": self.parent_election_id,
             "positions": [p.name for p in self.positions] if self.positions else list(dict.fromkeys([c.position for c in self.candidates if c.position])),
             "is_ongoing": self.is_ongoing,

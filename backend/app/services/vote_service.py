@@ -107,10 +107,16 @@ class VoteService:
         if not election:
             raise VotingError("Election not found.")
 
-        if not election.is_active:
-            raise VotingError("Voting is not open.")
-        if election.voting_paused:
-            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
+        if election.is_mock:
+            if election.mock_status == "voting_paused":
+                raise VotingError("Voting is paused. Please wait for the officer to resume it.")
+            if election.mock_status != "voting_active":
+                raise VotingError("Voting is not open.")
+        else:
+            if not election.is_active:
+                raise VotingError("Voting is not open.")
+            if election.voting_paused:
+                raise VotingError("Voting is paused. Please wait for the officer to resume it.")
 
         now = datetime.now(timezone.utc)
 
@@ -538,10 +544,16 @@ class VoteService:
         if not election:
             raise VotingError("Election not found.")
 
-        if not election.is_active:
-            raise VotingError("Voting is not open.")
-        if election.voting_paused:
-            raise VotingError("Voting is paused. Please wait for the officer to resume it.")
+        if election.is_mock:
+            if election.mock_status == "voting_paused":
+                raise VotingError("Voting is paused. Please wait for the officer to resume it.")
+            if election.mock_status != "voting_active":
+                raise VotingError("Voting is not open.")
+        else:
+            if not election.is_active:
+                raise VotingError("Voting is not open.")
+            if election.voting_paused:
+                raise VotingError("Voting is paused. Please wait for the officer to resume it.")
 
         # 2. Validate kiosk device
         if kiosk_token:

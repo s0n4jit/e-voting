@@ -150,6 +150,66 @@ export const ElectionManager = () => {
     }
   };
 
+  const handlePauseMock = async () => {
+    setBusy(true);
+    try {
+      await adminApi.pauseMock(mockStatus?.mock?.id);
+      toast.success('Mock voting paused', { id: 'mock-toggle' });
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      await loadMockStatus();
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e), { id: 'mock-toggle' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResumeMock = async () => {
+    setBusy(true);
+    try {
+      await adminApi.resumeMock(mockStatus?.mock?.id);
+      toast.success('Mock voting resumed', { id: 'mock-toggle' });
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      await loadMockStatus();
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e), { id: 'mock-toggle' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStopMock = async () => {
+    setBusy(true);
+    try {
+      await adminApi.stopMock(mockStatus?.mock?.id);
+      toast.success('Mock voting closed');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      await loadMockStatus();
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePublishMock = async () => {
+    setBusy(true);
+    try {
+      await adminApi.publishMock(mockStatus?.mock?.id);
+      toast.success('Mock results published! You can preview them on Results & Projector.');
+      window.dispatchEvent(new CustomEvent('election-state-change'));
+      await loadMockStatus();
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleResetMock = async () => {
     setBusy(true);
     try {
@@ -259,7 +319,7 @@ export const ElectionManager = () => {
                     <button
                       type="button"
                       className="btn-secondary flex items-center gap-1.5"
-                      onClick={() => pauseResume(mockStatus.mock)}
+                      onClick={mockStatus.mock.voting_paused ? handleResumeMock : handlePauseMock}
                       disabled={busy}
                     >
                       {mockStatus.mock.voting_paused ? <PlayIcon className="w-4 h-4" /> : <PauseIcon className="w-4 h-4" />}
@@ -268,7 +328,7 @@ export const ElectionManager = () => {
                     <button
                       type="button"
                       className="btn-secondary flex items-center gap-1.5 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-600 hover:bg-amber-100"
-                      onClick={() => move(mockStatus.mock, 'voting_closed')}
+                      onClick={handleStopMock}
                       disabled={busy}
                     >
                       <StopIcon className="w-4 h-4" /> Stop Mock Voting
@@ -279,7 +339,7 @@ export const ElectionManager = () => {
                   <button
                     type="button"
                     className="btn-primary flex items-center gap-1.5"
-                    onClick={() => move(mockStatus.mock, 'results_published')}
+                    onClick={handlePublishMock}
                     disabled={busy}
                   >
                     <CheckCircleIcon className="w-4 h-4" /> Publish Mock Results
