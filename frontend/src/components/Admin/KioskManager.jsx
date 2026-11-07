@@ -55,7 +55,16 @@ export const KioskManager = () => {
     setBusy(true);
     try {
       const res = await adminApi.createBoothToken({});
-      setIssued(res);
+      setIssued({
+        token: res.token || res.create_token,
+        create_token: res.token || res.create_token,
+        booth_id: res.booth_id || (res.booth_number ? `BOOTH-${String(res.booth_number).padStart(2, '0')}` : 'Booth'),
+        booth_number: res.booth_number,
+        totp_code: res.totp_code || res.current_totp,
+        current_totp: res.totp_code || res.current_totp,
+        expires_at: res.expires_at,
+        election_title: res.election_title,
+      });
       await loadBooths();
       toast.success(`Setup token generated for ${res.booth_id || `Booth ${res.booth_number}`}!`);
     } catch (err) {
@@ -95,7 +104,16 @@ export const KioskManager = () => {
     try {
       const res = await adminApi.revokeKiosk(revokingBooth.id);
       setRevokingBooth(null);
-      setIssued(res);
+      setIssued({
+        token: res.token || res.create_token,
+        create_token: res.token || res.create_token,
+        booth_id: res.booth_id || revokingBooth.booth_id,
+        booth_number: res.booth_number || revokingBooth.booth_number,
+        totp_code: res.totp_code || res.current_totp,
+        current_totp: res.totp_code || res.current_totp,
+        expires_at: res.expires_at,
+        election_title: res.election_title || revokingBooth.election_title,
+      });
       await loadBooths();
       toast.success(res.message || `Session revoked for ${revokingBooth.booth_id}.`);
     } catch (err) {
@@ -342,15 +360,18 @@ export const KioskManager = () => {
                 Booth Setup Token
               </span>
               <p className="font-mono text-3xl sm:text-4xl font-black text-brand tracking-widest select-all">
-                {issued.token || issued.create_token}
+                {issued?.token || issued?.create_token || '—'}
               </p>
               <div className="pt-2 flex justify-center">
                 <button
                   type="button"
                   className="btn-secondary btn-sm flex items-center gap-1.5"
                   onClick={() => {
-                    navigator.clipboard?.writeText(issued.token || issued.create_token);
-                    toast.success('Setup token copied to clipboard');
+                    const t = issued?.token || issued?.create_token;
+                    if (t) {
+                      navigator.clipboard?.writeText(t);
+                      toast.success('Setup token copied to clipboard');
+                    }
                   }}
                 >
                   <ClipboardDocumentIcon className="w-4 h-4" />

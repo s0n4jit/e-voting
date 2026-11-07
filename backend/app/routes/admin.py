@@ -1187,15 +1187,25 @@ def delete_kiosk(kiosk_id):
         }), 409
 
     from app.models.booth_slip import BoothSlip
-    slips_count = BoothSlip.query.filter(
-        BoothSlip.election_id == kiosk.election_id,
-        (BoothSlip.booth_id == kiosk.id) | (BoothSlip.booth_number == kiosk.number)
+    from app.models.booth_create_token import BoothCreateToken
+
+    slips_count = BoothSlip.query.filter_by(
+        election_id=kiosk.election_id,
+        booth_id=kiosk.id
     ).count()
-    if slips_count > 0:
+    used_slips_count = BoothSlip.query.filter_by(
+        election_id=kiosk.election_id,
+        booth_number=kiosk.number,
+        is_used=True
+    ).count()
+    if slips_count > 0 or used_slips_count > 0:
         return jsonify({
             "error": "Slips exist",
             "message": f"Voting booth {kiosk.device_name} cannot be deleted because voter slips have already been generated for it. Use 'Revoke' to reset the booth terminal instead."
         }), 409
+
+    # Unlink or delete tokens for this kiosk
+    BoothCreateToken.query.filter_by(kiosk_id=kiosk.id).delete()
 
     # Unlink any unused slips from this kiosk device id
     BoothSlip.query.filter_by(

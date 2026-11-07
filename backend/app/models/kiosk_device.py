@@ -36,6 +36,10 @@ class KioskVerifyResult(tuple):
 
 class KioskDevice(db.Model):
     __tablename__ = "kiosk_devices"
+    __table_args__ = (
+        db.UniqueConstraint("election_id", "device_name", name="uq_kiosk_devices_election_device_name"),
+        db.UniqueConstraint("election_id", "booth_number", name="uq_kiosk_devices_election_booth_number"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     device_name = db.Column(db.String(100), nullable=False)  # the Booth ID, e.g. BOOTH-01
@@ -91,9 +95,19 @@ class KioskDevice(db.Model):
 
     @classmethod
     def activate(cls, booth_id: str, ip_address: str = None, election_id: int = None):
-        """Create the booth and return (device, raw_token). The raw token is never stored."""
+        """Create or reactivate the booth and return (device, raw_token). The raw token is never stored."""
         raw = f"booth_{secrets.token_urlsafe(32)}"
         now = datetime.now(timezone.utc)
+        if election_id:
+            device = cls.query.filter_by(election_id=election_id, device_name=booth_id).first()
+            if device:
+                device.kiosk_token = hash_token(raw)
+                device.ip_address = ip_address
+                device.is_active = True
+                device.last_heartbeat = now
+                db.session.flush()
+                return device, raw
+
         device = cls(
             device_name=booth_id,
             kiosk_token=hash_token(raw),
