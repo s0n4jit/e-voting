@@ -3,13 +3,13 @@
     auto_https disable_redirects
 }
 
-# HTTP to HTTPS redirect for all incoming requests
+# HTTP to HTTPS redirect for all incoming requests (preserving host or IP)
 http:// {
-    redir https://evoting.local{uri} permanent
+    redir https://{host}{uri} permanent
 }
 
-# Primary HTTPS endpoint with Caddy's internal local CA
-https://evoting.local {
+# Primary HTTPS endpoint (handles evoting.local and direct LAN IP access)
+https://evoting.local, :443 {
     tls internal
 
     # Security headers for election integrity
