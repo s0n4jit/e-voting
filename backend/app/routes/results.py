@@ -23,7 +23,7 @@ def results_payload(election, force=False):
         "id": election.id,
         "title": election.title,
         "description": election.description,
-        "status_label": election.STATUS_LABELS[election.effective_status],
+        "status_label": ("Mock Results Published" if election.is_mock else election.STATUS_LABELS[election.effective_status]),
         "start_time": utc_iso(election.start_time),
         "end_time": utc_iso(election.end_time),
     }

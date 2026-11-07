@@ -365,11 +365,7 @@ export const ElectionManager = () => {
                     <div className="flex items-center gap-3 flex-wrap">
                       <h2 className="font-semibold text-lg">{e.title}</h2>
                       <StatusBadge label={e.status_label} />
-                      {e.is_mock ? (
-                        <span className="text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
-                          Mock Mode Active
-                        </span>
-                      ) : mockStatus?.is_running && (
+                      {mockStatus?.is_running && !e.is_mock && (
                         <span className="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
                           Locked during mock run
                         </span>
@@ -386,11 +382,7 @@ export const ElectionManager = () => {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
-                    {e.is_mock ? (
-                      <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-600 px-3 py-1.5 rounded-lg self-center">
-                        Mock controls in top toolbar
-                      </span>
-                    ) : (
+                    {!e.is_mock && (
                       <>
                         {idx > 0 && idx <= 2 && (
                           <button

@@ -172,8 +172,15 @@ class Election(db.Model):
             "end_time": utc_iso(self.end_time),
             "is_active": self.is_active,
             "status": self.effective_status,
-            "status_label": "Voting Paused" if self.is_active and self.voting_paused
-            else self.STATUS_LABELS.get(self.effective_status, self.status),
+            "status_label": (
+                ("Mock " + ("Results Published" if self.effective_status == "results_published"
+                 else "Voting Closed" if self.effective_status == "voting_closed"
+                 else "Voting Paused" if self.voting_paused
+                 else "Voting Active"))
+                if self.is_mock
+                else ("Voting Paused" if self.is_active and self.voting_paused
+                      else self.STATUS_LABELS.get(self.effective_status, self.status))
+            ),
             "voting_paused": bool(self.voting_paused),
             "is_mock": bool(self.is_mock),
             "parent_election_id": self.parent_election_id,

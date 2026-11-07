@@ -47,22 +47,15 @@ export default function ElectionStatusBadge() {
 
   if (isMock) {
     return (
-      <div className="flex items-center gap-2">
-        {status && status !== 'voting_active' && (
-          <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-line/60 text-muted border border-line" title="Official election stage (locked during mock run)">
-            {status.replace('_', ' ').toUpperCase()} (LOCKED)
-          </span>
-        )}
-        <div
-          className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-500/40 shadow-xs tracking-wider uppercase select-none animate-pulse"
-          title="Mock election run is active on booth machine(s). Real election setup remains untouched."
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-          </span>
-          <span className="font-extrabold">Mock Election Active</span>
-        </div>
+      <div
+        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-500/40 shadow-xs tracking-wider uppercase select-none animate-pulse"
+        title="Mock election run is active on booth machine(s). Real election setup remains untouched."
+      >
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+        </span>
+        <span className="font-extrabold">Mock Election Active</span>
       </div>
     );
   }
