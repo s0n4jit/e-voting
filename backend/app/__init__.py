@@ -97,7 +97,7 @@ def create_app(config_object=None) -> Flask:
         hosts = app.config.get("ALLOWED_HOSTS")
         if hosts and request.host.split(":")[0].lower() not in hosts:
             return "", 404
-        if request.headers.get("Sec-Fetch-Mode") == "navigate":  # someone typed the address into a browser
+        if request.headers.get("Sec-Fetch-Mode") == "navigate" and not request.path.startswith("/api/photos/"):  # someone typed the address into a browser
             return "", 404
         return None
 
