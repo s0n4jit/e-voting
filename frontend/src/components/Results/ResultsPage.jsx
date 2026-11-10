@@ -125,7 +125,14 @@ export const ResultsPage = () => {
             <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
           </button>
         ) : (
-          <Link to={`/admin/results/${electionId}/present`} className="btn-secondary" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
+          <Link
+            to={`/admin/results/${electionId}/present`}
+            className="btn-secondary"
+            onClick={() => {
+              sessionStorage.removeItem(`present-${electionId}`);
+              document.documentElement.requestFullscreen?.().catch(() => {});
+            }}
+          >
             <PresentationChartBarIcon className="w-4 h-4" /> Present on projector
           </Link>
         )}
