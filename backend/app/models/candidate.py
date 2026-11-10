@@ -30,7 +30,6 @@ class Candidate(db.Model):
     )
 
     # Relationships
-    photo = db.relationship("CandidatePhoto", uselist=False, cascade="all, delete-orphan")
     ballot_entries = db.relationship(
         "BallotEntry",
         backref="candidate",
@@ -51,3 +50,9 @@ class Candidate(db.Model):
             "photo_url": self.photo_url,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+@db.event.listens_for(Candidate, "after_delete")
+def _cleanup_candidate_photo(mapper, connection, target):
+    from app.services.photo_service import delete_photo
+    delete_photo(target.id)

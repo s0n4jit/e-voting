@@ -47,7 +47,7 @@ class VoteReceipt(db.Model):
             "slip_id": self.slip_id,
             "election_id": self.election_id,
             "election_title": title,
-            "booth_name": self.booth_name or "Booth",
+            "booth_name": "Ballot Box",
             "is_mock": self.is_mock,
             "choices": self.get_choices(),
             "pdf_filename": self.pdf_filename,

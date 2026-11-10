@@ -189,12 +189,12 @@ const VoteReceipt = ({ receipt }) => {
             </div>
           </div>
 
-          {/* Banner: Booth, Slip ID, Timestamp */}
+          {/* Banner: Anonymous Ballot Ref */}
           <div
             className="receipt-banner"
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'center',
               alignItems: 'center',
               padding: '1.5mm 4mm',
               borderBottom: isMock ? '1px dashed #f59e0b' : '1px dashed #94a3b8',
@@ -202,9 +202,6 @@ const VoteReceipt = ({ receipt }) => {
               fontSize: '7pt',
             }}
           >
-            <div style={{ color: '#475569', fontWeight: 500 }}>
-              Booth: {receipt.booth || 'Kiosk'}
-            </div>
             <div style={{ textAlign: 'center' }}>
               <span
                 style={{
@@ -230,9 +227,6 @@ const VoteReceipt = ({ receipt }) => {
               >
                 {receipt.receipt_ref || receipt.slip}
               </span>
-            </div>
-            <div style={{ color: '#475569', fontWeight: 500 }}>
-              Time: {receipt.time}
             </div>
           </div>
 

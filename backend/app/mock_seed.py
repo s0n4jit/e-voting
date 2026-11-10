@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app.extensions import db
 from app.models.candidate import Candidate
-from app.models.candidate_photo import CandidatePhoto
+from app.services.photo_service import save_photo
 from app.models.election_position import ElectionPosition
 
 logger = logging.getLogger(__name__)
@@ -88,12 +88,8 @@ def populate_mock_dummy_roster(mock_election_id):
             try:
                 photo_bytes = base64.b64decode(b64_photo)
                 content_type = cand_info.get("photo_content_type") or "image/jpeg"
+                save_photo(cand.id, content_type, photo_bytes)
                 cand.photo_url = f"/api/photos/{cand.id}"
-                db.session.add(CandidatePhoto(
-                    candidate_id=cand.id,
-                    content_type=content_type,
-                    data=photo_bytes,
-                ))
             except Exception as ex:
                 logger.warning(f"Failed to decode photo for {cand.name}: {ex}")
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { resultsApi } from '../../api/resultsApi';
+import { usePolling } from '../../hooks/usePolling';
 import { BrandMark, ThemeToggle } from '../ui';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ResultsView from './ResultsView';
@@ -14,6 +15,10 @@ export default function PublicResults() {
   useEffect(() => {
     resultsApi.publicResults(token).then(setData).catch(() => setMissing(true));
   }, [token]);
+
+  usePolling(() => {
+    if (token) resultsApi.publicResults(token).then(setData).catch(() => {});
+  }, 3000);
 
   return (
     <div className="min-h-screen bg-bg">

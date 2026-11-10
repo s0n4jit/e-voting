@@ -7,7 +7,7 @@ a GitHub Release and a Docker image tag (`1.0.0`). See [CONTRIBUTING.md](../CONT
 
 - **Physical Voter Roll & 6-per-A4 Printable Slips**:
   - Pre-issued voter slip generator prints high-density sheets with 6 slips per A4 page (2 columns × 3 rows) with cutting guides.
-  - Each slip includes College name branding, Election title, Voting date, Booth number, Voter Slip ID, large 4-digit PIN, and revised voter instruction text: *"Keep this slip and the PIN secret. At the voting booth, enter the slip ID and this PIN to vote once."*
+  - Each slip includes College name branding, Election title, Voting date, Booth number, Voter Slip ID, large 4-digit PIN, and revised voter instruction text: *"Keep this slip and PIN secret. At the voting booth, check that the on-screen Slip ID matches this slip, then enter only your Voting PIN."*
   - Upper dropdown selector to download printable slips for `All Booths` or any specific `Booth`.
 - **Candidate Details Editing & 1:1 Cropper**:
   - Full edit support for candidate name, position, department, semester, bio, and optional photo update.

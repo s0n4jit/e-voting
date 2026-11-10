@@ -48,20 +48,21 @@ export const AdminDashboard = () => {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
-      setData(await adminApi.getOverview());
+      const res = await adminApi.getOverview();
+      setData(res);
       setError('');
     } catch {
-      setError('The dashboard could not be loaded.');
+      if (!silent) setError('The dashboard could not be loaded.');
     }
   }, []);
 
   useEffect(() => {
-    load();
+    load(false);
   }, [load]);
 
-  usePolling(load, 2000);
+  usePolling(() => load(true), 2000);
 
   const s = data?.stats;
   const loading = !data && !error;

@@ -373,6 +373,6 @@ class SlipPdfService:
         c.saveState()
         c.setFillColor(colors.HexColor("#475569"))
         c.setFont("Helvetica", 6.8)
-        c.drawCentredString(x + w / 2.0, y + 22.0, "Keep this slip and the PIN secret. At the voting booth,")
-        c.drawCentredString(x + w / 2.0, y + 12.0, "enter the slip ID and this PIN to vote once.")
+        c.drawCentredString(x + w / 2.0, y + 22.0, "Keep this slip and PIN secret. At the voting booth, check that")
+        c.drawCentredString(x + w / 2.0, y + 12.0, "the on-screen Slip ID matches this slip, then enter only your Voting PIN.")
         c.restoreState()

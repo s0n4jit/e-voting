@@ -22,7 +22,6 @@ from app.models.audit_log import AuditLog
 from app.models.election import Election
 from app.models.election_position import ElectionPosition
 from app.models.system_setting import SystemSetting
-from app.programme_import import TEMPLATE_CSV, import_programme_csv
 from app.models.user import User
 from app.utils.validators import (
     clean_name,
@@ -130,20 +129,6 @@ def validate_payload(data: dict, steps=("system", "officer", "election")) -> dic
             e["positions"] = "Position names must be unique."
         elif any(len(p) > 100 for p in positions):
             e["positions"] = "Position names must be 100 characters or fewer."
-        if (el.get("programmes_csv") or "").strip():
-            _created, _skipped, bad = import_programme_csv(el["programmes_csv"])
-            db.session.rollback()  # dry run only
-            if bad:
-                e["programmes_csv"] = " ".join(bad[:5])
-        if (el.get("students_csv") or "").strip():
-            from app.student_import import import_students
-
-            if (el.get("programmes_csv") or "").strip():
-                import_programme_csv(el["programmes_csv"])  # students are checked against the programmes being created
-            _made, _skipped, bad_students = import_students(el["students_csv"], None, dry_run=True)
-            db.session.rollback()
-            if bad_students:
-                e["students_csv"] = " ".join(bad_students[:5])
         if e:
             errors["election"] = e
 
@@ -210,7 +195,6 @@ def complete():
     start, end = voting_window(el, s["timezone"])
     username, email = o["username"].strip(), o["email"].strip().lower()
 
-    slips = []
     try:
         # The primary key on "installed" makes this the single winner of any race.
         db.session.add(SystemSetting(key="installed", value="true"))
@@ -252,26 +236,6 @@ def complete():
         for i, name in enumerate(clean_name(p) for p in el["positions"] if clean_name(p)):
             db.session.add(ElectionPosition(election_id=election.id, name=sanitize_input(name), sort_order=i))
 
-        if (el.get("programmes_csv") or "").strip():
-            import_programme_csv(el["programmes_csv"])
-        if (el.get("students_csv") or "").strip():
-            from app.student_import import import_students
-
-            db.session.flush()
-            imported, _skipped, bad_students = import_students(el["students_csv"], election, officer.id)
-            if bad_students:
-                raise ValueError("student list: " + bad_students[0])
-            slips = imported
-            current_app.logger.info("Imported %d students during setup.", len(imported))
-
-        # Optional initial pre-generated slips per booth
-        slips_per_booth = int(el.get("slips_per_booth") or 0)
-        if slips_per_booth > 0:
-            from app.models.booth_slip import BoothSlip
-            for b_num in [1, 2, 3, 4]:
-                BoothSlip.generate_batch(election.id, booth_number=b_num, count=slips_per_booth)
-            current_app.logger.info("Pre-generated %d slips per booth during setup.", slips_per_booth)
-
         db.session.add(AuditLog(
             user_id=officer.id,
             action="SYSTEM_INSTALLED",
@@ -294,5 +258,4 @@ def complete():
         "refresh_token": create_refresh_token(identity=str(officer.id), additional_claims=claims),
         "user": officer.to_dict(),
         "election_title": election.title,
-        "students": slips,  # the slips with their voting PINs, shown once so they can be printed
     }), 201

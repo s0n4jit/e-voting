@@ -9,23 +9,25 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 
 import SetupWizard from './components/Setup/SetupWizard';
 import LoginPage from './components/Auth/LoginPage';
-import ResultsPage from './components/Results/ResultsPage';
 import PublicResults from './components/Results/PublicResults';
-import ResultsPresenter from './components/Results/ResultsPresenter';
-import AdminDashboard from './components/Admin/AdminDashboard';
-import ElectionManager from './components/Admin/ElectionManager';
-import CandidateManager from './components/Admin/CandidateManager';
-import AuditLog from './components/Admin/AuditLog';
-import KioskManager from './components/Admin/KioskManager';
-import OfficerManager from './components/Admin/OfficerManager';
-import SettingsPage from './components/Admin/SettingsPage';
-import SystemPage from './components/Admin/SystemPage';
-import ReceiptManager from './components/Admin/ReceiptManager';
-import VoterSlipsManager from './components/Admin/VoterSlipsManager';
-import ProfilePage from './components/Profile/ProfilePage';
-import SecureAccount from './components/Profile/SecureAccount';
 import KioskLogin from './components/Kiosk/KioskLogin';
 import KioskVoting from './components/Kiosk/KioskVoting';
+
+// Officer and Admin views dynamically imported to keep booth kiosk bundle lean
+const ResultsPage = React.lazy(() => import('./components/Results/ResultsPage'));
+const ResultsPresenter = React.lazy(() => import('./components/Results/ResultsPresenter'));
+const AdminDashboard = React.lazy(() => import('./components/Admin/AdminDashboard'));
+const ElectionManager = React.lazy(() => import('./components/Admin/ElectionManager'));
+const CandidateManager = React.lazy(() => import('./components/Admin/CandidateManager'));
+const AuditLog = React.lazy(() => import('./components/Admin/AuditLog'));
+const KioskManager = React.lazy(() => import('./components/Admin/KioskManager'));
+const OfficerManager = React.lazy(() => import('./components/Admin/OfficerManager'));
+const SettingsPage = React.lazy(() => import('./components/Admin/SettingsPage'));
+const SystemPage = React.lazy(() => import('./components/Admin/SystemPage'));
+const ReceiptManager = React.lazy(() => import('./components/Admin/ReceiptManager'));
+const VoterSlipsManager = React.lazy(() => import('./components/Admin/VoterSlipsManager'));
+const ProfilePage = React.lazy(() => import('./components/Profile/ProfilePage'));
+const SecureAccount = React.lazy(() => import('./components/Profile/SecureAccount'));
 
 const ADMIN = ['admin'];
 const STAFF = ['admin', 'polling_officer'];
@@ -41,9 +43,15 @@ const RootRedirect = () => {
   return <Navigate to="/kiosk/vote" replace />;
 };
 
+const suspense = (el) => (
+  <React.Suspense fallback={<div className="p-12 flex justify-center"><LoadingSpinner size="lg" /></div>}>
+    {el}
+  </React.Suspense>
+);
+
 const page = (roles, element) => (
   <ProtectedRoute allowedRoles={roles}>
-    <AppShell>{element}</AppShell>
+    <AppShell>{suspense(element)}</AppShell>
   </ProtectedRoute>
 );
 
@@ -83,7 +91,7 @@ function AppRoutes() {
       <Route path="/vote" element={<Navigate to="/kiosk/vote" replace />} />
       <Route path="/vote/*" element={<Navigate to="/kiosk/vote" replace />} />
 
-      <Route path="/secure-account" element={<ProtectedRoute allowedRoles={ADMIN}><SecureAccount /></ProtectedRoute>} />
+      <Route path="/secure-account" element={<ProtectedRoute allowedRoles={ADMIN}>{suspense(<SecureAccount />)}</ProtectedRoute>} />
       <Route path="/profile" element={page(STAFF, <ProfilePage />)} />
 
       {/* Desk Officers (and Election Officers): Voter Slips & Booth Monitoring */}
@@ -103,7 +111,7 @@ function AppRoutes() {
       <Route path="/admin/settings" element={page(ADMIN, <SettingsPage />)} />
       <Route path="/admin/system" element={page(ADMIN, <SystemPage />)} />
       <Route path="/admin/results" element={page(ADMIN, <ResultsPage />)} />
-      <Route path="/admin/results/:electionId/present" element={<ProtectedRoute allowedRoles={ADMIN}><ResultsPresenter /></ProtectedRoute>} />
+      <Route path="/admin/results/:electionId/present" element={<ProtectedRoute allowedRoles={ADMIN}>{suspense(<ResultsPresenter />)}</ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

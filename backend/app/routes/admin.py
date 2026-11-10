@@ -17,7 +17,7 @@ from app.extensions import db, commit_or_flush
 from app.models.user import User
 from app.models.election import Election
 from app.models.candidate import Candidate
-from app.models.candidate_photo import CandidatePhoto
+from app.services.photo_service import save_photo, delete_photo
 from app.models.election_position import ElectionPosition
 from app.models.programme import Programme
 from app.models.voter_record import VoterRecord
@@ -37,6 +37,9 @@ from app.utils.validators import (
 )
 
 admin_bp = Blueprint("admin", __name__)
+
+import time
+_audit_stats_cache = {"ts": 0.0, "stats": None}
 
 def _csv_safe(value):
     s = str(value if value is not None else "")
@@ -309,12 +312,12 @@ def add_candidate(election_id):
         semester=semester or None,
         bio=bio,
     )
-    candidate.photo = CandidatePhoto(content_type=photo[0], data=photo[1])
     db.session.add(candidate)
     db.session.flush()
+    save_photo(candidate.id, photo[0], photo[1])
     candidate.photo_url = f"/api/photos/{candidate.id}"
     _audit("CANDIDATE_ADDED", f"Added {name} as a candidate for {position} in \u201c{election.title}\u201d.")
-    commit_or_flush()  # one transaction: if anything fails above, no photo is stored either
+    commit_or_flush()
 
     return jsonify(candidate.to_dict()), 201
 
@@ -352,11 +355,7 @@ def update_candidate(candidate_id, election_id=None):
         photo, photo_error = read_photo(upload)
         if photo_error:
             return jsonify({"error": photo_error}), 400
-        if candidate.photo:
-            candidate.photo.content_type = photo[0]
-            candidate.photo.data = photo[1]
-        else:
-            candidate.photo = CandidatePhoto(candidate_id=candidate.id, content_type=photo[0], data=photo[1])
+        save_photo(candidate.id, photo[0], photo[1])
         candidate.photo_url = f"/api/photos/{candidate.id}"
 
     candidate.name = name
@@ -384,6 +383,7 @@ def delete_candidate(candidate_id, election_id=None):
     if election_locked(candidate.election):
         return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 
+    delete_photo(candidate.id)
     _audit("CANDIDATE_REMOVED", f"Removed {candidate.name} (candidate for {candidate.position}) from \u201c{candidate.election.title}\u201d.")
     db.session.delete(candidate)
     commit_or_flush()
@@ -445,35 +445,41 @@ def get_audit_logs():
     actor_ids = {log.user_id for log in logs if log.user_id}
     actors = {u.id: u for u in User.query.filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
 
-    # Calculate summary metrics (ballots cast matches actual used voter slips for current election)
-    cur_election = Election.current()
-    if cur_election:
-        actual_ballots = BoothSlip.query.filter_by(election_id=cur_election.id, is_used=True).count()
+    now = time.time()
+    if _audit_stats_cache["stats"] and (now - _audit_stats_cache["ts"] < 3.0):
+        stats = _audit_stats_cache["stats"]
     else:
-        actual_ballots = BoothSlip.query.filter_by(is_used=True).count()
+        # Calculate summary metrics (ballots cast matches actual used voter slips for current election)
+        cur_election = Election.current()
+        if cur_election:
+            actual_ballots = BoothSlip.query.filter_by(election_id=cur_election.id, is_used=True).count()
+        else:
+            actual_ballots = BoothSlip.query.filter_by(is_used=True).count()
 
-    desk_actions = ["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "PIN_ISSUED"]
-    pin_actions = ["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"]
-    sec_actions = CATEGORY_ACTIONS.get("security", [])
-    booth_actions = CATEGORY_ACTIONS.get("booth", [])
+        desk_actions = ["DESK_CHECKIN", "STUDENT_REGISTERED", "STUDENTS_IMPORTED", "PIN_ISSUED"]
+        pin_actions = ["SLIPS_GENERATED", "SLIP_CANCELLED", "PIN_ISSUED"]
+        sec_actions = CATEGORY_ACTIONS.get("security", [])
+        booth_actions = CATEGORY_ACTIONS.get("booth", [])
 
-    # Single grouped aggregation query replaces 5 separate full-table count scans
-    agg = db.session.query(
-        db.func.count(AuditLog.id),
-        db.func.count(db.case((AuditLog.action.in_(desk_actions), 1))),
-        db.func.count(db.case((AuditLog.action.in_(pin_actions), 1))),
-        db.func.count(db.case((AuditLog.action.in_(sec_actions), 1))),
-        db.func.count(db.case((AuditLog.action.in_(booth_actions), 1))),
-    ).first()
+        # Single grouped aggregation query replaces 5 separate full-table count scans
+        agg = db.session.query(
+            db.func.count(AuditLog.id),
+            db.func.count(db.case((AuditLog.action.in_(desk_actions), 1))),
+            db.func.count(db.case((AuditLog.action.in_(pin_actions), 1))),
+            db.func.count(db.case((AuditLog.action.in_(sec_actions), 1))),
+            db.func.count(db.case((AuditLog.action.in_(booth_actions), 1))),
+        ).first()
 
-    stats = {
-        "total_records": agg[0] or 0,
-        "ballots_cast": actual_ballots,
-        "desk_enrollments": agg[1] or 0,
-        "pins_issued": agg[2] or 0,
-        "security_alerts": agg[3] or 0,
-        "kiosk_actions": agg[4] or 0,
-    }
+        stats = {
+            "total_records": agg[0] or 0,
+            "ballots_cast": actual_ballots,
+            "desk_enrollments": agg[1] or 0,
+            "pins_issued": agg[2] or 0,
+            "security_alerts": agg[3] or 0,
+            "kiosk_actions": agg[4] or 0,
+        }
+        _audit_stats_cache["ts"] = now
+        _audit_stats_cache["stats"] = stats
 
     serialized = []
     for log in logs:
@@ -898,15 +904,11 @@ def create_booth_token():
     db.session.commit()
 
     from app.utils.timeutil import utc_iso
-    import pyotp
-    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
 
     return jsonify({
         "success": True,
         "token": token,
         "create_token": token,
-        "totp_code": totp_code,
-        "current_totp": totp_code,
         "expires_at": utc_iso(expires),
         "election_title": election.title,
         "booth_number": booth_num,
@@ -965,11 +967,7 @@ def revoke_kiosk(kiosk_id):
         slips_count=0,
     ))
 
-    # 4. Generate current officer TOTP code
-    import pyotp
-    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
-
-    # 5. Audit log
+    # 4. Audit log
     db.session.add(AuditLog(
         user_id=officer.id,
         action="BOOTH_REVOKED",
@@ -984,8 +982,6 @@ def revoke_kiosk(kiosk_id):
         "message": f"Booth {kiosk.device_name} session was revoked. The terminal session was terminated and existing slips remain assigned for reconnection.",
         "token": token,
         "create_token": token,
-        "totp_code": totp_code,
-        "current_totp": totp_code,
         "booth_id": kiosk.device_name,
         "booth_number": kiosk.number,
         "election_title": election.title if election else "",
@@ -1023,9 +1019,6 @@ def get_kiosk_setup_token(kiosk_id):
         slips_count=0,
     ))
 
-    import pyotp
-    totp_code = pyotp.TOTP(officer.otp_secret).now() if (officer and officer.otp_secret) else None
-
     db.session.add(AuditLog(
         user_id=officer.id,
         action="BOOTH_TOKEN_GENERATED",
@@ -1039,8 +1032,6 @@ def get_kiosk_setup_token(kiosk_id):
         "success": True,
         "token": token,
         "create_token": token,
-        "totp_code": totp_code,
-        "current_totp": totp_code,
         "booth_id": kiosk.device_name,
         "booth_number": kiosk.number,
         "election_title": election.title if election else "",

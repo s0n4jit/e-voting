@@ -66,6 +66,15 @@ def _build_backup_to_file(actor, file_path: str) -> None:
                 rows.append(row)
             counts[table.name] = len(rows)
             z.writestr(f"db/{table.name}.json", json.dumps(rows, default=_json_default, indent=1))
+        # Include filesystem candidate photos in backup archive
+        from app.services.photo_service import get_photo_dir
+        photo_dir = get_photo_dir()
+        if os.path.isdir(photo_dir):
+            for fname in os.listdir(photo_dir):
+                fpath = os.path.join(photo_dir, fname)
+                if os.path.isfile(fpath):
+                    z.write(fpath, f"photos/{fname}")
+
         z.writestr("manifest.json", json.dumps({
             "format": FORMAT_VERSION,
             "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -225,6 +234,23 @@ def _parse_backup(data: bytes) -> dict:
             raise BackupError(f"The backup table {name[3:-5]} is damaged.")
     if not any(u.get("role") == "admin" for u in parsed.get("users", [])):
         raise BackupError("The backup has no election officer, so nobody could sign in.")
+
+    # Extract candidate photos from backup archive to filesystem
+    from app.services.photo_service import get_photo_dir, save_photo
+    photo_dir = get_photo_dir()
+    for name in z.namelist():
+        if name.startswith("photos/") and not name.endswith("/"):
+            fname = os.path.basename(name)
+            with z.open(name) as src, open(os.path.join(photo_dir, fname), "wb") as dst:
+                dst.write(src.read())
+        elif name.startswith("files/candidate_photos/") and name.endswith(".bin"):
+            try:
+                cand_id = name.split("/")[-1].split(".")[0]
+                with z.open(name) as src:
+                    save_photo(int(cand_id), "image/jpeg", src.read())
+            except Exception:
+                pass
+
     return parsed
 
 
@@ -252,8 +278,10 @@ def _restore(parsed: dict) -> None:
             pk = list(table.primary_key.columns)
             if len(pk) == 1 and isinstance(pk[0].type, Integer):
                 db.session.execute(text(
-                    f"SELECT setval(pg_get_serial_sequence('{table.name}', '{pk[0].name}'), "
-                    f"COALESCE((SELECT MAX({pk[0].name}) FROM {table.name}), 1))"
+                    f"SELECT CASE WHEN pg_get_serial_sequence('{table.name}', '{pk[0].name}') IS NOT NULL THEN "
+                    f"setval(pg_get_serial_sequence('{table.name}', '{pk[0].name}'), "
+                    f"COALESCE((SELECT MAX({pk[0].name}) FROM {table.name}), 1), "
+                    f"(SELECT MAX({pk[0].name}) FROM {table.name}) IS NOT NULL) END"
                 ))
 
 

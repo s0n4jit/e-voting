@@ -302,13 +302,11 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
           <div class="sub">{election_title}</div>
           <div class="badge">{badge_label}</div>
         </div>
-        <div class="banner">
-          <div class="side">Booth: {booth}</div>
+        <div class="banner" style="justify-content: center; text-align: center;">
           <div class="slip">
             <span class="slip-lbl">BALLOT REF</span>
             <span class="slip-id">{slip}</span>
           </div>
-          <div class="side">Time: {time_str}</div>
         </div>
         <div class="table-wrap">
           <table>
@@ -398,24 +396,14 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     c.setDash([])  # Reset dash
     y -= 4.0
 
-    # 2. Three-Part Banner: Left Booth | Center Monospace Slip ID | Right Time
+    # 2. Anonymous Ballot Reference Banner (Centered)
     banner_y = y - 14.0
-    c.setFont("Helvetica", 6.8)
-    c.setFillColor(colors.HexColor("#475569"))
-    c.drawString(card_x + 10.0, banner_y + 4.0, f"Booth: {data.get('booth', 'BOOTH-01')}")
-
-    # Center Blind Ballot Reference
     c.setFont("Helvetica-Bold", 5.2)
     c.setFillColor(colors.HexColor("#64748b"))
     c.drawCentredString(width / 2.0, banner_y + 11.0, "BALLOT REF")
     c.setFont("Courier-Bold", 10.5)
     c.setFillColor(colors.HexColor("#0f172a"))
     c.drawCentredString(width / 2.0, banner_y + 1.0, str(data.get("slip", "VOTER-SLIP")))
-
-    # Right Time
-    c.setFont("Helvetica", 6.8)
-    c.setFillColor(colors.HexColor("#475569"))
-    c.drawRightString(card_x + card_w - 10.0, banner_y + 4.0, f"Time: {data.get('time', '')}")
     y = banner_y - 4.0
 
     # Banner bottom dashed divider
@@ -514,7 +502,7 @@ class ReceiptService:
         election_id: int,
         slip_id: str,
         choices: List[Dict[str, Any]],
-        booth_name: str = "Booth",
+        booth_name: str = "Ballot Box",
         is_mock: bool = False,
         institution_name: Optional[str] = None,
         logo_b64: Optional[str] = None,
@@ -538,7 +526,7 @@ class ReceiptService:
             "slip": slip_id,
             "election": election_title or "Campus E-Voting",
             "institution": institution_name or "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga",
-            "booth": booth_name or "BOOTH-01",
+            "booth": "Ballot Box",
             "time": time_str,
             "is_mock": is_mock,
             "logo": logo_b64 or DEFAULT_LOGO,
@@ -621,8 +609,16 @@ class ReceiptService:
 
     @classmethod
     def get_receipt_pdf_bytes(cls, receipt: VoteReceipt) -> bytes:
-        """Always generate fresh vector PDF matching the preview layout."""
-        # Regenerate in memory to guarantee the exact current layout
+        """Serve cached PDF from disk when available, otherwise generate and cache."""
+        storage_dir = get_receipt_dir(receipt.is_mock)
+        pdf_path = os.path.join(storage_dir, f"{receipt.slip_id}.pdf")
+        if os.path.isfile(pdf_path):
+            try:
+                with open(pdf_path, "rb") as f:
+                    return f.read()
+            except Exception:
+                pass
+
         buf = io.BytesIO()
         election_title = receipt.election.title if receipt.election else "Campus E-Voting"
         from app.models.system_setting import SystemSetting
@@ -659,7 +655,7 @@ class ReceiptService:
         query = VoteReceipt.query.filter_by(is_mock=is_mock)
         if election_id:
             query = query.filter_by(election_id=election_id)
-        receipts = query.order_by(VoteReceipt.created_at.asc()).all()
+        receipts = query.order_by(VoteReceipt.slip_id.asc()).all()
 
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:

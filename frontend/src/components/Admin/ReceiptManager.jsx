@@ -17,11 +17,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { API_BASE_URL } from '../../api/axiosConfig';
 import adminApi from '../../api/adminApi';
+import { usePolling } from '../../hooks/usePolling';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ReceiptManager = () => {
   const [tab, setTab] = useState('live'); // 'live' | 'mock'
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [page, setPage] = useState(1);
   const [receipts, setReceipts] = useState([]);
   const [total, setTotal] = useState(0);
@@ -32,6 +34,7 @@ const ReceiptManager = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
+  const reqIdRef = useRef(0);
 
   // Modal preview state
   const [previewSlip, setPreviewSlip] = useState(null);
@@ -43,16 +46,27 @@ const ReceiptManager = () => {
   const [clearingMock, setClearingMock] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
+  // Debounce search input so typing is smooth and does not trigger rapid network thrashing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setActiveSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const fetchReceipts = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    const reqId = ++reqIdRef.current;
+    if (!silent && receipts.length === 0) setLoading(true);
     setError('');
     try {
       const data = await adminApi.getReceipts({
         is_mock: tab === 'mock',
-        search: search.trim() || undefined,
+        search: activeSearch || undefined,
         page,
         per_page: 25,
       });
+      if (reqId !== reqIdRef.current) return;
       setReceipts(data.items || []);
       setTotal(data.total || 0);
       setPages(data.pages || 1);
@@ -61,28 +75,26 @@ const ReceiptManager = () => {
       setUnprintedCount(data.unprinted_count || 0);
       setLastSyncTime(new Date());
     } catch (err) {
+      if (reqId !== reqIdRef.current) return;
       if (!silent) {
         setError(err?.response?.data?.message || 'Could not load receipts from the server.');
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, [tab, search, page]);
+  }, [tab, activeSearch, page, receipts.length]);
 
-  // Initial load
+  // Initial load and refetch on search / tab / page changes
   useEffect(() => {
     fetchReceipts(false);
   }, [fetchReceipts]);
 
   // Real-time polling: automatically sync receipts every 3 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible' && !previewSlip && !confirmClearOpen) {
-        fetchReceipts(true);
-      }
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [fetchReceipts, previewSlip, confirmClearOpen]);
+  usePolling(() => {
+    if (!previewSlip && !confirmClearOpen) {
+      fetchReceipts(true);
+    }
+  }, 3000);
 
   const handleTabChange = (nextTab) => {
     if (nextTab === tab) return;
@@ -92,8 +104,14 @@ const ReceiptManager = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setActiveSearch(searchInput.trim());
     setPage(1);
-    fetchReceipts(false);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setActiveSearch('');
+    setPage(1);
   };
 
   const openPreview = async (slipId) => {
@@ -210,7 +228,7 @@ const ReceiptManager = () => {
             Vote Receipts
           </h2>
           <p className="text-xs text-muted mt-1">
-            Centrally stored voter receipts received in real-time from all voting booth terminals.
+            Centrally stored anonymous vote receipts archived in real-time from the ballot box.
           </p>
         </div>
 
@@ -226,12 +244,12 @@ const ReceiptManager = () => {
 
           <button
             type="button"
-            disabled={downloadingZip || total === 0}
+            disabled={downloadingZip || (tab === 'mock' ? mockCount === 0 : liveCount === 0)}
             onClick={downloadZip}
             className="px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-2xs transition-all disabled:cursor-not-allowed bg-brand hover:bg-brand-hover text-white disabled:bg-recessed disabled:text-muted disabled:border disabled:border-line"
           >
             <ArrowDownTrayIcon className="w-4 h-4" />
-            <span>{downloadingZip ? 'Building ZIP...' : `Download ${tab === 'mock' ? 'Mock' : 'Live'} ZIP (${total})`}</span>
+            <span>{downloadingZip ? 'Building ZIP...' : `Download ${tab === 'mock' ? 'Mock' : 'Live'} ZIP (${tab === 'mock' ? mockCount : liveCount})`}</span>
           </button>
 
           {tab === 'mock' && mockCount > 0 && (
@@ -319,21 +337,15 @@ const ReceiptManager = () => {
             <MagnifyingGlassIcon className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search by booth machine (e.g. Booth 1)..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by Ballot Ref (e.g. VOTE-A1B2C3)..."
               className="w-full pl-9 pr-8 py-2 rounded-xl border border-line bg-surface text-fg text-xs shadow-2xs placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
             />
-            {search && (
+            {searchInput && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearch('');
-                  setPage(1);
-                }}
+                onClick={handleClearSearch}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted hover:text-fg rounded-md transition"
                 title="Clear search"
               >
@@ -358,7 +370,7 @@ const ReceiptManager = () => {
               <ExclamationTriangleIcon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-bad">Attention: {unprintedCount} vote receipt(s) missed physical printing at the booth machines.</p>
+              <p className="text-xs font-bold text-bad">Attention: {unprintedCount} vote receipt(s) missed physical printing.</p>
               <p className="text-[11px] text-muted mt-0.5">Choices are fully archived in the server database. Click &ldquo;Print&rdquo; on any missed receipt below to output it remotely from this desk.</p>
             </div>
           </div>
@@ -380,20 +392,35 @@ const ReceiptManager = () => {
         ) : receipts.length === 0 ? (
           <div className="p-14 text-center text-muted">
             <CheckBadgeIcon className="w-10 h-10 mx-auto text-muted/50 mb-2" />
-            <p className="text-sm font-bold text-fg">No {tab === 'mock' ? 'mock' : 'official'} receipts stored on the server yet.</p>
-            <p className="text-xs text-muted mt-1 max-w-md mx-auto">
-              When voters cast ballots at the booth terminals, their exact receipts and vector PDFs are automatically transmitted to this central server in real-time.
+            <p className="text-sm font-bold text-fg">
+              {activeSearch
+                ? `No receipts match "${activeSearch}"`
+                : `No ${tab === 'mock' ? 'mock' : 'official'} receipts stored on the server yet.`}
             </p>
+            <p className="text-xs text-muted mt-1 max-w-md mx-auto">
+              {activeSearch
+                ? 'Try searching by a different Ballot Ref or candidate choice.'
+                : 'When voters cast anonymous ballots, their exact receipts and vector PDFs are archived here for certified recount and auditing.'}
+            </p>
+            {activeSearch && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="mt-4 px-3.5 py-1.5 rounded-xl border border-line bg-surface hover:bg-recessed text-xs font-bold text-fg transition shadow-2xs"
+              >
+                Clear Search Filter
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-fg">
               <thead className="bg-recessed/60 border-b border-line text-[11px] font-bold uppercase tracking-wider text-muted">
                 <tr>
-                  <th className="px-5 py-3.5">Voter Slip ID</th>
-                  <th className="px-5 py-3.5">Voting Terminal / Booth</th>
+                  <th className="px-5 py-3.5">Ballot Ref</th>
+                  <th className="px-5 py-3.5">Archive Box</th>
                   <th className="px-5 py-3.5">Print Status</th>
-                  <th className="px-5 py-3.5">Timestamp (UTC)</th>
+                  <th className="px-5 py-3.5">Date</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -405,7 +432,7 @@ const ReceiptManager = () => {
                         {r.slip_id}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-fg font-semibold">{r.booth_name || 'Booth'}</td>
+                    <td className="px-5 py-3.5 text-fg font-semibold">{r.booth_name || 'Ballot Box'}</td>
                     <td className="px-5 py-3.5">
                       {!r.is_printed ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-bad-soft text-bad border border-bad/30" title={r.print_error || 'Printing failed at booth machine'}>
@@ -425,7 +452,7 @@ const ReceiptManager = () => {
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-muted text-xs font-mono">
-                      {new Date(r.created_at).toLocaleString()}
+                      {new Date(r.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="inline-flex items-center gap-2">
@@ -503,7 +530,7 @@ const ReceiptManager = () => {
                   <TicketIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-fg text-sm">Voter Receipt Slip</h3>
+                  <h3 className="font-bold text-fg text-sm">Ballot Receipt</h3>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="font-mono text-xs font-bold text-muted bg-recessed px-2 py-0.5 rounded-md border border-line">
                       {previewSlip}

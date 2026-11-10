@@ -27,7 +27,6 @@ const today = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 export default function SetupWizard() {
   const { ready, installed, requiresToken } = useBrand();
   const { loadCurrentUser, user: signedIn } = useAuth();
-  const [slips, setSlips] = useState({ students: [], title: '' });
   const [secure, setSecure] = useState(false); // after installing: offer two-step verification
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -54,7 +53,6 @@ export default function SetupWizard() {
       start_time: '09:00',
       end_time: '17:00',
       positions: [...DEFAULT_POSITIONS],
-      slips_per_booth: 50,
     },
   });
 
@@ -117,7 +115,6 @@ export default function SetupWizard() {
       localStorage.setItem('refresh_token', res.refresh_token);
       localStorage.setItem('user', JSON.stringify(res.user));
       await loadCurrentUser();
-      setSlips({ students: res.students || [], title: res.election_title || '' });
       setSecure(true);
       setBusy(false);
     } catch (err) {
@@ -359,30 +356,10 @@ export default function SetupWizard() {
                       <h3 className="text-sm font-medium">Physical Electoral Roll & Booth Slips</h3>
                     </div>
                     <p className="text-xs text-muted leading-relaxed">
-                      Voter eligibility is verified against the institution's physical printed electoral roll at the polling station.
-                      Pre-printed sequential slips (with unique slip IDs and 4-digit PINs) are generated per booth.
+                      Voter eligibility is verified against the institution&apos;s physical printed electoral roll at the polling station.
+                      Pre-printed sequential slips (with unique slip IDs and 4-digit PINs) are generated in the Voter Slips panel after installation.
                     </p>
                   </div>
-
-                  <Field
-                    label="Initial Voter Slips per Booth"
-                    htmlFor="election-slips_per_booth"
-                    hint="Number of sequential slips with 4-digit PINs to generate for each booth upon setup (e.g. 50 or 100). Additional batches can be generated anytime in the Voter Slips panel."
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        id="election-slips_per_booth"
-                        type="number"
-                        min={0}
-                        max={1000}
-                        className="input w-48 font-mono"
-                        placeholder="50"
-                        value={election.slips_per_booth || ''}
-                        onChange={(e) => set('election', 'slips_per_booth', parseInt(e.target.value, 10) || 0)}
-                      />
-                      <span className="text-xs text-muted">slips per booth</span>
-                    </div>
-                  </Field>
                 </>
               )}
 
@@ -405,7 +382,7 @@ export default function SetupWizard() {
                       ['Voting', `${election.date}, ${election.start_time}–${election.end_time}`],
                       ['Positions', election.positions.join(', ')],
                       ['Voter verification', 'Physical roll at polling station'],
-                      ['Initial slips per booth', election.slips_per_booth ? `${election.slips_per_booth} slips per booth` : 'Generate on Voter Slips page'],
+                      ['Voter slips', 'Generated on Voter Slips page'],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-6 py-2.5">
                         <dt className="text-muted">{k}</dt>

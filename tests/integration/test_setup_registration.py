@@ -464,21 +464,6 @@ def test_candidate_needs_department_from_programmes(client, installed):
     assert ok.status_code == 201 and ok.get_json()["department"] == DEPT and "party" not in ok.get_json()
 
 
-def test_wizard_imports_programme_template(client, db):
-    tpl = client.get("/api/setup/programme-template").get_data(as_text=True)
-    assert "Bachelor of Science,Physics" in tpl and "Bachelor of Arts,History" in tpl and "hs,Higher Secondary,Science" in tpl
-    p = wizard_payload()
-    p["election"]["programmes_csv"] = tpl
-    assert client.post("/api/setup/validate", json={"step": "election", "data": p}).get_json()["errors"] == {}
-    bad = wizard_payload()
-    bad["election"]["programmes_csv"] = "level,programme,department" + chr(10) + "college,X,Y"
-    assert "programmes_csv" in client.post("/api/setup/validate", json={"step": "election", "data": bad}).get_json()["errors"]["election"]
-    r = client.post("/api/setup/complete", json=p)
-    assert r.status_code == 201
-    from app.models.programme import Programme
-    assert Programme.query.count() == 15 and Programme.query.filter_by(level="hs").count() == 2
-
-
 # ── candidate photos and single election ───────────────────────────────────
 
 def test_candidate_photo_is_required_validated_served_and_deleted(client, installed):
@@ -495,10 +480,13 @@ def test_candidate_photo_is_required_validated_served_and_deleted(client, instal
     ok = cpost(client, url, H(installed), body)
     cand = ok.get_json()
     assert ok.status_code == 201 and cand["photo_url"] == f"/api/photos/{cand['id']}"
+    from app.services.photo_service import photo_exists
+    assert photo_exists(cand["id"])
     img = client.get(cand["photo_url"])                            # public: <img> cannot send a token
     assert img.status_code == 200 and img.mimetype == "image/png" and img.data == PNG
+    img.close()
     assert client.delete(f"{url}/{cand['id']}", headers=H(installed)).status_code == 200
-    assert CandidatePhoto.query.count() == 0 and client.get(cand["photo_url"]).status_code == 404
+    assert not photo_exists(cand["id"]) and client.get(cand["photo_url"]).status_code == 404
 
 
 def test_only_one_election_at_a_time(client, installed):
@@ -1029,20 +1017,6 @@ def test_student_list_import_is_all_or_nothing_and_checks_every_row(client, inst
     assert User.query.filter_by(role="voter").count() == 0                     # the good row was not kept either
     assert _csv_upload(client, H(installed), "").status_code == 400
 
-
-def test_student_list_can_be_imported_in_the_setup_wizard(client, db):
-    p = wizard_payload()
-    p["election"]["programmes_csv"] = "level,programme,department,terms\ndegree,Bachelor of Science,Botany,6\n"
-    p["election"]["students_csv"] = "name,programme,department,semester\nAnita Das,Bachelor of Science,Botany,2\nRaju Nath,Bachelor of Science,Botany,4\n"
-    assert client.post("/api/setup/validate", json={"step": "election", "data": p}).get_json()["errors"] == {}
-    p["election"]["students_csv"] += "Zeno Mali,Bachelor of Science,Botany,99\n"
-    err = client.post("/api/setup/validate", json={"step": "election", "data": p}).get_json()["errors"]
-    assert "students_csv" in err["election"]
-    p["election"]["students_csv"] = p["election"]["students_csv"].replace(",99", ",2")
-    assert client.post("/api/setup/complete", json=p).status_code == 201
-    assert User.query.filter_by(role="voter").count() == 3
-    from app.models.voter_record import VoterRecord
-    assert VoterRecord.query.count() == 3
 
 
 def test_positions_follow_the_election_notice_order_in_ballot_and_results(client, installed):

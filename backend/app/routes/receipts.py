@@ -30,20 +30,16 @@ def list_receipts():
 
     if search:
         search_term = f"%{search}%"
-        if search.isdigit():
-            padded = f"%{int(search):02d}%"
-            query = query.filter(
-                or_(
-                    VoteReceipt.booth_name.ilike(search_term),
-                    VoteReceipt.booth_name.ilike(padded),
-                )
+        query = query.filter(
+            or_(
+                VoteReceipt.slip_id.ilike(search_term),
+                VoteReceipt.choices_json.ilike(search_term),
             )
-        else:
-            query = query.filter(VoteReceipt.booth_name.ilike(search_term))
+        )
 
     total = query.count()
     items = (
-        query.order_by(VoteReceipt.created_at.desc())
+        query.order_by(VoteReceipt.slip_id.asc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -86,7 +82,7 @@ def get_receipt_html(slip_id):
             "slip": receipt.slip_id,
             "election": election_title,
             "institution": branding.get("institution_name") or "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga",
-            "booth": receipt.booth_name or "BOOTH-01",
+            "booth": "Ballot Box",
             "time": receipt.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "is_mock": receipt.is_mock,
             "logo": branding.get("logo") or "",

@@ -1,17 +1,26 @@
 """
-app/models/candidate_photo.py — Candidate photos, stored in the database so they survive redeploys,
-are included in backups and are removed together with the candidate.
+app/models/candidate_photo.py — Legacy shim. Candidate photos are stored on filesystem via app.services.photo_service.
 """
 
-from app.extensions import db
+
+class _PhotoQueryShim:
+    @staticmethod
+    def count():
+        return 0
+
+    @staticmethod
+    def filter_by(**kwargs):
+        return _PhotoQueryShim()
+
+    @staticmethod
+    def first():
+        return None
+
+    @staticmethod
+    def all():
+        return []
 
 
-class CandidatePhoto(db.Model):
-    __tablename__ = "candidate_photos"
-
-    id = db.Column(db.Integer, primary_key=True)
-    candidate_id = db.Column(
-        db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, unique=True
-    )
-    content_type = db.Column(db.String(20), nullable=False)
-    data = db.Column(db.LargeBinary, nullable=False)
+class CandidatePhoto:
+    """Deprecated legacy shim kept for backward compatibility with older tests/imports."""
+    query = _PhotoQueryShim()

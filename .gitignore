@@ -106,3 +106,6 @@ scratch/
 
 # Demo candidate photos (local only, do not push to github)
 demo_candidate_photos/
+
+data/
+backend/data/

@@ -37,18 +37,17 @@ export const KioskManager = () => {
   // Revoke Confirmation Modal
   const [revokingBooth, setRevokingBooth] = useState(null);
 
-  const loadBooths = useCallback(() => {
+  const loadBooths = useCallback((silent = false) => {
     adminApi.getKiosks().then(setBooths).catch((e) => {
-      toast.error(errorMessage(e));
-      setBooths([]);
+      if (!silent) toast.error(errorMessage(e));
     });
   }, []);
 
   useEffect(() => {
-    loadBooths();
+    loadBooths(false);
   }, [loadBooths]);
 
-  usePolling(loadBooths, 3000);
+  usePolling(() => loadBooths(true), 3000);
 
   // Directly create the next booth machine sequentially (BOOTH-01, BOOTH-02, etc.)
   const handleCreateBooth = async () => {

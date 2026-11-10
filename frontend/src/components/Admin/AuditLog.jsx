@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminApi } from '../../api/adminApi';
+import { usePolling } from '../../hooks/usePolling';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { createPortal } from 'react-dom';
 import { toast } from 'react-hot-toast';
@@ -69,14 +70,10 @@ export const AuditLog = () => {
     fetchLogs(false);
   }, [category]);
 
-  // Real-time silent refresh every 4 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      fetchLogs(true);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [category, searchTerm]);
+  // Real-time silent refresh every 3 seconds and on tab visibility
+  usePolling(() => {
+    if (!selectedLog) fetchLogs(true);
+  }, 3000);
 
   const handleExportCsv = async () => {
     try {

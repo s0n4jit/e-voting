@@ -263,13 +263,12 @@ class VoteService:
                 }
                 for entry in validated_entries
             ]
-            booth_name = getattr(booth, "booth_id", None) or getattr(booth, "device_name", None) or getattr(booth, "name", None) or "BOOTH-01"
             receipt_ref = f"VOTE-{blind_token[:8].upper()}"
             ReceiptService.record_receipt(
                 election_id=election.id,
                 slip_id=receipt_ref,
                 choices=choices_list,
-                booth_name=booth_name,
+                booth_name="Ballot Box",
                 is_mock=bool(election.is_mock),
                 institution_name=branding.get("institution_name"),
                 logo_b64=branding.get("logo"),
@@ -675,8 +674,8 @@ class VoteService:
         audit_entry = AuditLog(
             user_id=None,
             action="VOTE_CAST_BOOTH",
-            details=f"Ballot cast ({len(validated_entries)} positions){_at_booth(booth)}.",
-            ip_address=ip_address,
+            details=f"Anonymous ballot cast ({len(validated_entries)} positions).",
+            ip_address="",
             user_agent=user_agent,
             created_at=now,
         )
@@ -698,7 +697,7 @@ class VoteService:
             ]
             ReceiptService.create_receipt(
                 slip_id=slip_record_id,
-                booth_name=booth.booth_id if booth else f"BOOTH-{booth_slip.booth_number:02d}",
+                booth_name="Ballot Box",
                 election_id=election.id,
                 election_title=election.title,
                 institution_name=branding.get("institution_name", "Campus Voting"),

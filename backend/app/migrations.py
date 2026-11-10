@@ -297,6 +297,32 @@ def _m013_booth_slip_id_booth_prefix():
     db.session.commit()
 
 
+def _m014_candidate_photos_to_filesystem():
+    """Migrate legacy CandidatePhoto byte blobs to filesystem files and drop the table."""
+    from app.services.photo_service import save_photo
+    inspector = inspect(db.engine)
+    if "candidate_photos" not in inspector.get_table_names():
+        return
+    rows = db.session.execute(text("SELECT candidate_id, content_type, data FROM candidate_photos")).fetchall()
+    for row in rows:
+        cand_id, content_type, data = row[0], row[1], row[2]
+        if cand_id and data:
+            try:
+                save_photo(cand_id, content_type, bytes(data))
+                db.session.execute(
+                    text("UPDATE candidates SET photo_url = :u WHERE id = :cid AND (photo_url IS NULL OR photo_url = '')"),
+                    {"u": f"/api/photos/{cand_id}", "cid": cand_id},
+                )
+            except Exception:
+                pass
+    db.session.commit()
+    try:
+        db.session.execute(text("DROP TABLE IF EXISTS candidate_photos CASCADE"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 _STEPS = [
     ("001_election_status", _m001_election_status),
     ("002_mark_installed", _m002_mark_installed),
@@ -311,6 +337,7 @@ _STEPS = [
     ("011_prefix_booth_slips", _m011_prefix_booth_slips),
     ("012_audit_and_receipt_indexes", _m012_audit_and_receipt_indexes),
     ("013_booth_slip_id_booth_prefix", _m013_booth_slip_id_booth_prefix),
+    ("014_candidate_photos_to_filesystem", _m014_candidate_photos_to_filesystem),
 ]
 
 
