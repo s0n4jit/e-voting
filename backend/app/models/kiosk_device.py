@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.extensions import db
 
-ONLINE_WITHIN = timedelta(seconds=20)
+ONLINE_WITHIN = timedelta(seconds=10)
 
 
 def hash_token(token: str) -> str:

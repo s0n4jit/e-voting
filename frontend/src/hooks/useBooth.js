@@ -23,13 +23,15 @@ export function useBooth() {
       if (data.valid) {
         setInfo(data);
         setState('ready');
+        window.dispatchEvent(new CustomEvent('app:network-online'));
       } else {
         CLEAR.forEach((k) => localStorage.removeItem(k)); // revoked: forget the token and any voter session
         setInfo(null);
         setState('setup');
       }
     } catch {
-      /* network trouble: keep what we know; the offline overlay explains it */
+      /* network trouble: keep what we know; signal offline overlay */
+      window.dispatchEvent(new CustomEvent('app:network-offline'));
     }
   }, []);
 

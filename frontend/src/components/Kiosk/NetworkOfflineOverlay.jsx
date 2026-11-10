@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { maintenanceApi } from '../../api/maintenanceApi';
 import {
   SignalSlashIcon,
   ArrowPathIcon,
-  WrenchScrewdriverIcon,
   ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 
@@ -11,28 +10,11 @@ export const NetworkOfflineOverlay = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [checking, setChecking] = useState(false);
   const [retryingIn, setRetryingIn] = useState(3);
+  const isCheckingRef = useRef(false);
 
-  // Monitor browser online/offline events
-  useEffect(() => {
-    const handleOnline = () => {
-      checkConnectivity();
-    };
-
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Periodic heartbeat check when offline or every 30s
-  const checkConnectivity = async () => {
+  const checkConnectivity = useCallback(async () => {
+    if (isCheckingRef.current) return;
+    isCheckingRef.current = true;
     setChecking(true);
     try {
       const isReachable = await maintenanceApi.pingBackend();
@@ -41,18 +23,40 @@ export const NetworkOfflineOverlay = () => {
       } else {
         setIsOffline(true);
       }
-    } catch (e) {
+    } catch {
       setIsOffline(true);
     } finally {
+      isCheckingRef.current = false;
       setChecking(false);
       setRetryingIn(3);
     }
-  };
+  }, []);
 
+  // Monitor network events and custom app disconnect signals
   useEffect(() => {
-    let interval;
-    if (isOffline) {
-      interval = setInterval(() => {
+    const handleOnline = () => checkConnectivity();
+    const handleOffline = () => setIsOffline(true);
+    const handleAppOffline = () => setIsOffline(true);
+    const handleAppOnline = () => setIsOffline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('app:network-offline', handleAppOffline);
+    window.addEventListener('app:network-online', handleAppOnline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('app:network-offline', handleAppOffline);
+      window.removeEventListener('app:network-online', handleAppOnline);
+    };
+  }, [checkConnectivity]);
+
+  // Periodic heartbeat (every 3s when online to detect router/server disconnect) and retry loop (every 1s when offline)
+  useEffect(() => {
+    let tick = 0;
+    const interval = setInterval(() => {
+      if (isOffline) {
         setRetryingIn((prev) => {
           if (prev <= 1) {
             checkConnectivity();
@@ -60,17 +64,22 @@ export const NetworkOfflineOverlay = () => {
           }
           return prev - 1;
         });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isOffline]);
+      } else {
+        tick += 1;
+        if (tick >= 3) {
+          tick = 0;
+          checkConnectivity();
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isOffline, checkConnectivity]);
 
   if (!isOffline) return null;
 
   return (
-    <div className="no-flip fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl text-center select-none animate-fade-in">
+    <div className="no-flip fixed inset-0 z-[9999] flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl text-center select-none animate-fade-in">
       <div className="w-full max-w-lg p-8 sm:p-12 rounded-3xl bg-slate-900 border-2 border-rose-600/80 shadow-2xl relative overflow-hidden">
         {/* Pulsing Alert Icon */}
         <div className="w-20 h-20 mx-auto rounded-3xl bg-rose-600/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-6 shadow-lg shadow-rose-600/10">
@@ -105,7 +114,15 @@ export const NetworkOfflineOverlay = () => {
           </span>
         </div>
 
-
+        <button
+          type="button"
+          onClick={() => checkConnectivity()}
+          disabled={checking}
+          className="mt-6 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-semibold flex items-center gap-2 mx-auto transition-all border border-slate-700 disabled:opacity-50"
+        >
+          <ArrowPathIcon className={`w-3.5 h-3.5 ${checking ? 'animate-spin' : ''}`} />
+          <span>{checking ? 'Checking connection…' : 'Retry connection now'}</span>
+        </button>
       </div>
     </div>
   );

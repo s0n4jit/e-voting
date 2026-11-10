@@ -33,10 +33,20 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401 Unauthorized responses
+// Response interceptor: handle 401 Unauthorized responses & network disconnects
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:network-online'));
+    }
+    return response;
+  },
   (error) => {
+    if (typeof window !== 'undefined') {
+      if (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
+        window.dispatchEvent(new CustomEvent('app:network-offline'));
+      }
+    }
     if (error.response && error.response.status === 401) {
       // If unauthorized on auth check or protected route (except login attempt itself), clear token
       const requestUrl = error.config?.url || '';
