@@ -106,7 +106,7 @@ const VoteReceipt = ({ receipt }) => {
             marginBottom: 0,
             display: 'block',
             textAlign: 'left',
-            border: isMock ? '1.5px solid #d97706' : '1.5px solid #0f172a',
+            border: '1.5px solid #0f172a',
             borderRadius: '3mm',
             background: '#ffffff',
             color: '#0f172a',
@@ -120,8 +120,8 @@ const VoteReceipt = ({ receipt }) => {
             style={{
               padding: '2.5mm 4mm 2mm',
               textAlign: 'center',
-              borderBottom: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
-              background: isMock ? '#fffbeb' : '#fafafa',
+              borderBottom: '1.2px dashed #64748b',
+              background: '#fafafa',
             }}
           >
             {logo ? (
@@ -150,7 +150,7 @@ const VoteReceipt = ({ receipt }) => {
                 letterSpacing: '0.02em',
                 lineHeight: 1.2,
                 margin: 0,
-                color: isMock ? '#92400e' : '#0f172a',
+                color: '#0f172a',
                 textAlign: 'center',
               }}
             >
@@ -160,7 +160,7 @@ const VoteReceipt = ({ receipt }) => {
               className="receipt-election-name"
               style={{
                 fontSize: '7.5pt',
-                color: isMock ? '#b45309' : '#334155',
+                color: '#334155',
                 margin: '0.6mm 0',
                 fontWeight: 500,
                 textAlign: 'center',
@@ -177,14 +177,14 @@ const VoteReceipt = ({ receipt }) => {
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  color: isMock ? '#92400e' : '#0f172a',
-                  background: isMock ? '#fef3c7' : '#ffffff',
-                  border: isMock ? '0.8px solid #d97706' : '0.8px solid #0f172a',
+                  color: '#0f172a',
+                  background: '#ffffff',
+                  border: '0.8px solid #0f172a',
                   borderRadius: '1mm',
                   padding: '0.2mm 2.5mm',
                 }}
               >
-                {isMock ? 'MOCK ELECTION' : 'Official Vote Receipt · VVPAT'}
+                Official Vote Receipt · VVPAT
               </span>
             </div>
           </div>
@@ -197,7 +197,7 @@ const VoteReceipt = ({ receipt }) => {
               justifyContent: 'center',
               alignItems: 'center',
               padding: '1.5mm 4mm',
-              borderBottom: isMock ? '1px dashed #f59e0b' : '1px dashed #94a3b8',
+              borderBottom: '1px dashed #94a3b8',
               background: '#ffffff',
               fontSize: '7pt',
             }}
@@ -237,11 +237,11 @@ const VoteReceipt = ({ receipt }) => {
               style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.8pt' }}
             >
               <thead>
-                <tr style={{ background: isMock ? '#fef3c7' : '#f1f5f9', borderBottom: isMock ? '1px solid #fde68a' : '1px solid #cbd5e1' }}>
-                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: isMock ? '#92400e' : '#475569', textAlign: 'left' }}>
+                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'left' }}>
                     Contested Position
                   </th>
-                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: isMock ? '#92400e' : '#475569', textAlign: 'right' }}>
+                  <th style={{ padding: '1mm 4mm', fontSize: '6.5pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>
                     Selected Choice
                   </th>
                 </tr>
@@ -262,8 +262,8 @@ const VoteReceipt = ({ receipt }) => {
             className="receipt-footer"
             style={{
               padding: '1.5mm 4mm',
-              borderTop: isMock ? '1.2px dashed #f59e0b' : '1.2px dashed #64748b',
-              background: isMock ? '#fffbeb' : '#fafafa',
+              borderTop: '1.2px dashed #64748b',
+              background: '#fafafa',
               textAlign: 'center',
             }}
           >
@@ -271,15 +271,13 @@ const VoteReceipt = ({ receipt }) => {
               className="receipt-instructions"
               style={{
                 fontSize: '5.5pt',
-                color: isMock ? '#b45309' : '#64748b',
+                color: '#64748b',
                 lineHeight: 1.25,
                 margin: 0,
                 textAlign: 'center',
               }}
             >
-              {isMock
-                ? '*** MOCK ELECTION *** Check your choices above, then drop this slip into the box at the booth.'
-                : 'Check your choices above, then fold this slip and drop it into the box at the booth.'}
+              Check your choices above, then fold this slip and drop it into the box at the booth.
             </p>
           </div>
         </div>

@@ -69,7 +69,7 @@ function toHtml(r) {
       margin-bottom: 0;
       display: block;
       text-align: left;
-      border: 1.5px solid ${isMock ? '#d97706' : '#0f172a'};
+      border: 1.5px solid #0f172a;
       border-radius: 3mm;
       background: #ffffff;
       overflow: hidden;
@@ -78,8 +78,8 @@ function toHtml(r) {
     .hdr {
       padding: 2.5mm 4mm 2mm;
       text-align: center;
-      border-bottom: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
-      background: ${isMock ? '#fffbeb' : '#fafafa'};
+      border-bottom: 1.2px dashed #64748b;
+      background: #fafafa;
     }
     .logo {
       height: 12mm;
@@ -97,11 +97,11 @@ function toHtml(r) {
       margin: 0;
       line-height: 1.2;
       text-align: center;
-      color: ${isMock ? '#92400e' : '#0f172a'};
+      color: #0f172a;
     }
     .sub {
       font-size: 7.5pt;
-      color: ${isMock ? '#b45309' : '#334155'};
+      color: #334155;
       margin: 0.6mm 0;
       text-align: center;
       font-weight: 500;
@@ -112,9 +112,9 @@ function toHtml(r) {
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: ${isMock ? '#92400e' : '#0f172a'};
-      border: .8px solid ${isMock ? '#d97706' : '#0f172a'};
-      background: ${isMock ? '#fef3c7' : '#ffffff'};
+      color: #0f172a;
+      border: .8px solid #0f172a;
+      background: #ffffff;
       border-radius: 1mm;
       padding: .2mm 2.5mm;
       margin-top: .4mm;
@@ -122,16 +122,12 @@ function toHtml(r) {
     }
     .banner {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       padding: 1.5mm 4mm;
-      border-bottom: 1px dashed ${isMock ? '#f59e0b' : '#94a3b8'};
+      border-bottom: 1px dashed #94a3b8;
       background: #ffffff;
       font-size: 7pt;
-    }
-    .banner .side {
-      color: #475569;
-      font-weight: 500;
     }
     .banner .slip {
       text-align: center;
@@ -161,13 +157,13 @@ function toHtml(r) {
       font-size: 7.8pt;
     }
     th {
-      background: ${isMock ? '#fef3c7' : '#f1f5f9'};
+      background: #f1f5f9;
       padding: 1mm 4mm;
       font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: .05em;
-      color: ${isMock ? '#92400e' : '#475569'};
-      border-bottom: 1px solid ${isMock ? '#fde68a' : '#cbd5e1'};
+      color: #475569;
+      border-bottom: 1px solid #cbd5e1;
     }
     th.p { text-align: left; }
     th.c { text-align: right; }
@@ -182,22 +178,16 @@ function toHtml(r) {
     .c { text-align: right; font-weight: 700; color: #0f172a; }
     .ftr {
       padding: 1.5mm 4mm;
-      border-top: 1.2px dashed ${isMock ? '#f59e0b' : '#64748b'};
-      background: ${isMock ? '#fffbeb' : '#fafafa'};
+      border-top: 1.2px dashed #64748b;
+      background: #fafafa;
       text-align: center;
     }
     .info {
       font-size: 5.5pt;
-      color: ${isMock ? '#b45309' : '#64748b'};
+      color: #64748b;
       margin: 0;
       text-align: center;
       line-height: 1.25;
-    }
-    .mock-warning {
-      font-weight: 800;
-      letter-spacing: .05em;
-      display: block;
-      margin-bottom: .3mm;
     }
   </style></head><body>
     <div class="page-wrap">
@@ -206,15 +196,13 @@ function toHtml(r) {
           ${logoHtml}
           <h1>${esc(r.institution)}</h1>
           <div class="sub">${esc(r.election)}</div>
-          <div class="badge">${isMock ? 'MOCK ELECTION' : 'OFFICIAL VOTE RECEIPT - VVPAT'}</div>
+          <div class="badge">OFFICIAL VOTE RECEIPT - VVPAT</div>
         </div>
         <div class="banner">
-          <div class="side">Booth: ${esc(r.booth || 'BOOTH')}</div>
           <div class="slip">
             <span class="slip-lbl">BALLOT REF</span>
             <span class="slip-id">${esc(r.slip)}</span>
           </div>
-          <div class="side">Time: ${esc(r.time)}</div>
         </div>
         <div class="table-wrap">
           <table>
@@ -225,11 +213,7 @@ function toHtml(r) {
           </table>
         </div>
         <div class="ftr">
-          ${
-            isMock
-              ? '<p class="info"><span class="mock-warning">*** MOCK ELECTION ***</span>Check your choices above, then drop this slip into the box at the booth.</p>'
-              : '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
-          }
+          <p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>
         </div>
       </div>
     </div>
@@ -245,7 +229,7 @@ function archive(dir, r, now = new Date()) {
   let file = path.join(folder, `${base}.html`);
   for (let n = 2; fs.existsSync(file); n += 1) file = path.join(folder, `${base}-${n}.html`); // a reprint never overwrites
   fs.writeFileSync(file, toHtml(r), { mode: 0o600 });
-  const logFile = r.is_mock ? 'mock-receipts.jsonl' : 'receipts.jsonl';
+  const logFile = 'receipts.jsonl';
   const fd = fs.openSync(path.join(dir, logFile), 'a', 0o600);
   fs.writeSync(fd, `${JSON.stringify({ saved_at: now.toISOString(), file, ...r })}\n`);
   fs.fsyncSync(fd);

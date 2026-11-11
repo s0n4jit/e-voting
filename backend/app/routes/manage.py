@@ -6,11 +6,12 @@ programmes, instance settings and reports. Every route is admin-only.
 import csv
 import io
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import get_jwt_identity
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.extensions import db
 from app.models.audit_log import AuditLog
@@ -430,11 +431,28 @@ def end_mock(election_id=None):
         synchronize_session=False
     )
 
-    # 5. Tag receipts as mock receipts so they don't pollute live tallies
-    VoteReceipt.query.filter(VoteReceipt.election_id.in_([target_id, real_election.id])).update(
-        {"is_mock": True},
-        synchronize_session=False
-    )
+    # 5. Clear mock receipts completely from database and disk storage so count clears to 0
+    from app.services.receipt_service import get_receipt_base_dir
+    target_election_ids = [target_id, real_election.id]
+    mock_receipts = VoteReceipt.query.filter(
+        or_(VoteReceipt.election_id.in_(target_election_ids), VoteReceipt.is_mock.is_(True))
+    ).all()
+    storage_dir = get_receipt_base_dir()
+    if os.path.exists(storage_dir):
+        for mr in mock_receipts:
+            targets = {f"{mr.slip_id}.pdf", f"{mr.slip_id}.html"}
+            if mr.pdf_filename:
+                targets.add(mr.pdf_filename)
+            for root, _, files in os.walk(storage_dir):
+                for f in files:
+                    if f in targets:
+                        try:
+                            os.unlink(os.path.join(root, f))
+                        except Exception:
+                            pass
+    VoteReceipt.query.filter(
+        or_(VoteReceipt.election_id.in_(target_election_ids), VoteReceipt.is_mock.is_(True))
+    ).delete(synchronize_session=False)
 
     # 6. Clear vote cast audit logs generated during the mock run
     started_at = getattr(mock_election, "mock_started_at", None) or getattr(real_election, "mock_started_at", None)

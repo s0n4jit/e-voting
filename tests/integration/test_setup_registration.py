@@ -1299,11 +1299,9 @@ def test_separate_mock_election_workflow(client, installed, desk_token, booth):
     assert real_e.is_mock is False
     assert real_e.status in ("setup", "ready")
 
-    # Verify mock vote receipts are PRESERVED!
-    preserved_receipt = VoteReceipt.query.filter_by(slip_id="MOCK-TEST-9999").first()
-    assert preserved_receipt is not None
-    assert preserved_receipt.is_mock is True
-    assert preserved_receipt.election_id == eid
+    # Verify mock vote receipts are cleared up to 0 upon mock election reset!
+    assert VoteReceipt.query.filter_by(slip_id="MOCK-TEST-9999").first() is None
+    assert VoteReceipt.query.filter(VoteReceipt.election_id.in_([mock_id, eid])).count() == 0
 
     # Verify mock start and end audit logs are preserved
     mock_logs = AuditLog.query.filter(AuditLog.action.in_(["MOCK_STARTED", "MOCK_RESET"])).all()

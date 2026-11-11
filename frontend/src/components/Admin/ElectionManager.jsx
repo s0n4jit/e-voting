@@ -389,8 +389,8 @@ export const ElectionManager = () => {
               </span>
             </div>
             <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-medium">
-              Voters can test voting with your already-printed slips and official candidates. Receipts are stamped <strong>MOCK ELECTION</strong>. Results remain locked until published.
-              <span className="text-amber-950 dark:text-white font-bold ml-1">When you click Reset, vote count returns to 0 and all slips are restored for the official election.</span>
+              Voters can test voting with your already-printed slips and official candidates. Results remain locked until published.
+              <span className="text-amber-950 dark:text-white font-bold ml-1">When you click Reset, vote count and stored receipts return to 0 and all slips are restored for the official election.</span>
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -554,11 +554,11 @@ export const ElectionManager = () => {
           <p className="text-sm text-muted leading-relaxed">
             Conduct a mock test run on your booth machines before official voting begins.
           </p>
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
             <p className="font-bold">How it works:</p>
             <p>• Uses your existing candidates and already-printed voter slips directly.</p>
-            <p>• Receipts will be stamped <strong>MOCK ELECTION</strong>.</p>
-            <p>• When finished, clicking <strong>Reset Mock Election</strong> resets the vote count to 0 and restores all slips for the real election.</p>
+            <p>• Prints standard official VVPAT vote receipts for realistic simulation.</p>
+            <p>• When finished, clicking <strong>Reset Mock Election</strong> clears all test votes and receipts back to 0, restoring all slips for the real election.</p>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-line">
             <button type="button" className="btn-ghost" onClick={() => setMockStarting(false)}>Cancel</button>

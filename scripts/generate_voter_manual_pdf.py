@@ -1,25 +1,30 @@
 """
 scripts/generate_voter_manual_pdf.py
-Generates the concise, official Voter User Manual (A to Z) as a 2-page publication-ready PDF
-focused strictly on the new anonymous workflow:
+Generates the publication-ready, professional 2-page Voter Guide PDF.
+Strictly 4 core voting steps + receipt drop:
 1. Enter the PIN
 2. Select Candidates
 3. Submit My Vote
-4. Yes, Cast Vote
-5. Collect Printed Receipt & Drop into Ballot Box
-Zero sensitive data. Exact UI screenshots with marked click callouts.
+4. Yes, Submit
+5. Done & Drop Paper Receipt
+
+Zero sensitive data. Pixel-perfect alignment with current application UI.
 """
 
 import os
 import sys
 import json
+import base64
 from pathlib import Path
 import subprocess
+import pymupdf as fitz
+import shutil
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_PDF = ROOT_DIR / "Voter_User_Manual_A_to_Z.pdf"
 TEMP_HTML = ROOT_DIR / "scripts" / "voter_manual_temp.html"
 ROSTER_PATH = ROOT_DIR / "backend" / "app" / "mock_assets" / "dummy_roster.json"
+LOGO_PATH = ROOT_DIR / "frontend" / "public" / "logo.svg"
 
 CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -52,31 +57,43 @@ def get_candidate_photos():
     return photos
 
 
-def build_manual_html(photos):
+def get_logo_svg():
+    if LOGO_PATH.exists():
+        try:
+            return LOGO_PATH.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#38459F"/><path d="M26.5 22.5l4.2 4.2 7.3-8.4" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/><path d="M12 36.5h40v12a5.5 5.5 0 0 1-5.5 5.5h-29A5.5 5.5 0 0 1 12 48.5z" fill="#ffffff"/></svg>"""
+
+
+def build_manual_html(photos, logo_svg):
     obama_photo = photos.get("Barack Obama", "")
     gandhi_photo = photos.get("Rahul Gandhi", "")
-    kejriwal_photo = photos.get("Arvind Kejriwal", "")
+
+    # Clean inline SVG for compact headers
+    brand_logo_small = logo_svg.replace('<svg ', '<svg style="width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;" ')
+    kiosk_logo_small = logo_svg.replace('<svg ', '<svg style="width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0;" ')
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>How to Vote - Step by Step Voter Guide</title>
+  <title>Campus E-Voting — Voter Quick Guide</title>
   <style>
     @page {{
       size: A4 portrait;
-      margin: 10mm 12mm 12mm 12mm;
+      margin: 8mm 12mm 8mm 12mm;
       @bottom-right {{
         content: "Page " counter(page) " of 2";
-        font-size: 8pt;
+        font-size: 7.5pt;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        color: #64748b;
+        color: #94a3b8;
       }}
       @bottom-left {{
-        content: "Campus E-Voting System • Official Voter Quick-Guide";
-        font-size: 8pt;
+        content: "Campus E-Voting System • Official Voter Quick Guide";
+        font-size: 7.5pt;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        color: #64748b;
+        color: #94a3b8;
       }}
     }}
 
@@ -90,8 +107,8 @@ def build_manual_html(photos):
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
       color: #0f172a;
       background: #ffffff;
-      line-height: 1.4;
-      font-size: 9pt;
+      line-height: 1.32;
+      font-size: 8.5pt;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }}
@@ -102,8 +119,8 @@ def build_manual_html(photos):
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 275mm;
-      max-height: 275mm;
+      height: 281mm;
+      max-height: 281mm;
       overflow: hidden;
     }}
 
@@ -112,70 +129,74 @@ def build_manual_html(photos):
       break-after: avoid;
     }}
 
-    /* Header Banner */
-    .header-banner {{
-      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
-      color: white;
-      padding: 12px 18px;
-      border-radius: 10px;
-      margin-bottom: 10px;
+    /* Global Header */
+    .doc-header {{
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      border: 1px solid #4338ca;
+      justify-content: space-between;
+      padding-bottom: 7px;
+      border-bottom: 2px solid #e2e6ee;
+      margin-bottom: 9px;
     }}
 
-    .header-title h1 {{
-      font-size: 15pt;
+    .doc-brand {{
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }}
+
+    .doc-title {{
+      font-size: 13pt;
       font-weight: 900;
+      color: #0f172a;
       letter-spacing: -0.02em;
       line-height: 1.15;
     }}
 
-    .header-title p {{
-      font-size: 8pt;
-      color: #c7d2fe;
-      margin-top: 2px;
+    .doc-subtitle {{
+      font-size: 7.5pt;
+      color: #64748b;
+      font-weight: 500;
     }}
 
-    .header-badge {{
-      background: #10b981;
-      color: white;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-weight: 800;
+    .doc-badge {{
+      background: #eef1fb;
+      color: #38459f;
       font-size: 7.5pt;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid #d0d7f3;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
     }}
 
-    /* Section Card */
-    .step-section {{
-      background: #f8fafc;
-      border: 1.5px solid #e2e8f0;
+    /* Step Box Container */
+    .step-box {{
+      background: #f7f8fb;
+      border: 1.5px solid #e2e6ee;
       border-radius: 10px;
-      padding: 10px 14px;
-      margin-bottom: 10px;
+      padding: 9px 12px;
+      margin-bottom: 9px;
     }}
 
-    .step-header {{
+    .step-title-row {{
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }}
 
-    .step-title {{
-      display: flex;
+    .step-badge {{
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
     }}
 
     .step-num {{
       width: 22px;
       height: 22px;
-      background: #4f46e5;
+      background: #38459f;
       color: white;
       font-weight: 900;
       font-size: 9.5pt;
@@ -183,332 +204,394 @@ def build_manual_html(photos):
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 1px 3px rgba(56, 69, 159, 0.35);
     }}
 
-    .step-label {{
+    .step-heading {{
       font-size: 11pt;
       font-weight: 800;
       color: #0f172a;
+      letter-spacing: -0.01em;
     }}
 
-    .step-subtext {{
+    .step-tag {{
       font-size: 7.5pt;
+      font-weight: 600;
       color: #64748b;
-      font-weight: 500;
     }}
 
-    /* Terminal Bezel */
-    .mock-screen {{
-      background: #0f172a;
-      border: 2px solid #334155;
+    /* Kiosk Window Frame Mockup */
+    .kiosk-shell {{
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
       position: relative;
     }}
 
-    .mock-topbar {{
-      background: #1e293b;
-      padding: 4px 10px;
+    .kiosk-header {{
+      background: #ffffff;
+      padding: 5px 10px;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #334155;
+      justify-content: space-between;
+      border-bottom: 1px solid #e2e6ee;
+    }}
+
+    .kiosk-booth-pill {{
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      background: #ffffff;
+      border: 1px solid #e2e6ee;
+      border-radius: 6px;
       font-size: 7pt;
-      color: #94a3b8;
-      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 800;
+      color: #38459f;
     }}
 
-    .mock-content {{
-      padding: 12px 14px;
+    .pulse-dot {{
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #16824a;
+    }}
+
+    .kiosk-body {{
+      padding: 10px 12px;
       position: relative;
+      background: #ffffff;
     }}
 
-    /* Callout Pin Marker */
-    .callout-pin {{
+    /* Numbered Callout Pointer Badges */
+    .callout {{
       position: absolute;
       display: flex;
       align-items: center;
       gap: 4px;
-      z-index: 40;
+      z-index: 50;
+      pointer-events: none;
     }}
 
-    .pin-circle {{
+    .callout-num {{
       width: 22px;
       height: 22px;
-      background: #e11d48;
+      background: #dc2626;
       color: white;
       font-weight: 900;
-      font-size: 9pt;
+      font-size: 9.5pt;
       border-radius: 50%;
       border: 2px solid #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 0 2px #e11d48, 0 3px 6px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 6px rgba(220, 38, 38, 0.5);
     }}
 
-    .pin-label {{
-      background: #e11d48;
+    .callout-text {{
+      background: #dc2626;
       color: white;
       font-size: 7pt;
       font-weight: 800;
       padding: 2px 6px;
       border-radius: 4px;
-      text-transform: uppercase;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
       white-space: nowrap;
     }}
 
-    /* Instructions Box */
-    .instructions-box {{
-      margin-top: 8px;
-      background: #ffffff;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      padding: 6px 10px;
+    /* Action Instruction Rows below mockups */
+    .action-row {{
       display: flex;
-      gap: 12px;
+      align-items: center;
+      gap: 7px;
+      margin-top: 6px;
       font-size: 8pt;
+      color: #334155;
     }}
 
-    .instr-item {{
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      flex: 1;
-    }}
-
-    .instr-badge {{
-      background: #e11d48;
+    .action-pill {{
+      background: #dc2626;
       color: white;
-      font-weight: 900;
-      font-size: 7.5pt;
-      width: 16px;
-      height: 16px;
+      width: 17px;
+      height: 17px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 8pt;
+      font-weight: 900;
       flex-shrink: 0;
-      margin-top: 1px;
     }}
 
-    .instr-text strong {{
-      color: #0f172a;
-    }}
-
-    .instr-text span {{
-      color: #475569;
+    .doc-footer {{
+      border-top: 1px solid #e2e6ee;
+      padding-top: 5px;
+      display: flex;
+      justify-content: space-between;
       font-size: 7.5pt;
-      display: block;
-      line-height: 1.25;
+      color: #94a3b8;
     }}
   </style>
 </head>
 <body>
 
   <!-- ========================================================================= -->
-  <!-- PAGE 1: STEPS 1 & 2 (PIN ENTRY & SELECT CANDIDATE)                        -->
+  <!-- PAGE 1: STEP 1 (ENTER THE PIN) & STEP 2 (SELECT CANDIDATES)               -->
   <!-- ========================================================================= -->
   <div class="page">
     <div>
-      <!-- Header -->
-      <div class="header-banner">
-        <div class="header-title">
-          <h1>HOW TO VOTE — STEP-BY-STEP VOTER GUIDE</h1>
-          <p>Official Touchscreen Kiosk Instructions • 100% Anonymous & Secret Ballot</p>
+      <div class="doc-header">
+        <div class="doc-brand">
+          {brand_logo_small}
+          <div>
+            <div class="doc-title">CAMPUS E-VOTING — HOW TO VOTE</div>
+            <div class="doc-subtitle">Official Step-by-Step Voter Quick Guide</div>
+          </div>
         </div>
-        <div class="header-badge">Campus E-Voting</div>
+        <div class="doc-badge">Step 1 & Step 2</div>
       </div>
 
-      <!-- ==================== STEP 1: ENTER PIN ==================== -->
-      <div class="step-section">
-        <div class="step-header">
-          <div class="step-title">
+      <!-- ==================== STEP 1: ENTER THE PIN ==================== -->
+      <div class="step-box">
+        <div class="step-title-row">
+          <div class="step-badge">
             <span class="step-num">1</span>
-            <span class="step-label">Enter Your 4-Digit Voting PIN</span>
+            <span class="step-heading">Enter the PIN</span>
           </div>
-          <span class="step-subtext">At Kiosk Screen • Time required: ~10 seconds</span>
+          <span class="step-tag">Step 1 of 4 • On Kiosk Touchscreen</span>
         </div>
 
-        <!-- Mock Screen 1: PIN Screen -->
-        <div class="mock-screen">
-          <div class="mock-topbar">
-            <span>BOOTH-01 • CAMPUS E-VOTING KIOSK</span>
-            <span style="color: #10b981;">● READY FOR VOTING</span>
+        <!-- Real KioskLogin UI Mockup -->
+        <div class="kiosk-shell">
+          <!-- Kiosk Header Bar -->
+          <div class="kiosk-header">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              {kiosk_logo_small}
+              <div>
+                <span style="font-weight: 800; font-size: 8pt; color: #0f172a; display: block; line-height: 1;">Campus E-Voting</span>
+                <span style="font-size: 6.5pt; color: #64748b;">Election Commission</span>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 7px;">
+              <div class="kiosk-booth-pill">
+                <span class="pulse-dot"></span>
+                <span>BOOTH-01</span>
+              </div>
+              <div style="font-size: 7pt; font-family: ui-monospace, monospace; text-align: right; line-height: 1.1;">
+                <span style="font-weight: 700; color: #0f172a;">10:14:20 AM</span>
+              </div>
+            </div>
           </div>
 
-          <div class="mock-content" style="background: #ffffff; color: #0f172a; padding: 14px 18px; text-align: center;">
-            <div style="font-size: 13pt; font-weight: 900; margin-bottom: 2px;">Enter Voting PIN</div>
-            <div style="font-size: 7.5pt; color: #64748b; margin-bottom: 8px;">Please enter the 4-digit PIN from your voting slip to unlock your ballot.</div>
-
-            <!-- Ballot ID Box -->
-            <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-              <span style="font-size: 7.5pt; color: #64748b;">Your Voting ID:</span>
-              <strong style="font-family: monospace; font-size: 9.5pt; color: #4f46e5; letter-spacing: 0.05em;">SUE26-B1-1001</strong>
+          <!-- Kiosk Body Content -->
+          <div class="kiosk-body">
+            <div style="text-align: center; margin-bottom: 8px;">
+              <h2 style="font-size: 13pt; font-weight: 900; color: #0f172a; margin-bottom: 2px;">Enter Voting PIN</h2>
+              <p style="font-size: 7.5pt; color: #64748b;">College Student Council Election 2026</p>
             </div>
 
-            <!-- PIN Input Display -->
-            <div style="position: relative; margin-bottom: 8px;">
-              <div style="display: flex; justify-content: center; gap: 6px;">
-                <div style="width: 28px; height: 32px; border: 2px solid #4f46e5; border-radius: 5px; background: #eef2ff; display: flex; align-items: center; justify-content: center; font-size: 16pt; font-weight: 900; color: #1e1b4b;">●</div>
-                <div style="width: 28px; height: 32px; border: 2px solid #4f46e5; border-radius: 5px; background: #eef2ff; display: flex; align-items: center; justify-content: center; font-size: 16pt; font-weight: 900; color: #1e1b4b;">●</div>
-                <div style="width: 28px; height: 32px; border: 1.5px solid #cbd5e1; border-radius: 5px; background: #f8fafc; display: flex; align-items: center; justify-content: center; font-size: 12pt; color: #94a3b8;">·</div>
-                <div style="width: 28px; height: 32px; border: 1.5px solid #cbd5e1; border-radius: 5px; background: #f8fafc; display: flex; align-items: center; justify-content: center; font-size: 12pt; color: #94a3b8;">·</div>
-              </div>
-
-              <!-- Callout Pin 1 -->
-              <div class="callout-pin" style="right: 110px; top: -6px;">
-                <div class="pin-circle">1</div>
-                <div class="pin-label">Type 4-Digit PIN</div>
-              </div>
-            </div>
-
-            <!-- NumPad -->
-            <div style="width: 150px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; position: relative;">
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">1</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">2</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">3</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">4</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">5</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">6</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">7</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">8</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">9</button>
-              <button style="padding: 5px; border: 1px solid #cbd5e1; background: #f1f5f9; border-radius: 4px; font-weight: 700; font-size: 7.5pt; color: #64748b;">C</button>
-              <button style="padding: 5px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-weight: 800; font-size: 9.5pt; color: #1e293b;">0</button>
+            <!-- 2-Column Real Layout: Left Form + Right NumPad -->
+            <div style="display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 14px; max-width: 440px; margin: 0 auto; align-items: center;">
               
-              <!-- Callout Pin 2: Submit Button -->
-              <button style="padding: 5px; border: none; background: #10b981; color: white; border-radius: 4px; font-weight: 900; font-size: 10pt; position: relative;">
-                ➔
-                <div class="callout-pin" style="right: -10px; bottom: -8px;">
-                  <div class="pin-circle">2</div>
+              <!-- Left Form Side -->
+              <div style="background: #ffffff; border: 1px solid #e2e6ee; border-radius: 10px; padding: 10px;">
+                <!-- Your Voting ID Box -->
+                <div style="background: #f1f3f8; border: 1px solid #e2e6ee; border-radius: 8px; padding: 6px; text-align: center; margin-bottom: 8px;">
+                  <span style="font-size: 6.5pt; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; display: block;">YOUR VOTING ID</span>
+                  <div style="font-family: ui-monospace, monospace; font-size: 13pt; font-weight: 900; color: #38459f; letter-spacing: 0.05em;">SUE26-B1-1001</div>
+                  <span style="font-size: 6pt; color: #64748b;">Verify this matches your paper slip</span>
                 </div>
-              </button>
+
+                <!-- 4-Digit PIN Input Box -->
+                <div style="margin-bottom: 9px; text-align: center;">
+                  <span style="font-size: 7pt; font-weight: 800; text-transform: uppercase; color: #0f172a; display: block; margin-bottom: 3px; letter-spacing: 0.04em;">4-Digit Voting PIN</span>
+                  <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px; font-size: 15pt; font-weight: 900; letter-spacing: 0.5em; text-align: center; color: #0f172a;">
+                    ••••
+                  </div>
+                </div>
+
+                <!-- Open Ballot Button -->
+                <button style="width: 100%; background: #38459f; color: white; border: none; padding: 7px; border-radius: 8px; font-weight: 800; font-size: 8.5pt; display: flex; align-items: center; justify-content: center; gap: 6px; position: relative;">
+                  <span>Open Ballot</span>
+                  <span>➔</span>
+                  <!-- Callout 2 -->
+                  <div class="callout" style="right: -6px; top: -10px;">
+                    <div class="callout-num">2</div>
+                    <div class="callout-text">Open Ballot</div>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Right: Real NumPad Grid (Matching NumPad.jsx) -->
+              <div style="background: #ffffff; border: 1px solid #e2e6ee; border-radius: 10px; padding: 9px; position: relative;">
+                <!-- Callout 1 -->
+                <div class="callout" style="left: -8px; top: -10px;">
+                  <div class="callout-num">1</div>
+                  <div class="callout-text">Type 4-Digit PIN</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">1</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">2</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">3</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">4</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">5</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">6</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">7</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">8</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">9</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 7.5pt; font-weight: 700; color: #64748b;">Clear</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #0f172a;">0</div>
+                  <div style="padding: 7px 0; text-align: center; background: #f1f3f8; border-radius: 6px; font-size: 10.5pt; font-weight: 700; color: #64748b;">⌫</div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
 
-        <!-- Instructions for Step 1 -->
-        <div class="instructions-box">
-          <div class="instr-item">
-            <div class="instr-badge">1</div>
-            <div class="instr-text">
-              <strong>Enter PIN on NumPad:</strong>
-              <span>Tap the 4-digit PIN printed on your paper voter slip using the on-screen touchscreen number pad.</span>
-            </div>
+        <!-- Instructions -->
+        <div style="display: flex; gap: 16px; margin-top: 7px;">
+          <div class="action-row">
+            <span class="action-pill">1</span>
+            <span>Type the <strong>4-digit PIN</strong> printed on your paper slip using the touchscreen keypad.</span>
           </div>
-          <div class="instr-item">
-            <div class="instr-badge">2</div>
-            <div class="instr-text">
-              <strong>Tap Green Arrow [ ➔ ]:</strong>
-              <span>Press the green arrow button (or system auto-submits after 4 digits) to immediately unlock your electronic ballot.</span>
-            </div>
+          <div class="action-row">
+            <span class="action-pill">2</span>
+            <span>Click <strong>Open Ballot ➔</strong> (the terminal also auto-submits once all 4 digits are entered).</span>
           </div>
         </div>
       </div>
 
       <!-- ==================== STEP 2: SELECT CANDIDATES ==================== -->
-      <div class="step-section">
-        <div class="step-header">
-          <div class="step-title">
+      <div class="step-box">
+        <div class="step-title-row">
+          <div class="step-badge">
             <span class="step-num">2</span>
-            <span class="step-label">Select Your Candidates</span>
+            <span class="step-heading">Select Candidates</span>
           </div>
-          <span class="step-subtext">Contested Positions • Tap Candidate Card</span>
+          <span class="step-tag">Step 2 of 4 • Candidate Selection</span>
         </div>
 
-        <!-- Mock Screen 2: Candidate Ballot -->
-        <div class="mock-screen">
-          <div class="mock-topbar">
-            <span>POSITION 1 OF 2 • VICE PRESIDENT</span>
-            <span style="color: #4f46e5; font-weight: 700;">CHOOSE 1 CANDIDATE OR NOTA</span>
+        <!-- Real KioskVoting UI Mockup -->
+        <div class="kiosk-shell">
+          <!-- Kiosk Header Bar -->
+          <div class="kiosk-header">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 7pt; font-weight: 800; color: #38459f; text-transform: uppercase; letter-spacing: 0.05em;">POST 1 OF 3</span>
+              <span style="color: #cbd5e1;">•</span>
+              <span style="font-size: 7.5pt; font-weight: 700; color: #0f172a;">President</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="display: inline-block; width: 18px; height: 4px; border-radius: 2px; background: #38459f;"></span>
+              <span style="display: inline-block; width: 6px; height: 4px; border-radius: 2px; background: #e2e6ee;"></span>
+              <span style="display: inline-block; width: 6px; height: 4px; border-radius: 2px; background: #e2e6ee;"></span>
+            </div>
           </div>
 
-          <div class="mock-content" style="background: #0b1120; color: white; padding: 12px 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <div>
-                <span style="font-size: 7pt; color: #818cf8; text-transform: uppercase; font-weight: 700;">Executive Council</span>
-                <div style="font-size: 12pt; font-weight: 900; color: #ffffff;">Vice President</div>
-              </div>
-              <span style="font-size: 7pt; color: #94a3b8;">Click card to vote</span>
+          <!-- Kiosk Body Content -->
+          <div class="kiosk-body" style="padding: 9px 12px;">
+            <div style="text-align: center; margin-bottom: 7px;">
+              <h2 style="font-size: 13pt; font-weight: 900; color: #0f172a; margin-bottom: 1px;">President</h2>
+              <p style="font-size: 7.5pt; color: #64748b;">Click your chosen candidate below to give your vote.</p>
             </div>
 
-            <!-- Candidate Grid -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-              <!-- Candidate 1: Selected (Callout 1) -->
-              <div style="background: #1e293b; border: 2px solid #10b981; border-radius: 6px; overflow: hidden; display: flex; position: relative; box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);">
-                <div style="width: 55px; height: 55px; background: #334155; flex-shrink: 0; position: relative;">
-                  {"<img src='" + obama_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Candidate'>" if obama_photo else "<div style='color: white; font-size: 14pt; display: flex; align-items: center; justify-content: center; height: 100%;'>BO</div>"}
-                  <div style="position: absolute; bottom: 2px; left: 2px; background: #10b981; color: white; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-size: 8pt; font-weight: 900;">✓</div>
-                </div>
-                <div style="padding: 6px 8px; display: flex; flex-direction: column; justify-content: center; flex: 1;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong style="color: #ffffff; font-size: 8.5pt;">Barack Obama</strong>
-                    <span style="background: #064e3b; color: #34d399; font-size: 6pt; font-weight: 800; padding: 1px 4px; border-radius: 3px;">SELECTED</span>
+            <!-- Candidate Cards (3-Column Grid Matching Real UI) -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 480px; margin: 0 auto 7px auto;">
+              
+              <!-- Card 1: Selected Candidate (Barack Obama) -->
+              <div style="border: 2px solid #38459f; border-radius: 10px; background: #ffffff; box-shadow: 0 0 0 3px rgba(56, 69, 159, 0.2); overflow: hidden; position: relative;">
+                <div style="background: #f1f3f8; padding: 6px; text-align: center;">
+                  <div style="width: 50px; height: 50px; border-radius: 8px; margin: 0 auto; overflow: hidden; background: #e2e8f0;">
+                    {"<img src='" + obama_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Barack Obama'>" if obama_photo else "<div style='color: #38459f; font-size: 14pt; font-weight: 900; line-height: 50px;'>BO</div>"}
                   </div>
-                  <div style="font-size: 6.5pt; color: #94a3b8;">Constitutional Law | Sem 5</div>
                 </div>
 
-                <!-- Callout Pin 1 -->
-                <div class="callout-pin" style="right: 6px; top: -8px;">
-                  <div class="pin-circle">1</div>
-                  <div class="pin-label">Tap Candidate Card</div>
+                <!-- Brand Purple Checkmark Badge -->
+                <div style="position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #38459f; color: white; display: flex; align-items: center; justify-content: center; font-size: 10pt; font-weight: 900; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                  ✓
+                </div>
+
+                <div style="padding: 5px; text-align: center; background: #eef1fb;">
+                  <strong style="font-size: 8.5pt; color: #0f172a; display: block; font-weight: 900;">Barack Obama</strong>
+                  <span style="font-size: 6.5pt; color: #64748b;">Constitutional Law | Sem 5</span>
+                </div>
+
+                <!-- Callout 1 -->
+                <div class="callout" style="left: 10px; top: -10px;">
+                  <div class="callout-num">1</div>
+                  <div class="callout-text">Tap Candidate Card</div>
                 </div>
               </div>
 
-              <!-- Candidate 2: Unselected -->
-              <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; overflow: hidden; display: flex; opacity: 0.8;">
-                <div style="width: 55px; height: 55px; background: #334155; flex-shrink: 0;">
-                  {"<img src='" + gandhi_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Candidate'>" if gandhi_photo else "<div style='color: white; font-size: 14pt; display: flex; align-items: center; justify-content: center; height: 100%;'>RG</div>"}
+              <!-- Card 2: Unselected Candidate (Rahul Gandhi) -->
+              <div style="border: 1.5px solid #e2e6ee; border-radius: 10px; background: #ffffff; overflow: hidden; position: relative;">
+                <div style="background: #f8fafc; padding: 6px; text-align: center;">
+                  <div style="width: 50px; height: 50px; border-radius: 8px; margin: 0 auto; overflow: hidden; background: #e2e8f0;">
+                    {"<img src='" + gandhi_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Rahul Gandhi'>" if gandhi_photo else "<div style='color: #64748b; font-size: 14pt; font-weight: 900; line-height: 50px;'>RG</div>"}
+                  </div>
                 </div>
-                <div style="padding: 6px 8px; display: flex; flex-direction: column; justify-content: center; flex: 1;">
-                  <strong style="color: #ffffff; font-size: 8.5pt;">Rahul Gandhi</strong>
-                  <div style="font-size: 6.5pt; color: #94a3b8;">Economics & Sociology | Sem 3</div>
+
+                <div style="position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #cbd5e1; background: #ffffff;"></div>
+
+                <div style="padding: 5px; text-align: center;">
+                  <strong style="font-size: 8.5pt; color: #0f172a; display: block;">Rahul Gandhi</strong>
+                  <span style="font-size: 6.5pt; color: #64748b;">Economics | Sem 3</span>
                 </div>
               </div>
+
+              <!-- Card 3: NOTA Option -->
+              <div style="border: 1.5px solid #cbd5e1; border-radius: 10px; background: #f8fafc; overflow: hidden; position: relative;">
+                <div style="padding: 6px; text-align: center;">
+                  <div style="width: 50px; height: 50px; border-radius: 8px; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 18pt; color: #64748b; background: #e2e8f0;">
+                    ⊘
+                  </div>
+                </div>
+
+                <div style="padding: 5px; text-align: center; border-top: 1px solid #e2e6ee;">
+                  <strong style="font-size: 8pt; color: #334155; display: block;">None of the above</strong>
+                  <span style="font-size: 6.5pt; color: #94a3b8;">(NOTA)</span>
+                </div>
+              </div>
+
             </div>
 
-            <!-- NOTA Option & Next Button -->
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #334155; padding-top: 6px;">
-              <div style="background: #1e293b; border: 1px dashed #475569; border-radius: 4px; padding: 3px 8px; font-size: 7pt; color: #cbd5e1; display: flex; align-items: center; gap: 4px;">
-                <span>⊘ None of the above (NOTA)</span>
-              </div>
-
-              <!-- Callout Pin 2: Next Button -->
-              <button style="background: #4f46e5; border: none; color: white; font-size: 7.5pt; font-weight: 800; padding: 4px 12px; border-radius: 5px; display: flex; align-items: center; gap: 4px; position: relative;">
-                <span>Next Position</span>
+            <!-- Bottom Navigation Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e6ee; padding-top: 5px;">
+              <span style="font-size: 7pt; color: #16824a; font-weight: 700;">Choice Recorded ✓</span>
+              <!-- Next Button -->
+              <button style="background: #38459f; color: white; border: none; padding: 5px 14px; border-radius: 6px; font-weight: 700; font-size: 8pt; display: flex; align-items: center; gap: 4px; position: relative;">
+                <span>Next</span>
                 <span>➔</span>
-                <div class="callout-pin" style="right: -8px; top: -8px;">
-                  <div class="pin-circle">2</div>
+                <!-- Callout 2 -->
+                <div class="callout" style="right: -6px; top: -10px;">
+                  <div class="callout-num">2</div>
+                  <div class="callout-text">Next Post</div>
                 </div>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Instructions for Step 2 -->
-        <div class="instructions-box">
-          <div class="instr-item">
-            <div class="instr-badge">1</div>
-            <div class="instr-text">
-              <strong>Tap Chosen Candidate:</strong>
-              <span>Tap on your chosen candidate's photo card (or choose NOTA). The card highlights with a bright green border and checkmark (✓).</span>
-            </div>
+        <!-- Instructions -->
+        <div style="display: flex; gap: 16px; margin-top: 7px;">
+          <div class="action-row">
+            <span class="action-pill">1</span>
+            <span>Tap your chosen candidate card. It highlights with a <strong>brand border and checkmark (✓)</strong>.</span>
           </div>
-          <div class="instr-item">
-            <div class="instr-badge">2</div>
-            <div class="instr-text">
-              <strong>Advance to Next Post:</strong>
-              <span>Tap <strong>[ Next Position ➔ ]</strong> to move to the next contested position until all ballot seats are completed.</span>
-            </div>
+          <div class="action-row">
+            <span class="action-pill">2</span>
+            <span>Click <strong>Next ➔</strong> to proceed to the next position.</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Page 1 Footer -->
-    <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; display: flex; justify-content: space-between; font-size: 7.5pt; color: #64748b;">
+    <!-- Page 1 Bottom Footer -->
+    <div class="doc-footer">
       <span>Campus Election Commission • Standard Operating Procedure</span>
       <span>Turn over for Step 3, Step 4 & Paper Receipt</span>
     </div>
@@ -516,202 +599,210 @@ def build_manual_html(photos):
 
 
   <!-- ========================================================================= -->
-  <!-- PAGE 2: STEPS 3, 4 & 5 (SUBMIT, YES CONFIRM & VVPAT RECEIPT)              -->
+  <!-- PAGE 2: STEP 3 (SUBMIT), STEP 4 (YES CONFIRM) & STEP 5 (RECEIPT DROP)     -->
   <!-- ========================================================================= -->
   <div class="page">
     <div>
-      <!-- Header -->
-      <div class="header-banner">
-        <div class="header-title">
-          <h1>FINAL SUBMISSION & PAPER VVPAT RECEIPT</h1>
-          <p>Review Your Choices • Cryptographic Ballot Sealing • Physical Audit Trail</p>
+      <div class="doc-header">
+        <div class="doc-brand">
+          {brand_logo_small}
+          <div>
+            <div class="doc-title">CAMPUS E-VOTING — HOW TO VOTE</div>
+            <div class="doc-subtitle">Official Step-by-Step Voter Quick Guide</div>
+          </div>
         </div>
-        <div class="header-badge">Step 3 to Step 5</div>
+        <div class="doc-badge">Step 3, Step 4 & Step 5</div>
       </div>
 
-      <!-- ==================== STEP 3: REVIEW & SUBMIT ==================== -->
-      <div class="step-section">
-        <div class="step-header">
-          <div class="step-title">
+      <!-- ==================== STEP 3: SUBMIT MY VOTE ==================== -->
+      <div class="step-box">
+        <div class="step-title-row">
+          <div class="step-badge">
             <span class="step-num">3</span>
-            <span class="step-label">Review Choices & Click "Submit Vote"</span>
+            <span class="step-heading">Submit My Vote</span>
           </div>
-          <span class="step-subtext">Summary Screen • Verify all choices before submitting</span>
+          <span class="step-tag">Step 3 of 4 • Review Screen</span>
         </div>
 
-        <!-- Mock Screen 3: Review Choices -->
-        <div class="mock-screen">
-          <div class="mock-topbar">
-            <span>FINAL STEP • REVIEW YOUR CHOICES</span>
-            <span style="color: #10b981;">● 2 OF 2 POSITIONS ANSWERED</span>
+        <!-- Real KioskVoting Review UI Mockup -->
+        <div class="kiosk-shell">
+          <div class="kiosk-header">
+            <div>
+              <span style="font-size: 6.5pt; font-weight: 700; color: #38459f; text-transform: uppercase;">FINAL STEP</span>
+              <span style="font-size: 8pt; font-weight: 800; color: #0f172a; margin-left: 4px;">Review your choices</span>
+            </div>
+            <span style="font-size: 7pt; color: #64748b;">Check each choice before submitting</span>
           </div>
 
-          <div class="mock-content" style="background: #0b1120; color: white; padding: 12px 16px;">
-            <div style="font-size: 11pt; font-weight: 900; margin-bottom: 6px;">Review Your Choices</div>
-
-            <!-- Rows -->
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
-              <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 5px 10px; display: flex; align-items: center; justify-content: space-between; position: relative;">
-                <div>
-                  <span style="font-size: 6.5pt; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Vice President:</span>
-                  <strong style="font-size: 8.5pt; color: #ffffff; margin-left: 6px;">Barack Obama</strong>
+          <div class="kiosk-body" style="padding: 9px 12px;">
+            <div style="display: flex; flex-direction: column; gap: 5px; max-width: 460px; margin: 0 auto 7px auto;">
+              
+              <!-- Review Row 1 -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #ffffff; border: 1px solid #e2e6ee; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 28px; height: 28px; border-radius: 6px; overflow: hidden; background: #eef1fb; flex-shrink: 0;">
+                    {"<img src='" + obama_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Obama'>" if obama_photo else "<div style='color: #38459f; font-weight: 900; font-size: 8pt; text-align: center; line-height: 28px;'>BO</div>"}
+                  </div>
+                  <div>
+                    <div style="font-size: 6.5pt; font-weight: 700; text-transform: uppercase; color: #64748b;">President</div>
+                    <strong style="font-size: 8.5pt; color: #0f172a;">Barack Obama</strong>
+                  </div>
                 </div>
-                <button style="background: #334155; color: #cbd5e1; border: none; font-size: 6.5pt; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Change</button>
-
-                <!-- Callout Pin 1 -->
-                <div class="callout-pin" style="left: 120px; top: -8px;">
-                  <div class="pin-circle">1</div>
-                </div>
+                <button style="background: transparent; color: #38459f; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 5px; font-size: 7pt; font-weight: 700;">Change</button>
               </div>
 
-              <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 5px 10px; display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                  <span style="font-size: 6.5pt; color: #94a3b8; text-transform: uppercase; font-weight: 700;">General Secretary:</span>
-                  <strong style="font-size: 8.5pt; color: #ffffff; margin-left: 6px;">Arvind Kejriwal</strong>
+              <!-- Review Row 2 -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #ffffff; border: 1px solid #e2e6ee; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 28px; height: 28px; border-radius: 6px; overflow: hidden; background: #eef1fb; flex-shrink: 0;">
+                    {"<img src='" + gandhi_photo + "' style='width: 100%; height: 100%; object-fit: cover;' alt='Gandhi'>" if gandhi_photo else "<div style='color: #38459f; font-weight: 900; font-size: 8pt; text-align: center; line-height: 28px;'>RG</div>"}
+                  </div>
+                  <div>
+                    <div style="font-size: 6.5pt; font-weight: 700; text-transform: uppercase; color: #64748b;">Vice President</div>
+                    <strong style="font-size: 8.5pt; color: #0f172a;">Rahul Gandhi</strong>
+                  </div>
                 </div>
-                <button style="background: #334155; color: #cbd5e1; border: none; font-size: 6.5pt; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Change</button>
+                <button style="background: transparent; color: #38459f; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 5px; font-size: 7pt; font-weight: 700;">Change</button>
               </div>
+
+              <!-- Review Row 3 (NOTA) -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #ffffff; border: 1px solid #e2e6ee; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 28px; height: 28px; border-radius: 6px; background: #f1f3f8; color: #64748b; font-weight: 900; font-size: 9pt; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    ⊘
+                  </div>
+                  <div>
+                    <div style="font-size: 6.5pt; font-weight: 700; text-transform: uppercase; color: #64748b;">General Secretary</div>
+                    <strong style="font-size: 8.5pt; color: #0f172a;">None of the above (NOTA)</strong>
+                  </div>
+                </div>
+                <button style="background: transparent; color: #38459f; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 5px; font-size: 7pt; font-weight: 700;">Change</button>
+              </div>
+
             </div>
 
-            <!-- Submit Button Bar -->
-            <div style="display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #334155; padding-top: 6px;">
-              <!-- Callout Pin 2: Submit Vote Button -->
-              <button style="background: #10b981; color: white; border: none; font-size: 8.5pt; font-weight: 900; padding: 6px 16px; border-radius: 6px; display: flex; align-items: center; gap: 6px; position: relative; box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);">
-                <span>Submit Vote</span>
-                <span>➔</span>
-
-                <div class="callout-pin" style="right: -8px; top: -8px;">
-                  <div class="pin-circle">2</div>
-                  <div class="pin-label">Click Submit Vote</div>
+            <!-- Submit my vote button -->
+            <div style="display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #e2e6ee; padding-top: 5px;">
+              <!-- Callout 1 -->
+              <button style="background: #38459f; color: white; border: none; padding: 6px 18px; border-radius: 8px; font-weight: 900; font-size: 8.5pt; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(56, 69, 159, 0.4); position: relative;">
+                <span>Submit my vote</span>
+                <span>✓</span>
+                <div class="callout" style="right: -8px; top: -10px;">
+                  <div class="callout-num">1</div>
+                  <div class="callout-text">Click Submit</div>
                 </div>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Instructions for Step 3 -->
-        <div class="instructions-box">
-          <div class="instr-item">
-            <div class="instr-badge">1</div>
-            <div class="instr-text">
-              <strong>Review Selections:</strong>
-              <span>Verify your chosen candidate for each contested seat. If you want to change any choice, click the <strong>[ Change ]</strong> button.</span>
-            </div>
-          </div>
-          <div class="instr-item">
-            <div class="instr-badge">2</div>
-            <div class="instr-text">
-              <strong>Click [ Submit Vote ➔ ]:</strong>
-              <span>Click the green <strong>[ Submit Vote ➔ ]</strong> button to open the final confirmation dialog.</span>
-            </div>
-          </div>
+        <div class="action-row">
+          <span class="action-pill">1</span>
+          <span>Review your selections (tap <strong>Change</strong> to adjust any candidate), then click <strong>Submit my vote ✓</strong>.</span>
         </div>
       </div>
 
-      <!-- ==================== STEPS 4 & 5: CONFIRM & RECEIPT ==================== -->
-      <div class="step-section">
-        <div class="step-header">
-          <div class="step-title">
-            <span class="step-num">4</span>
-            <span class="step-label">Confirm "Yes, Cast Vote" & Drop Paper Receipt</span>
-          </div>
-          <span class="step-subtext">Modal Confirmation & Thermal VVPAT Slip</span>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <!-- Step 4 Modal Mockup -->
-          <div class="mock-screen">
-            <div class="mock-topbar">
-              <span>CONFIRMATION PROMPT</span>
-              <span style="color: #f59e0b;">ACTION REQUIRED</span>
+      <!-- ==================== STEPS 4 & 5: YES SUBMIT & RECEIPT DROP ==================== -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        
+        <!-- STEP 4: YES SUBMIT MODAL -->
+        <div class="step-box" style="margin-bottom: 0;">
+          <div class="step-title-row">
+            <div class="step-badge">
+              <span class="step-num">4</span>
+              <span class="step-heading">Yes, Submit</span>
             </div>
-            <div class="mock-content" style="background: #ffffff; color: #0f172a; text-align: center; padding: 14px;">
-              <div style="font-size: 18pt; margin-bottom: 2px;">🔒</div>
-              <h3 style="font-size: 11pt; font-weight: 900; margin-bottom: 2px;">Cast Ballot?</h3>
-              <p style="font-size: 7pt; color: #64748b; margin-bottom: 10px; line-height: 1.3;">
-                This action cannot be undone. Your ballot will be cryptographically encrypted.
-              </p>
-
-              <div style="display: flex; gap: 6px;">
-                <button style="flex: 1; padding: 5px; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 7pt; font-weight: 700;">
-                  Cancel
-                </button>
-                
-                <!-- Callout Pin 1: Yes Cast Vote -->
-                <button style="flex: 1.4; padding: 5px; background: #10b981; color: white; border: none; border-radius: 4px; font-size: 7.5pt; font-weight: 900; position: relative;">
-                  Yes, Cast My Vote
-                  <div class="callout-pin" style="right: -8px; top: -8px;">
-                    <div class="pin-circle">1</div>
-                    <div class="pin-label">Click Yes</div>
-                  </div>
-                </button>
-              </div>
-            </div>
+            <span class="step-tag">Step 4 of 4</span>
           </div>
 
-          <!-- Step 5 Receipt Drop Mockup -->
-          <div class="mock-screen">
-            <div class="mock-topbar">
-              <span>SUCCESS CONFIRMATION</span>
-              <span style="color: #10b981;">✓ BALLOT RECORDED</span>
-            </div>
-            <div class="mock-content" style="background: #ffffff; color: #0f172a; text-align: center; padding: 10px 12px;">
-              <div style="font-size: 16pt; color: #10b981; font-weight: 900;">✓</div>
-              <strong style="font-size: 9.5pt; color: #065f46; display: block;">Vote Recorded!</strong>
-              <span style="font-size: 7pt; color: #64748b; display: block; margin-bottom: 6px;">Screen clears automatically in 5s.</span>
+          <!-- Real Modal UI Mockup -->
+          <div class="kiosk-shell" style="border: 1.5px solid #cbd5e1;">
+            <div style="background: rgba(15, 23, 42, 0.45); padding: 14px 10px; text-align: center;">
+              <!-- Modal Dialog Card -->
+              <div style="background: #ffffff; border-radius: 10px; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.25); text-align: left; max-width: 220px; margin: 0 auto;">
+                <h3 style="font-size: 10.5pt; font-weight: 800; color: #0f172a; margin-bottom: 3px;">Submit your vote?</h3>
+                <p style="font-size: 6.8pt; color: #64748b; margin-bottom: 11px; line-height: 1.3;">
+                  You are voting for 3 positions. After you submit, your vote cannot be changed.
+                </p>
 
-              <!-- Printed Slip Drop Highlight -->
-              <div style="background: #f0fdf4; border: 1.5px dashed #10b981; border-radius: 6px; padding: 6px; position: relative;">
-                <div style="font-size: 7.5pt; font-weight: 800; color: #166534;">📥 Take Paper Receipt From Printer</div>
-                <div style="font-size: 6.5pt; color: #15803d; margin-top: 1px;">Verify choices and drop into the Ballot Box</div>
-
-                <!-- Callout Pin 2: Drop Slip -->
-                <div class="callout-pin" style="right: -6px; top: -8px;">
-                  <div class="pin-circle">2</div>
+                <div style="display: flex; justify-content: flex-end; gap: 5px;">
+                  <button style="background: transparent; color: #64748b; border: none; font-size: 7pt; font-weight: 700; padding: 4px 6px;">
+                    Go back
+                  </button>
+                  
+                  <!-- Callout 1 -->
+                  <button style="background: #38459f; color: white; border: none; padding: 5px 9px; border-radius: 6px; font-size: 7.2pt; font-weight: 800; position: relative;">
+                    Yes, submit my vote
+                    <div class="callout" style="right: -6px; top: -10px;">
+                      <div class="callout-num">1</div>
+                      <div class="callout-text">Click Yes</div>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+
+          <div class="action-row" style="margin-top: 6px;">
+            <span class="action-pill">1</span>
+            <span>Click <strong>Yes, submit my vote</strong> to permanently lock and encrypt your ballot.</span>
+          </div>
         </div>
 
-        <!-- Instructions for Step 4 & 5 -->
-        <div class="instructions-box">
-          <div class="instr-item">
-            <div class="instr-badge">1</div>
-            <div class="instr-text">
-              <strong>Click [ Yes, Cast My Vote ]:</strong>
-              <span>Authorizes final encryption. The terminal records your ballot and activates the thermal printer.</span>
+        <!-- STEP 5: DONE & DROP RECEIPT -->
+        <div class="step-box" style="margin-bottom: 0;">
+          <div class="step-title-row">
+            <div class="step-badge">
+              <span class="step-num">5</span>
+              <span class="step-heading">Done & Drop Receipt</span>
+            </div>
+            <span class="step-tag">Ballot Box</span>
+          </div>
+
+          <!-- Real Success Screen UI Mockup -->
+          <div class="kiosk-shell" style="border: 1.5px solid #a7f3d0;">
+            <div style="background: #ffffff; padding: 12px 10px; text-align: center;">
+              <div style="width: 30px; height: 30px; border-radius: 50%; background: #e8f6ee; color: #16824a; font-weight: 900; font-size: 15pt; display: flex; align-items: center; justify-content: center; margin: 0 auto 3px auto;">
+                ✓
+              </div>
+              <h3 style="font-size: 9.5pt; font-weight: 900; color: #065f46;">Your vote is recorded</h3>
+              <p style="font-size: 6.5pt; color: #64748b; margin-bottom: 7px;">Your vote copy has been printed.</p>
+
+              <!-- Drop Action Box -->
+              <div style="background: #f0fdf4; border: 1.5px dashed #16824a; border-radius: 6px; padding: 5px 6px; text-align: center; position: relative;">
+                <div style="font-size: 7.5pt; font-weight: 900; color: #166534;">📥 Take Printed Paper Slip</div>
+                <div style="font-size: 6.5pt; color: #15803d; margin-top: 1px;">Drop it into the Physical Ballot Box</div>
+
+                <!-- Callout 1 -->
+                <div class="callout" style="right: -6px; top: -10px;">
+                  <div class="callout-num">1</div>
+                  <div class="callout-text">Drop into Box</div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="instr-item">
-            <div class="instr-badge">2</div>
-            <div class="instr-text">
-              <strong>Drop Receipt in Ballot Box:</strong>
-              <span>Collect the printed paper slip from the attached printer slot and drop it into the physical ballot box.</span>
-            </div>
+
+          <div class="action-row" style="margin-top: 6px;">
+            <span class="action-pill">1</span>
+            <span>Collect your printed paper slip and <strong>drop it into the physical ballot box</strong>.</span>
           </div>
         </div>
+
       </div>
 
-      <!-- Quick Summary Reminder Banner -->
-      <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 14pt;">🔒</span>
-          <div>
-            <strong style="font-size: 8pt; color: #1e1b4b;">100% Cryptographic Secrecy Guaranteed:</strong>
-            <span style="font-size: 7.5pt; color: #4338ca; display: block;">No one can ever see how you voted. Ballots are decoupled from booth numbers and exit doors.</span>
-          </div>
-        </div>
-        <div style="font-size: 7.5pt; font-weight: 800; color: #3730a3; text-transform: uppercase;">
-          Campus Elections 2026
-        </div>
+      <!-- Footer Privacy Note -->
+      <div style="margin-top: 9px; background: #f8fafc; border: 1px solid #e2e6ee; border-radius: 8px; padding: 7px 11px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 7.5pt; color: #64748b;">
+          🔒 <strong>100% Secret Ballot:</strong> Your vote is fully encrypted. The booth screen clears itself in 5 seconds for the next voter.
+        </span>
+        <span style="font-size: 7pt; font-weight: 800; color: #38459f; text-transform: uppercase;">Campus Elections 2026</span>
       </div>
     </div>
 
-    <!-- Page 2 Footer -->
-    <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; display: flex; justify-content: space-between; font-size: 7.5pt; color: #64748b;">
+    <!-- Page 2 Bottom Footer -->
+    <div class="doc-footer">
       <span>Campus Election Commission • Standard Operating Procedure</span>
-      <span>Official Voter Quick-Guide • Page 2 of 2</span>
+      <span>Official Voter Quick Guide • Page 2 of 2</span>
     </div>
   </div>
 
@@ -723,60 +814,66 @@ def build_manual_html(photos):
 
 def main():
     print("1. Discovering headless browser...")
-    browser_exe = find_browser()
-    if not browser_exe:
-        print("Error: Google Chrome or Microsoft Edge executable not found.")
+    browser = find_browser()
+    if not browser:
+        print("ERROR: No Google Chrome or Microsoft Edge executable found!")
         sys.exit(1)
-    print(f"   Found browser: {browser_exe}")
+    print(f"   Found browser: {browser}")
 
-    print("2. Loading candidate photographs from roster...")
+    print("2. Loading candidate photographs from roster and logo...")
     photos = get_candidate_photos()
     print(f"   Loaded {len(photos)} candidate photos.")
+    logo_svg = get_logo_svg()
 
     print("3. Generating Voter Manual HTML layout...")
-    html_content = build_manual_html(photos)
-    with open(TEMP_HTML, "w", encoding="utf-8") as f:
-        f.write(html_content)
+    html_content = build_manual_html(photos, logo_svg)
+    TEMP_HTML.write_text(html_content, encoding="utf-8")
     print(f"   Saved temporary HTML: {TEMP_HTML} ({len(html_content)} bytes)")
 
     print("4. Compiling PDF via Headless Chromium...")
     cmd = [
-        browser_exe,
+        browser,
         "--headless=new",
         "--disable-gpu",
         "--no-pdf-header-footer",
-        f"--print-to-pdf={OUTPUT_PDF}",
+        "--run-all-compositor-stages-before-draw",
+        f"--print-to-pdf={str(OUTPUT_PDF)}",
         str(TEMP_HTML),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Error compiling PDF: {res.stderr}")
-        sys.exit(res.returncode)
+        print(f"ERROR: Browser print-to-pdf failed:\n{res.stderr}")
+        sys.exit(1)
 
     if not OUTPUT_PDF.exists():
-        print("Error: Output PDF was not created.")
+        print("ERROR: Output PDF was not generated!")
         sys.exit(1)
 
     pdf_size = OUTPUT_PDF.stat().st_size
     print(f"   Successfully generated PDF: {OUTPUT_PDF} ({pdf_size:,} bytes)")
 
-    # Verify using fitz (PyMuPDF)
-    try:
-        import fitz
-        doc = fitz.open(str(OUTPUT_PDF))
-        page_count = len(doc)
-        print(f"5. PDF Verification: {page_count} high-resolution pages compiled successfully!")
-        doc.close()
-    except Exception as e:
-        print(f"   Note: PyMuPDF verification skipped: {e}")
+    print("5. PDF Verification & Preview Generation...")
+    doc = fitz.open(OUTPUT_PDF)
+    print(f"   Page count: {len(doc)}")
+    if len(doc) != 2:
+        print(f"WARNING: Expected 2 pages, got {len(doc)} pages! Layout may need height adjustment.")
+    else:
+        print("   Verification passed: Exact 2-page guide.")
 
-    # Clean up temp html
-    if TEMP_HTML.exists():
-        try:
-            TEMP_HTML.unlink()
-        except Exception:
-            pass
+    # Artifact directory output
+    artifact_dir = Path(r"C:\Users\sOn4jit\.gemini\antigravity-cli\brain\a691325c-e890-466d-a7be-037e51cd63f5")
+    if artifact_dir.exists():
+        artifact_pdf = artifact_dir / "Voter_User_Manual_A_to_Z.pdf"
+        shutil.copy2(OUTPUT_PDF, artifact_pdf)
+        print(f"   Copied PDF to artifact dir: {artifact_pdf}")
 
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(dpi=150)
+            img_path = artifact_dir / f"voter_exact_ui_page_{i + 1}.png"
+            pix.save(img_path)
+            print(f"   Rendered Page {i + 1} -> {img_path.name} ({img_path.stat().st_size:,} bytes)")
+
+    doc.close()
     print("\nAll done! The publication-ready Voter User Manual is ready.")
 
 

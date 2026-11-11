@@ -69,8 +69,8 @@ def get_receipt_base_dir() -> str:
 
 
 def get_receipt_dir(is_mock: bool = False) -> str:
-    sub = "mock" if is_mock else "live"
-    d = os.path.join(get_receipt_base_dir(), sub)
+    """Store all receipts (live and mock) in one central directory."""
+    d = get_receipt_base_dir()
     try:
         os.makedirs(d, exist_ok=True)
     except (OSError, PermissionError):
@@ -111,25 +111,21 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
     active_logo = data.get("logo") or DEFAULT_LOGO or ""
     logo_html = f'<img class="logo" src="{active_logo}" alt="College Logo" />' if active_logo else ""
 
-    border_color = "#d97706" if is_mock else "#0f172a"
-    dash_color = "#f59e0b" if is_mock else "#64748b"
-    hdr_bg = "#fffbeb" if is_mock else "#fafafa"
-    title_color = "#92400e" if is_mock else "#0f172a"
-    sub_color = "#b45309" if is_mock else "#334155"
-    badge_bg = "#fef3c7" if is_mock else "#ffffff"
-    badge_border = "#d97706" if is_mock else "#0f172a"
-    badge_text = "#92400e" if is_mock else "#0f172a"
-    badge_label = "MOCK ELECTION" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
-    banner_dash = "#f59e0b" if is_mock else "#94a3b8"
-    th_bg = "#fef3c7" if is_mock else "#f1f5f9"
-    th_border = "#fde68a" if is_mock else "#cbd5e1"
-    th_text = "#92400e" if is_mock else "#475569"
+    border_color = "#0f172a"
+    dash_color = "#64748b"
+    hdr_bg = "#fafafa"
+    title_color = "#0f172a"
+    sub_color = "#334155"
+    badge_bg = "#ffffff"
+    badge_border = "#0f172a"
+    badge_text = "#0f172a"
+    badge_label = "OFFICIAL VOTE RECEIPT - VVPAT"
+    banner_dash = "#94a3b8"
+    th_bg = "#f1f5f9"
+    th_border = "#cbd5e1"
+    th_text = "#475569"
 
-    footer_content = (
-        '<p class="info"><span class="mock-warning">*** MOCK ELECTION ***</span>Check your choices above, then drop this slip into the box at the booth.</p>'
-        if is_mock
-        else '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
-    )
+    footer_content = '<p class="info">Check your choices above, then fold this slip and drop it into the box at the booth.</p>'
 
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Vote copy {slip}</title><style>
     @page {{ size: A4 portrait; margin: 0; }}
@@ -216,16 +212,12 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
     }}
     .banner {{
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       padding: 1.5mm 4mm;
       border-bottom: 1px dashed {banner_dash};
       background: #ffffff;
       font-size: 7pt;
-    }}
-    .banner .side {{
-      color: #475569;
-      font-weight: 500;
     }}
     .banner .slip {{
       text-align: center;
@@ -302,7 +294,7 @@ def generate_receipt_html(data: Dict[str, Any]) -> str:
           <div class="sub">{election_title}</div>
           <div class="badge">{badge_label}</div>
         </div>
-        <div class="banner" style="justify-content: center; text-align: center;">
+        <div class="banner">
           <div class="slip">
             <span class="slip-lbl">BALLOT REF</span>
             <span class="slip-id">{slip}</span>
@@ -338,15 +330,15 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     card_top = height - top_margin
 
     is_mock = bool(data.get("is_mock"))
-    card_border_color = colors.HexColor("#d97706") if is_mock else colors.HexColor("#0f172a")
-    dash_color = colors.HexColor("#f59e0b") if is_mock else colors.HexColor("#64748b")
-    hdr_bg_color = colors.HexColor("#fffbeb") if is_mock else colors.HexColor("#fafafa")
-    title_color = colors.HexColor("#92400e") if is_mock else colors.HexColor("#0f172a")
-    sub_color = colors.HexColor("#b45309") if is_mock else colors.HexColor("#334155")
-    badge_bg = colors.HexColor("#fef3c7") if is_mock else colors.HexColor("#ffffff")
-    badge_border = colors.HexColor("#d97706") if is_mock else colors.HexColor("#0f172a")
-    badge_text = colors.HexColor("#92400e") if is_mock else colors.HexColor("#0f172a")
-    badge_label = "MOCK ELECTION" if is_mock else "OFFICIAL VOTE RECEIPT - VVPAT"
+    card_border_color = colors.HexColor("#0f172a")
+    dash_color = colors.HexColor("#64748b")
+    hdr_bg_color = colors.HexColor("#fafafa")
+    title_color = colors.HexColor("#0f172a")
+    sub_color = colors.HexColor("#334155")
+    badge_bg = colors.HexColor("#ffffff")
+    badge_border = colors.HexColor("#0f172a")
+    badge_text = colors.HexColor("#0f172a")
+    badge_label = "OFFICIAL VOTE RECEIPT - VVPAT"
 
     # Running Y tracking
     y = card_top - 6.0
@@ -396,7 +388,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     c.setDash([])  # Reset dash
     y -= 4.0
 
-    # 2. Anonymous Ballot Reference Banner (Centered)
+    # 2. Centered Anonymous Banner: Monospace Slip ID
     banner_y = y - 14.0
     c.setFont("Helvetica-Bold", 5.2)
     c.setFillColor(colors.HexColor("#64748b"))
@@ -407,7 +399,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     y = banner_y - 4.0
 
     # Banner bottom dashed divider
-    banner_dash_color = colors.HexColor("#f59e0b") if is_mock else colors.HexColor("#94a3b8")
+    banner_dash_color = colors.HexColor("#94a3b8")
     c.setStrokeColor(banner_dash_color)
     c.setLineWidth(0.7)
     c.setDash(2, 2)
@@ -468,20 +460,10 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     c.setDash([])
     y -= 7.0
 
-    if is_mock:
-        c.setFont("Helvetica-Bold", 5.8)
-        c.setFillColor(colors.HexColor("#b45309"))
-        c.drawCentredString(width / 2.0, y, "*** MOCK ELECTION ***")
-        y -= 7.0
-        c.setFont("Helvetica", 5.4)
-        c.setFillColor(colors.HexColor("#b45309"))
-        c.drawCentredString(width / 2.0, y, "Check your choices above, then drop this slip into the box at the booth.")
-        y -= 6.0
-    else:
-        c.setFont("Helvetica", 5.5)
-        c.setFillColor(colors.HexColor("#64748b"))
-        c.drawCentredString(width / 2.0, y, "Check your choices above, then fold this slip and drop it into the box at the booth.")
-        y -= 6.0
+    c.setFont("Helvetica", 5.5)
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.drawCentredString(width / 2.0, y, "Check your choices above, then fold this slip and drop it into the box at the booth.")
+    y -= 6.0
 
     card_bottom = y
     card_h = card_top - card_bottom
@@ -502,7 +484,7 @@ class ReceiptService:
         election_id: int,
         slip_id: str,
         choices: List[Dict[str, Any]],
-        booth_name: str = "Ballot Box",
+        booth_name: str = "BOOTH-01",
         is_mock: bool = False,
         institution_name: Optional[str] = None,
         logo_b64: Optional[str] = None,
@@ -526,7 +508,7 @@ class ReceiptService:
             "slip": slip_id,
             "election": election_title or "Campus E-Voting",
             "institution": institution_name or "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga",
-            "booth": "Ballot Box",
+            "booth": booth_name or "BOOTH-01",
             "time": time_str,
             "is_mock": is_mock,
             "logo": logo_b64 or DEFAULT_LOGO,
@@ -650,9 +632,11 @@ class ReceiptService:
         return pdf_bytes
 
     @classmethod
-    def export_zip(cls, election_id: Optional[int] = None, is_mock: bool = False) -> io.BytesIO:
-        """Create a zip archive containing all receipts and a manifest CSV."""
-        query = VoteReceipt.query.filter_by(is_mock=is_mock)
+    def export_zip(cls, election_id: Optional[int] = None, is_mock: Optional[bool] = None) -> io.BytesIO:
+        """Create a zip archive containing receipts and a manifest CSV."""
+        query = VoteReceipt.query
+        if is_mock is not None:
+            query = query.filter_by(is_mock=is_mock)
         if election_id:
             query = query.filter_by(election_id=election_id)
         receipts = query.order_by(VoteReceipt.slip_id.asc()).all()
@@ -667,7 +651,7 @@ class ReceiptService:
                 choices_summary = "; ".join([f"{c.get('position')}: {c.get('choice')}" for c in r.get_choices()])
                 writer.writerow([
                     r.slip_id,
-                    r.booth_name or "Booth",
+                    r.booth_name or "BOOTH-01",
                     r.election.title if r.election else "",
                     r.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                     "Mock Election" if r.is_mock else "Official Vote",
@@ -686,23 +670,31 @@ class ReceiptService:
 
     @classmethod
     def clear_mock_receipts(cls, election_id: Optional[int] = None) -> int:
-        """Wipe mock election receipts from disk and database."""
+        """Wipe mock election receipts from disk and database so count clears to 0."""
         query = VoteReceipt.query.filter_by(is_mock=True)
         if election_id:
             query = query.filter_by(election_id=election_id)
-        count = query.count()
-        query.delete(synchronize_session=False)
-        db.session.commit()
+        receipts = query.all()
+        count = len(receipts)
 
-        try:
-            mock_dir = get_receipt_dir(is_mock=True)
-            if os.path.exists(mock_dir):
-                for item in os.listdir(mock_dir):
-                    item_path = os.path.join(mock_dir, item)
-                    if os.path.isfile(item_path):
-                        os.unlink(item_path)
-        except Exception as e:
-            logger.warning(f"Could not clear all mock files from disk: {e}")
+        storage_dir = get_receipt_base_dir()
+        if os.path.exists(storage_dir):
+            for r in receipts:
+                targets = {f"{r.slip_id}.pdf", f"{r.slip_id}.html"}
+                if r.pdf_filename:
+                    targets.add(r.pdf_filename)
+                for root, _, files in os.walk(storage_dir):
+                    for f in files:
+                        if f in targets:
+                            try:
+                                os.unlink(os.path.join(root, f))
+                            except Exception:
+                                pass
+                db.session.delete(r)
+        else:
+            for r in receipts:
+                db.session.delete(r)
+        db.session.commit()
 
         try:
             from app.models.audit_log import AuditLog

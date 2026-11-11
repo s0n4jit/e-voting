@@ -37,14 +37,17 @@ test('a copy is saved to disk and a reprint never overwrites it', () => {
   assert.strictEqual(fs.readFileSync(path.join(dir, 'receipts.jsonl'), 'utf8').trim().split('\n').length, 2);
 });
 
-test('mock election receipts record to mock-receipts.jsonl and render badge', () => {
+test('mock election receipts record to receipts.jsonl and render official badge', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mock-rc-'));
   const r = receipt.normalize({ is_mock: true, slip: 'MOCK-123456', lines: [{ position: 'President', choice: 'Demo' }] });
   const html = receipt.toHtml(r);
-  assert.ok(html.includes('MOCK ELECTION'));
+  assert.ok(html.includes('OFFICIAL VOTE RECEIPT - VVPAT'));
+  assert.ok(!html.includes('MOCK ELECTION'));
+  assert.ok(!html.includes('Booth:'));
+  assert.ok(!html.includes('Time:'));
   const saved = receipt.archive(dir, r, new Date('2026-11-02T10:00:00Z'));
   assert.ok(fs.existsSync(saved));
-  assert.ok(fs.existsSync(path.join(dir, 'mock-receipts.jsonl')));
+  assert.ok(fs.existsSync(path.join(dir, 'receipts.jsonl')));
 });
 
 test('config round trip, and a missing file falls back to defaults', () => {

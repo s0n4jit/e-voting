@@ -264,11 +264,12 @@ class VoteService:
                 for entry in validated_entries
             ]
             receipt_ref = f"VOTE-{blind_token[:8].upper()}"
+            booth_label = booth.name if (booth and getattr(booth, "name", None)) else (f"BOOTH-{booth.number:02d}" if (booth and getattr(booth, "number", None)) else "BOOTH-01")
             ReceiptService.record_receipt(
                 election_id=election.id,
                 slip_id=receipt_ref,
                 choices=choices_list,
-                booth_name="Ballot Box",
+                booth_name=booth_label,
                 is_mock=bool(election.is_mock),
                 institution_name=branding.get("institution_name"),
                 logo_b64=branding.get("logo"),
@@ -695,9 +696,10 @@ class VoteService:
                 }
                 for e in validated_entries
             ]
+            booth_label = booth.name if (booth and getattr(booth, "name", None)) else (f"BOOTH-{booth_slip.booth_number:02d}" if getattr(booth_slip, "booth_number", None) else "BOOTH-01")
             ReceiptService.create_receipt(
                 slip_id=slip_record_id,
-                booth_name="Ballot Box",
+                booth_name=booth_label,
                 election_id=election.id,
                 election_title=election.title,
                 institution_name=branding.get("institution_name", "Campus Voting"),

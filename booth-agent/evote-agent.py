@@ -72,20 +72,13 @@ def clean(text, limit=80):
 def render(r):
     """The vote copy as plain text (works on every printer CUPS can drive, thermal or A4)."""
     bar = "-" * WIDTH
-    is_mock = bool(r.get("is_mock"))
-    header_title = clean(r.get("election"), WIDTH) + (" - PRACTICE VOTE (MOCK)" if is_mock else " - VOTE COPY")
+    header_title = clean(r.get("election"), WIDTH) + " - VOTE COPY"
     out = [clean(r.get("institution"), WIDTH), header_title]
-    if is_mock:
-        out.append("*** MOCK ELECTION - NOT AN OFFICIAL VOTE ***")
     ref = clean(r.get("receipt_ref") or r.get("slip") or r.get("slip_id"), 40)
     out += [bar, "Ballot Ref: " + ref, bar]
     for line in (r.get("lines") or [])[:40]:
         out.append(f"{clean(line.get('position'), 28)}\n    {clean(line.get('choice'), 40)}")
-    out += [bar, f"Booth {clean(r.get('booth'), 20)}  {clean(r.get('time'), 30)}"]
-    if is_mock:
-        out += ["*** PRACTICE ONLY - DO NOT COUNT ***", "Drop this slip into the practice box."]
-    else:
-        out += ["Check your choices, then drop this", "slip into the box at the booth."]
+    out += [bar, "Check your choices, then drop this", "slip into the box at the booth."]
     return "\n".join(out) + "\n"
 
 
@@ -107,7 +100,7 @@ def archive(r, text, conf):
     """Write the receipt to disk before printing: one text file per vote and a JSON line for later retrieval."""
     now = datetime.now()
     is_mock = bool(r.get("is_mock"))
-    base_dir = os.path.join(os.path.dirname(conf["RECEIPT_DIR"]), "mockelection") if is_mock else conf["RECEIPT_DIR"]
+    base_dir = conf["RECEIPT_DIR"]
     os.makedirs(base_dir, mode=0o700, exist_ok=True)
     folder = os.path.join(base_dir, now.strftime("%Y-%m-%d"))
     os.makedirs(folder, mode=0o700, exist_ok=True)
@@ -125,7 +118,7 @@ def archive(r, text, conf):
         os.fsync(f.fileno())
     record = {"saved_at": now.isoformat(timespec="seconds"), "file": path, "is_mock": is_mock,
               "receipt_ref": ref, "slip_id": ref, **{k: r.get(k) for k in ("election", "booth", "time", "lines")}}
-    log_name = "mock-receipts.jsonl" if is_mock else "receipts.jsonl"
+    log_name = "receipts.jsonl"
     with open(os.path.join(base_dir, log_name), "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
         f.flush()

@@ -366,7 +366,7 @@ def upload_booth_receipt():
         receipt = VoteReceipt(
             slip_id=slip_id,
             election_id=election_id,
-            booth_name="Ballot Box",
+            booth_name=booth_name or "BOOTH-01",
             is_mock=is_mock,
             choices_json=choices_raw,
             html_content=html_content,
@@ -379,7 +379,8 @@ def upload_booth_receipt():
     else:
         # Finalized receipt: choices and election are strictly immutable!
         # Only printer status, error, and physical PDF artifact can be updated idempotently.
-        receipt.booth_name = "Ballot Box"
+        if not receipt.booth_name or receipt.booth_name in ("Booth", "Ballot Box"):
+            receipt.booth_name = booth_name or "BOOTH-01"
         if pdf_file:
             receipt.pdf_filename = pdf_filename
         receipt.is_printed = is_printed

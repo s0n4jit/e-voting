@@ -17,16 +17,22 @@ receipts_bp = Blueprint("receipts", __name__, url_prefix="/api/officer/receipts"
 @receipts_bp.get("")
 @admin_required
 def list_receipts():
-    """List receipts with filtering by live/mock, election, and search query."""
-    is_mock = request.args.get("is_mock", "false").lower() in ("true", "1", "yes")
+    """List receipts with optional filtering by is_mock, election, and search query. Mock and live receipts are stored in one."""
+    is_mock_param = request.args.get("is_mock")
     election_id = request.args.get("election_id", type=int)
     search = (request.args.get("search") or "").strip()
     page = max(request.args.get("page", 1, type=int), 1)
     per_page = min(max(request.args.get("per_page", 25, type=int), 1), 100)
 
-    query = VoteReceipt.query.filter_by(is_mock=is_mock)
+    query = VoteReceipt.query
+    unprinted_query = VoteReceipt.query.filter_by(is_printed=False)
+    if is_mock_param is not None and is_mock_param.lower() not in ("all", "", "none"):
+        is_mock = is_mock_param.lower() in ("true", "1", "yes")
+        query = query.filter_by(is_mock=is_mock)
+        unprinted_query = unprinted_query.filter_by(is_mock=is_mock)
     if election_id:
         query = query.filter_by(election_id=election_id)
+        unprinted_query = unprinted_query.filter_by(election_id=election_id)
 
     if search:
         search_term = f"%{search}%"
@@ -47,7 +53,7 @@ def list_receipts():
 
     live_count = VoteReceipt.query.filter_by(is_mock=False).count()
     mock_count = VoteReceipt.query.filter_by(is_mock=True).count()
-    unprinted_count = VoteReceipt.query.filter_by(is_mock=is_mock, is_printed=False).count()
+    unprinted_count = unprinted_query.count()
 
     return jsonify({
         "items": [r.to_dict() for r in items],
@@ -82,7 +88,7 @@ def get_receipt_html(slip_id):
             "slip": receipt.slip_id,
             "election": election_title,
             "institution": branding.get("institution_name") or "Pandit Deendayal Upadhyaya Adarsha Mahavidyalaya, Amjonga",
-            "booth": "Ballot Box",
+            "booth": receipt.booth_name or "BOOTH-01",
             "time": receipt.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "is_mock": receipt.is_mock,
             "logo": branding.get("logo") or "",
@@ -120,11 +126,12 @@ def get_receipt_pdf(slip_id):
 @admin_required
 def export_receipts_zip():
     """Bulk download all receipts as a ZIP archive with manifest.csv."""
-    is_mock = request.args.get("is_mock", "false").lower() in ("true", "1", "yes")
+    is_mock_param = request.args.get("is_mock")
+    is_mock = is_mock_param.lower() in ("true", "1", "yes") if is_mock_param and is_mock_param.lower() not in ("all", "") else None
     election_id = request.args.get("election_id", type=int)
 
     zip_buffer = ReceiptService.export_zip(election_id=election_id, is_mock=is_mock)
-    label = "mock_receipts" if is_mock else "official_receipts"
+    label = "mock_receipts" if is_mock is True else "receipts"
     fn = f"{label}.zip"
 
     return Response(

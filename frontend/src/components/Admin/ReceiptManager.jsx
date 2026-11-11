@@ -21,15 +21,12 @@ import { usePolling } from '../../hooks/usePolling';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ReceiptManager = () => {
-  const [tab, setTab] = useState('live'); // 'live' | 'mock'
   const [searchInput, setSearchInput] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [page, setPage] = useState(1);
   const [receipts, setReceipts] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
-  const [liveCount, setLiveCount] = useState(0);
-  const [mockCount, setMockCount] = useState(0);
   const [unprintedCount, setUnprintedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,8 +40,6 @@ const ReceiptManager = () => {
 
   // Bulk action states
   const [downloadingZip, setDownloadingZip] = useState(false);
-  const [clearingMock, setClearingMock] = useState(false);
-  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   // Debounce search input so typing is smooth and does not trigger rapid network thrashing
   useEffect(() => {
@@ -61,7 +56,6 @@ const ReceiptManager = () => {
     setError('');
     try {
       const data = await adminApi.getReceipts({
-        is_mock: tab === 'mock',
         search: activeSearch || undefined,
         page,
         per_page: 25,
@@ -70,8 +64,6 @@ const ReceiptManager = () => {
       setReceipts(data.items || []);
       setTotal(data.total || 0);
       setPages(data.pages || 1);
-      setLiveCount(data.live_count || 0);
-      setMockCount(data.mock_count || 0);
       setUnprintedCount(data.unprinted_count || 0);
       setLastSyncTime(new Date());
     } catch (err) {
@@ -82,25 +74,19 @@ const ReceiptManager = () => {
     } finally {
       if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, [tab, activeSearch, page, receipts.length]);
+  }, [activeSearch, page, receipts.length]);
 
-  // Initial load and refetch on search / tab / page changes
+  // Initial load and refetch on search / page changes
   useEffect(() => {
     fetchReceipts(false);
   }, [fetchReceipts]);
 
   // Real-time polling: automatically sync receipts every 3 seconds
   usePolling(() => {
-    if (!previewSlip && !confirmClearOpen) {
+    if (!previewSlip) {
       fetchReceipts(true);
     }
   }, 3000);
-
-  const handleTabChange = (nextTab) => {
-    if (nextTab === tab) return;
-    setTab(nextTab);
-    setPage(1);
-  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -188,11 +174,11 @@ const ReceiptManager = () => {
   const downloadZip = async () => {
     setDownloadingZip(true);
     try {
-      const blob = await adminApi.downloadReceiptsZip({ is_mock: tab === 'mock' });
+      const blob = await adminApi.downloadReceiptsZip({});
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/zip' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `voter-receipts-${tab === 'mock' ? 'mock' : 'official'}-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.download = `voter-receipts-${new Date().toISOString().slice(0, 10)}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -201,20 +187,6 @@ const ReceiptManager = () => {
       alert('Failed to generate ZIP archive of receipts.');
     } finally {
       setDownloadingZip(false);
-    }
-  };
-
-  const clearMockData = async () => {
-    setClearingMock(true);
-    try {
-      await adminApi.clearMockReceipts();
-      setConfirmClearOpen(false);
-      setPage(1);
-      await fetchReceipts(false);
-    } catch {
-      alert('Failed to clear mock receipts.');
-    } finally {
-      setClearingMock(false);
     }
   };
 
@@ -244,24 +216,13 @@ const ReceiptManager = () => {
 
           <button
             type="button"
-            disabled={downloadingZip || (tab === 'mock' ? mockCount === 0 : liveCount === 0)}
+            disabled={downloadingZip || total === 0}
             onClick={downloadZip}
             className="px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-2xs transition-all disabled:cursor-not-allowed bg-brand hover:bg-brand-hover text-white disabled:bg-recessed disabled:text-muted disabled:border disabled:border-line"
           >
             <ArrowDownTrayIcon className="w-4 h-4" />
-            <span>{downloadingZip ? 'Building ZIP...' : `Download ${tab === 'mock' ? 'Mock' : 'Live'} ZIP (${tab === 'mock' ? mockCount : liveCount})`}</span>
+            <span>{downloadingZip ? 'Building ZIP...' : `Download Receipts ZIP (${total})`}</span>
           </button>
-
-          {tab === 'mock' && mockCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setConfirmClearOpen(true)}
-              className="px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
-            >
-              <TrashIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Clear Mock Receipts</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -270,7 +231,7 @@ const ReceiptManager = () => {
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Total Stored Receipts</p>
-            <p className="text-2xl font-black text-fg mt-1">{liveCount + mockCount}</p>
+            <p className="text-2xl font-black text-fg mt-1">{total}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-recessed text-muted flex items-center justify-center">
             <DocumentTextIcon className="w-5 h-5" />
@@ -279,57 +240,29 @@ const ReceiptManager = () => {
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-brand">Official Live Receipts</p>
-            <p className="text-2xl font-black text-brand mt-1">{liveCount}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-ok">Printed Receipts</p>
+            <p className="text-2xl font-black text-ok mt-1">{Math.max(0, total - unprintedCount)}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-fg flex items-center justify-center">
-            <CheckBadgeIcon className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-ok-soft text-ok flex items-center justify-center">
+            <CheckCircleIcon className="w-5 h-5" />
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-card flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-warn">Mock Election Receipts</p>
-            <p className="text-2xl font-black text-warn mt-1">{mockCount}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-bad">Missed Physical Prints</p>
+            <p className="text-2xl font-black text-bad mt-1">{unprintedCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-warn-soft text-warn flex items-center justify-center">
-            <TicketIcon className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-bad-soft text-bad flex items-center justify-center">
+            <ExclamationTriangleIcon className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Tabs & Search Filter */}
+      {/* Filter & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleTabChange('live')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              tab === 'live'
-                ? 'bg-brand text-white shadow-sm'
-                : 'bg-surface text-muted border border-line hover:bg-recessed hover:text-fg'
-            }`}
-          >
-            <span>Official Live Receipts</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tab === 'live' ? 'bg-white/20 text-white' : 'bg-recessed text-muted'}`}>
-              {liveCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('mock')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              tab === 'mock'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-surface text-muted border border-line hover:bg-recessed hover:text-fg'
-            }`}
-          >
-            <span>Mock Election Receipts</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tab === 'mock' ? 'bg-white/20 text-white' : 'bg-recessed text-muted'}`}>
-              {mockCount}
-            </span>
-          </button>
+        <div className="text-xs text-muted font-medium">
+          Official VVPAT paper slips and vectors archived for certified recount and auditing.
         </div>
 
         <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 sm:w-80">
@@ -395,7 +328,7 @@ const ReceiptManager = () => {
             <p className="text-sm font-bold text-fg">
               {activeSearch
                 ? `No receipts match "${activeSearch}"`
-                : `No ${tab === 'mock' ? 'mock' : 'official'} receipts stored on the server yet.`}
+                : 'No vote receipts stored on the server yet.'}
             </p>
             <p className="text-xs text-muted mt-1 max-w-md mx-auto">
               {activeSearch
@@ -570,42 +503,6 @@ const ReceiptManager = () => {
                   className="w-[130mm] max-w-full h-[610px] border-0 bg-transparent"
                 />
               )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Confirm Clear Mock Modal */}
-      {confirmClearOpen && createPortal(
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface border border-amber-300 dark:border-amber-800/80 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-warn-soft text-warn flex items-center justify-center mb-3 border border-amber-200 dark:border-amber-800/50">
-              <TrashIcon className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-fg">
-              Clear Mock Election Receipts?
-            </h3>
-            <p className="text-xs text-muted mt-2 leading-relaxed">
-              This will permanently delete all <strong>{mockCount}</strong> mock slips and PDF files stored on the server.
-              Official live election receipts will NOT be touched.
-            </p>
-            <div className="mt-6 flex justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setConfirmClearOpen(false)}
-                className="px-4 py-2 rounded-xl border border-line bg-surface text-fg text-xs font-bold hover:bg-recessed shadow-2xs transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={clearingMock}
-                onClick={clearMockData}
-                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
-              >
-                {clearingMock ? 'Clearing...' : 'Yes, Delete Mock Receipts'}
-              </button>
             </div>
           </div>
         </div>,
