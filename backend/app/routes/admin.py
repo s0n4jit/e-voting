@@ -747,7 +747,52 @@ def list_kiosks():
     if election_id:
         query = query.filter_by(election_id=election_id)
     kiosks = query.order_by(KioskDevice.booth_number.asc(), KioskDevice.id.asc()).all()
-    return jsonify([k.to_dict() for k in kiosks]), 200
+    stats = {}
+    if kiosks:
+        from app.models.booth_slip import BoothSlip
+        from sqlalchemy import func, case
+        kiosk_ids = [k.id for k in kiosks]
+        counts = (
+            db.session.query(
+                BoothSlip.booth_id,
+                func.count(BoothSlip.id).label("allotted"),
+                func.sum(case((BoothSlip.is_used.is_(True), 1), else_=0)).label("used"),
+                func.min(BoothSlip.sequence_number).label("min_seq"),
+                func.max(BoothSlip.sequence_number).label("max_seq"),
+            )
+            .filter(BoothSlip.booth_id.in_(kiosk_ids))
+            .group_by(BoothSlip.booth_id)
+            .all()
+        )
+        seq_map = {}
+        for booth_id, allotted, used, min_seq, max_seq in counts:
+            stats[booth_id] = {
+                "allotted_count": allotted or 0,
+                "used_count": int(used or 0),
+            }
+            if min_seq is not None:
+                seq_map[(booth_id, min_seq)] = "from"
+            if max_seq is not None:
+                seq_map[(booth_id, max_seq)] = "to"
+
+        if seq_map:
+            seq_nums = [s for (_, s) in seq_map.keys()]
+            slips = (
+                BoothSlip.query.filter(
+                    BoothSlip.booth_id.in_(kiosk_ids),
+                    BoothSlip.sequence_number.in_(seq_nums),
+                )
+                .all()
+            )
+            for s in slips:
+                if (s.booth_id, s.sequence_number) in seq_map and s.booth_id in stats:
+                    kind = seq_map[(s.booth_id, s.sequence_number)]
+                    if kind == "from":
+                        stats[s.booth_id]["from_slip_id"] = s.voting_id
+                    else:
+                        stats[s.booth_id]["to_slip_id"] = s.voting_id
+
+    return jsonify([k.to_dict(stats=stats) for k in kiosks]), 200
 
 
 @admin_bp.post("/kiosk/<int:kiosk_id>/revoke")

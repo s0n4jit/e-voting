@@ -17,7 +17,6 @@ class Candidate(db.Model):
         index=True,
     )
     name = db.Column(db.String(120), nullable=False)
-    party = db.Column(db.String(100), nullable=True)
     position = db.Column(db.String(100), nullable=False, default="General Secretary")
     department = db.Column(db.String(100), nullable=True)
     semester = db.Column(db.String(30), nullable=True)  # e.g. "Semester 3", shown on the voting card
@@ -36,6 +35,10 @@ class Candidate(db.Model):
         cascade="all, delete-orphan",
         lazy="select",
     )
+
+    def __init__(self, **kwargs):
+        kwargs.pop("party", None)
+        super().__init__(**kwargs)
 
     def to_dict(self) -> dict:
         """Return dict representation."""

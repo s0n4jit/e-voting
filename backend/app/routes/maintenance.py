@@ -11,7 +11,6 @@ import os
 import platform
 import shutil
 import socket
-import subprocess
 import time
 import urllib.request
 

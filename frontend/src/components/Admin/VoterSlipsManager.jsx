@@ -145,10 +145,14 @@ export const VoterSlipsManager = () => {
     fetchSlips(false);
   }, [fetchKiosks, fetchMetrics, fetchMockStatus, fetchSlips]);
 
-  usePolling(fetchKiosks, 4000);
-  usePolling(fetchMetrics, 2000);
-  usePolling(fetchMockStatus, 3000);
-  usePolling(() => fetchSlips(true), 2500);
+  const pollAll = useCallback(() => {
+    fetchKiosks();
+    fetchMetrics();
+    fetchMockStatus();
+    fetchSlips(true);
+  }, [fetchKiosks, fetchMetrics, fetchMockStatus, fetchSlips]);
+
+  usePolling(pollAll, 5000);
 
   // Prevent closing or refreshing tab while slips are generating
   useEffect(() => {

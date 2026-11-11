@@ -75,7 +75,6 @@ def populate_mock_dummy_roster(mock_election_id):
             election_id=mock_election_id,
             name=cand_info.get("name"),
             position=cand_info.get("position"),
-            party=cand_info.get("party") or None,
             department=cand_info.get("department") or None,
             semester=cand_info.get("semester") or None,
             bio=cand_info.get("bio") or None,

@@ -678,10 +678,15 @@ class ReceiptService:
 
         storage_dir = get_receipt_base_dir()
         if os.path.exists(storage_dir):
+            targets = set()
             for r in receipts:
-                targets = {f"{r.slip_id}.pdf", f"{r.slip_id}.html"}
+                targets.add(f"{r.slip_id}.pdf")
+                targets.add(f"{r.slip_id}.html")
                 if r.pdf_filename:
                     targets.add(r.pdf_filename)
+                db.session.delete(r)
+
+            if targets:
                 for root, _, files in os.walk(storage_dir):
                     for f in files:
                         if f in targets:
@@ -689,7 +694,6 @@ class ReceiptService:
                                 os.unlink(os.path.join(root, f))
                             except Exception:
                                 pass
-                db.session.delete(r)
         else:
             for r in receipts:
                 db.session.delete(r)

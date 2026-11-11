@@ -415,7 +415,6 @@ class VoteService:
                 session.query(
                     Candidate.id,
                     Candidate.name,
-                    Candidate.party,
                     Candidate.position,
                     Candidate.photo_url,
                     func.count(BallotEntry.id).label("votes"),
@@ -431,7 +430,6 @@ class VoteService:
                 .group_by(
                     Candidate.id,
                     Candidate.name,
-                    Candidate.party,
                     Candidate.position,
                     Candidate.photo_url,
                 )
@@ -450,7 +448,6 @@ class VoteService:
                 c_dict = {
                     "candidate_id": row.id,
                     "name": row.name,
-                    "party": row.party,
                     "position": row.position,
                     "photo_url": row.photo_url,
                     "votes": votes,
