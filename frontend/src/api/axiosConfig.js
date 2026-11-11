@@ -50,7 +50,12 @@ apiClient.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // If unauthorized on auth check or protected route (except login attempt itself), clear token
       const requestUrl = error.config?.url || '';
-      if (!requestUrl.includes('/auth/login') && !requestUrl.includes('/auth/verify-otp') && !requestUrl.includes('/auth/voter-pin-login')) {
+      if (
+        !requestUrl.includes('/auth/login') &&
+        !requestUrl.includes('/auth/verify-otp') &&
+        !requestUrl.includes('/auth/voter-pin-login') &&
+        !requestUrl.includes('/auth/booth-pin-login')
+      ) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
