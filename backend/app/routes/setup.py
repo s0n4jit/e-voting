@@ -149,21 +149,6 @@ def status():
     return jsonify(body), 200
 
 
-@setup_bp.get("/programme-template")
-@limiter.exempt
-def programme_template():
-    """CSV of the college's departments, used to pre-fill the wizard and as the import template."""
-    return Response(TEMPLATE_CSV, mimetype="text/csv")
-
-
-@setup_bp.get("/student-template")
-@limiter.exempt
-def student_template():
-    from app.student_import import TEMPLATE_CSV
-
-    return Response(TEMPLATE_CSV, mimetype="text/csv")
-
-
 @setup_bp.post("/validate")
 @limiter.limit("60 per minute")
 def validate():

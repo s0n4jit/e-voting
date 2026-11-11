@@ -80,7 +80,7 @@ export const OfficerManager = () => {
     <div>
       <PageHeader
         title="Desk officers"
-        subtitle="Desk officers register students and check voters in. They cannot change election settings."
+        subtitle="Desk officers monitor voter slips and assist voters at the booths. They cannot change election settings."
         actions={
           <button className="btn-primary" onClick={() => { setError(''); setForm({ ...blank }); }}>
             <PlusIcon className="w-4 h-4" /> Add desk officer
@@ -93,7 +93,7 @@ export const OfficerManager = () => {
           <TableSkeleton rows={3} cols={4} />
         ) : rows.length === 0 ? (
           <EmptyState icon={IdentificationIcon} title="No desk officers yet" action={<button className="btn-primary" onClick={() => setForm({ ...blank })}>Add desk officer</button>}>
-            Create an account for each person who will staff a registration desk.
+            Create an account for each polling officer who will assist at the voting booths.
           </EmptyState>
         ) : (
           <div className="overflow-x-auto">

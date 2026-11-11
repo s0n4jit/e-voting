@@ -238,6 +238,16 @@ def cast_ballot(election_id):
 @voter_required
 def check_voting_status(election_id):
     """Check if the authenticated voter has already cast their ballot."""
+    claims = get_jwt()
+    if claims.get("voting_mode") == "booth_slip" or claims.get("slip_id"):
+        from app.models.booth_slip import BoothSlip
+        slip = db.session.get(BoothSlip, claims.get("slip_id"))
+        return jsonify({
+            "eligible": bool(slip and not slip.is_cancelled),
+            "has_voted": bool(slip and slip.is_used),
+            "voted_at": slip.used_at.isoformat() if slip and slip.used_at else None,
+        }), 200
+
     user_id = get_jwt_identity()
     user = db.session.get(User, int(user_id)) if user_id and str(user_id).isdigit() else None
     if not user:

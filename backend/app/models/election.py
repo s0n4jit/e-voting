@@ -161,7 +161,7 @@ class Election(db.Model):
         try:
             slips_count = BoothSlip.query.filter_by(election_id=self.id).count()
             if slips_count > 0:
-                registered_voters = slips_count
+                registered_voters = BoothSlip.query.filter_by(election_id=self.id, is_cancelled=False).count()
                 total_votes = BoothSlip.query.filter_by(election_id=self.id, is_used=True).count()
             else:
                 total_votes = VoterRecord.query.filter_by(election_id=self.id, has_voted=True).count()

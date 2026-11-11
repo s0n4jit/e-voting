@@ -19,11 +19,9 @@ from app.models.candidate import Candidate
 from app.models.election import Election
 from app.models.voting_token import VotingToken
 from app.models.election_position import ElectionPosition
-from app.models.programme import Programme
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.models.voter_record import VoterRecord
-from app.programme_import import DUPLICATE, programme_fields, import_programme_csv
 from app.routes.setup import validate_payload
 from app.services.vote_service import VoteService
 from app.utils.decorators import admin_required
@@ -537,86 +535,6 @@ def put_positions(election_id):
     db.session.commit()
     db.session.refresh(election)
     return jsonify([p.name for p in election.positions]), 200
-
-
-# ── programmes ────────────────────────────────────────────────────────────────
-
-@manage_bp.get("/programmes")
-@admin_required
-def list_programmes():
-    return jsonify([p.to_dict() for p in Programme.query.order_by(Programme.name).all()]), 200
-
-
-@manage_bp.post("/programmes")
-@admin_required
-def create_programme():
-    fields, err = programme_fields(request.get_json(silent=True) or {})
-    if err:
-        return jsonify({"error": err}), 400
-    p = Programme(**fields)
-    db.session.add(p)
-    _audit("PROGRAMME_CREATED", f"Added the programme \u201c{p.name}\u201d.")
-    db.session.commit()
-    return jsonify(p.to_dict()), 201
-
-
-@manage_bp.post("/programmes/import")
-@admin_required
-def import_programmes():
-    """CSV columns: level (hs|degree), programme, department (stream for hs), terms (optional)."""
-    upload = request.files.get("file")
-    raw = upload.stream.read(200_001) if upload else b""
-    if not raw or len(raw) > 200_000:
-        return jsonify({"error": "Choose a CSV file under 200 KB."}), 400
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        return jsonify({"error": "The file is not a valid UTF-8 CSV."}), 400
-    created, skipped, errors = import_programme_csv(text)
-    if errors and not created and not skipped:  # file-level problem (empty, too many rows)
-        return jsonify({"error": errors[0]}), 400
-    _audit("PROGRAMMES_IMPORTED", f"Imported programmes from a CSV file: {created} added, {skipped} already existed, {len(errors)} rows had problems.")
-    db.session.commit()
-    return jsonify({"created": created, "skipped": skipped, "errors": errors}), 200
-
-
-@manage_bp.put("/programmes/<int:programme_id>")
-@admin_required
-def update_programme(programme_id):
-    p = db.session.get(Programme, programme_id)
-    if not p:
-        return jsonify({"error": "Programme not found."}), 404
-    payload = request.get_json(silent=True) or {}
-    if any(k in payload for k in ("level", "programme", "department", "term_count")):
-        fields, err = programme_fields(payload, p)
-        if err:
-            return jsonify({"error": err}), 400
-        if fields["term_count"] < p.term_count and User.query.filter(
-            User.programme_id == p.id, User.year > fields["term_count"]
-        ).first():
-            return jsonify({"error": "Registered students are enrolled in the terms you are removing."}), 409
-        for k, v in fields.items():
-            setattr(p, k, v)
-        User.query.filter_by(programme_id=p.id).update({"department": p.name})
-    if "is_active" in payload:
-        p.is_active = bool(payload["is_active"])
-    _audit("PROGRAMME_UPDATED", f"Updated the programme \u201c{p.name}\u201d.")
-    db.session.commit()
-    return jsonify(p.to_dict()), 200
-
-
-@manage_bp.delete("/programmes/<int:programme_id>")
-@admin_required
-def delete_programme(programme_id):
-    p = db.session.get(Programme, programme_id)
-    if not p:
-        return jsonify({"error": "Programme not found."}), 404
-    if User.query.filter_by(programme_id=p.id).first():
-        return jsonify({"error": "Students are registered under this programme. Deactivate it instead."}), 409
-    _audit("PROGRAMME_DELETED", f"Deleted the programme \u201c{p.name}\u201d.")
-    db.session.delete(p)
-    db.session.commit()
-    return jsonify({"message": "Programme deleted."}), 200
 
 
 # ── instance settings ─────────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ manage.py — Operational commands.
     python manage.py reset [--empty]  drop everything, re-create the schema, then seed (or leave empty
                                       so the installation wizard runs). Refused in production unless
                                       ALLOW_DB_RESET=true.
-    python manage.py programmes     add the college's default departments (safe to repeat)
     python manage.py set-password <username>   set a staff password (prompts for it)
     python manage.py reset-2fa <username>      turn off two-step verification for a staff account (lost phone)
     python manage.py status         show whether the instance is installed
@@ -21,7 +20,7 @@ from app.extensions import db
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
-    if cmd not in ("migrate", "seed", "reset", "status", "programmes", "set-password", "reset-2fa"):
+    if cmd not in ("migrate", "seed", "reset", "status", "set-password", "reset-2fa"):
         print(__doc__)
         return 2
 
@@ -31,12 +30,6 @@ def main(argv):
 
         if cmd == "migrate":
             print("Database is up to date.")  # create_app already applied pending migrations
-        elif cmd == "programmes":
-            from app.programme_import import TEMPLATE_CSV, import_programme_csv
-
-            created, skipped, errors = import_programme_csv(TEMPLATE_CSV)
-            db.session.commit()
-            print(f"Programmes: {created} added, {skipped} already present, {len(errors)} errors.")
         elif cmd == "set-password":
             return _set_password(argv[2] if len(argv) > 2 else "")
         elif cmd == "reset-2fa":

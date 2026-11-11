@@ -587,10 +587,11 @@ def voter_session_end():
                 slip = db.session.get(BoothSlip, claims["slip_id"])
                 if slip:
                     slip.authenticated_at = None
-            from app.models.voting_token import VotingToken
-            VotingToken.query.filter_by(
-                student_id=claims.get("student_id"), election_id=election_id, is_used=False
-            ).update({"authenticated_at": None}, synchronize_session=False)
+            elif claims.get("student_id"):
+                from app.models.voting_token import VotingToken
+                VotingToken.query.filter_by(
+                    student_id=claims.get("student_id"), election_id=election_id, is_used=False
+                ).update({"authenticated_at": None}, synchronize_session=False)
             db.session.add(AuditLog(
                 action="BOOTH_SESSION_ENDED",
                 details=f"Voter session for Voter Slip ID {v_id} at booth {b_id} ended without casting a ballot.",

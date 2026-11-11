@@ -876,44 +876,9 @@ export const KioskVoting = () => {
           </ul>
         </div>
 
-        {voter.name && (
-          <div className="card text-left mt-5 border border-line shadow-card overflow-hidden" role="status">
-            <div className="bg-recessed/60 px-4 py-2 border-b border-line flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted">
-                <span className="w-2 h-2 rounded-full bg-brand" />
-                Voter Verification
-              </span>
-              <span className="font-mono text-muted text-xs">
-                Slip ID: <strong className="text-fg font-semibold">{voter.student_id}</strong>
-              </span>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
-                <div className="flex items-center gap-1.5 sm:col-span-2">
-                  <span className="text-muted shrink-0">Student Name:</span>
-                  <span className="font-bold text-fg text-base">{voter.name}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted shrink-0">Roll/Enrollment No.:</span>
-                  <span className="font-semibold text-fg">{voter.roll_no || '—'}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted shrink-0">Semester:</span>
-                  <span className="font-semibold text-fg">{formatTerm(voter.year)}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5 sm:col-span-2">
-                  <span className="text-muted shrink-0">Programme:</span>
-                  <span className="font-semibold text-fg truncate">{voter.department || '—'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <button className="btn-primary btn-lg mt-6" onClick={() => go(0, 'next')} autoFocus>
-          This is me, start voting <ArrowRightIcon className="w-5 h-5" />
+          Start voting <ArrowRightIcon className="w-5 h-5" />
         </button>
-        <button className="btn-ghost mt-3 block mx-auto" onClick={finish}>This is not me</button>
       </div>,
       { progress: false }
     );
