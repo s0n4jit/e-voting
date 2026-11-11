@@ -273,33 +273,33 @@ def publish_results(election_id):
 @admin_required
 def add_candidate(election_id):
     """Add a candidate to an election."""
-    election = db.session.get(Election, election_id)
-    if not election:
-        return jsonify({"error": "Election not found."}), 404
-    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and election.id != active_mock.id:
-        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
-
-    payload = request.form  # multipart: fields plus the photo file
-    name = sanitize_input(payload.get("name"))
-    position = sanitize_input(payload.get("position", "General Secretary"))
-    department = sanitize_input(payload.get("department", ""))[:100] or None
-    semester = sanitize_input(payload.get("semester", ""))[:30]
-    bio = sanitize_input(payload.get("bio", ""))
-    upload = request.files.get("photo")
-
-    if not name:
-        return jsonify({"error": "Candidate name is required."}), 400
-    photo, photo_error = read_photo(upload)
-    if photo_error:
-        return jsonify({"error": photo_error}), 400
-    if election_locked(election):
-        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
-    allowed = [p.name for p in election.positions]
-    if allowed and position not in allowed:
-        return jsonify({"error": "Choose one of the election's positions."}), 400
-
     try:
+        election = db.session.get(Election, election_id)
+        if not election:
+            return jsonify({"error": "Election not found."}), 404
+        active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+        if active_mock and election.id != active_mock.id:
+            return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
+
+        payload = request.form  # multipart: fields plus the photo file
+        name = sanitize_input(payload.get("name"))
+        position = sanitize_input(payload.get("position", "General Secretary"))
+        department = sanitize_input(payload.get("department", ""))[:100] or None
+        semester = sanitize_input(payload.get("semester", ""))[:30]
+        bio = sanitize_input(payload.get("bio", ""))
+        upload = request.files.get("photo")
+
+        if not name:
+            return jsonify({"error": "Candidate name is required."}), 400
+        photo, photo_error = read_photo(upload)
+        if photo_error:
+            return jsonify({"error": photo_error}), 400
+        if election_locked(election):
+            return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
+        allowed = [p.name for p in election.positions]
+        if allowed and position not in allowed:
+            return jsonify({"error": "Choose one of the election's positions."}), 400
+
         candidate = Candidate(
             election_id=election.id,
             name=name,
@@ -326,31 +326,31 @@ def add_candidate(election_id):
 @admin_required
 def update_candidate(candidate_id, election_id=None):
     """Update candidate details (name, position, department, semester, bio, optional photo)."""
-    candidate = db.session.get(Candidate, candidate_id)
-    if not candidate or (election_id is not None and candidate.election_id != election_id):
-        return jsonify({"error": "Candidate not found in this election."}), 404
-    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and candidate.election_id != active_mock.id:
-        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
-    if election_locked(candidate.election):
-        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
-
-    payload = request.get_json(silent=True) or request.form
-    name = sanitize_input(payload.get("name"))
-    position = sanitize_input(payload.get("position", candidate.position))
-    department = sanitize_input(payload.get("department", candidate.department or ""))[:100] or None
-    semester = sanitize_input(payload.get("semester", ""))[:30]
-    bio = sanitize_input(payload.get("bio", ""))
-    upload = request.files.get("photo") if request.files else None
-
-    if not name:
-        return jsonify({"error": "Candidate name is required."}), 400
-
-    allowed = [p.name for p in candidate.election.positions]
-    if allowed and position not in allowed:
-        return jsonify({"error": "Choose one of the election's positions."}), 400
-
     try:
+        candidate = db.session.get(Candidate, candidate_id)
+        if not candidate or (election_id is not None and candidate.election_id != election_id):
+            return jsonify({"error": "Candidate not found in this election."}), 404
+        active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+        if active_mock and candidate.election_id != active_mock.id:
+            return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
+        if election_locked(candidate.election):
+            return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
+
+        payload = request.get_json(silent=True) or request.form
+        name = sanitize_input(payload.get("name"))
+        position = sanitize_input(payload.get("position", candidate.position))
+        department = sanitize_input(payload.get("department", candidate.department or ""))[:100] or None
+        semester = sanitize_input(payload.get("semester", ""))[:30]
+        bio = sanitize_input(payload.get("bio", ""))
+        upload = request.files.get("photo") if request.files else None
+
+        if not name:
+            return jsonify({"error": "Candidate name is required."}), 400
+
+        allowed = [p.name for p in candidate.election.positions]
+        if allowed and position not in allowed:
+            return jsonify({"error": "Choose one of the election's positions."}), 400
+
         if upload and getattr(upload, "filename", None):
             photo, photo_error = read_photo(upload)
             if photo_error:
@@ -378,20 +378,25 @@ def update_candidate(candidate_id, election_id=None):
 @admin_required
 def delete_candidate(candidate_id, election_id=None):
     """Remove a candidate."""
-    candidate = db.session.get(Candidate, candidate_id)
-    if not candidate or (election_id is not None and candidate.election_id != election_id):
-        return jsonify({"error": "Candidate not found in this election."}), 404
-    active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
-    if active_mock and candidate.election_id != active_mock.id:
-        return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
-    if election_locked(candidate.election):
-        return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
+    try:
+        candidate = db.session.get(Candidate, candidate_id)
+        if not candidate or (election_id is not None and candidate.election_id != election_id):
+            return jsonify({"error": "Candidate not found in this election."}), 404
+        active_mock = Election.query.filter_by(is_mock=True).filter(Election.status != "archived").first()
+        if active_mock and candidate.election_id != active_mock.id:
+            return jsonify({"error": "A mock election is currently active. Official candidates cannot be modified until the mock run ends."}), 409
+        if election_locked(candidate.election):
+            return jsonify({"error": "Candidates cannot be changed once voting has opened."}), 409
 
-    delete_photo(candidate.id)
-    _audit("CANDIDATE_REMOVED", f"Removed {candidate.name} (candidate for {candidate.position}) from \u201c{candidate.election.title}\u201d.")
-    db.session.delete(candidate)
-    commit_or_flush()
-    return jsonify({"message": "Candidate removed successfully."}), 200
+        delete_photo(candidate.id)
+        _audit("CANDIDATE_REMOVED", f"Removed {candidate.name} (candidate for {candidate.position}) from \u201c{candidate.election.title}\u201d.")
+        db.session.delete(candidate)
+        commit_or_flush()
+        return jsonify({"message": "Candidate removed successfully."}), 200
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception("Failed to delete candidate: %s", exc)
+        return jsonify({"error": f"Failed to delete candidate: {str(exc)}"}), 500
 
 
 # ── Audit Trail ───────────────────────────────────────────────────────────────

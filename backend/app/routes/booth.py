@@ -406,7 +406,9 @@ def upload_booth_receipt():
             receipt.pdf_filename = pdf_filename
         receipt.is_printed = is_printed
         receipt.print_error = print_error
-        receipt.reprinted_at = now
+        is_reprint = str(request.form.get("is_reprint") if "is_reprint" in request.form else json_data.get("is_reprint", False)).lower() in ("true", "1", "yes")
+        if is_reprint:
+            receipt.reprinted_at = now
 
     # Defer disk writes until after ownership and validity checks succeed
     pdf_file = request.files.get("pdf")

@@ -313,8 +313,11 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(Exception)
     def unhandled_exception(e):
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({"error": e.description or e.name}), e.code
         app.logger.exception("Unhandled exception: %s", e)
         db.session.rollback()
         if app.config.get("DEBUG"):
             raise e
-        return jsonify({"error": "An unexpected error occurred."}), 500
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
