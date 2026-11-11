@@ -59,6 +59,9 @@ class Config:
     VOTING_WINDOW_BUFFER: int = int(os.environ.get("VOTING_WINDOW_BUFFER", 30))
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
+    # Note: Default "memory://" storage provides per-process tracking (exact with Gunicorn
+    # --workers 1 --threads 8). For multi-worker or multi-container clusters, configure
+    # RATELIMIT_STORAGE_URL="redis://..." or "rediss://..." to share rate-limit state centrally.
     RATELIMIT_DEFAULT: str = os.environ.get("RATELIMIT_DEFAULT", "30000 per hour")
     RATELIMIT_STORAGE_URI: str = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")  # Flask-Limiter 3.x storage URI
 

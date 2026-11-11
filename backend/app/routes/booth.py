@@ -313,6 +313,7 @@ def upload_booth_receipt():
     choices_raw = request.form.get("choices")
     if choices_raw is None:
         choices_raw = json.dumps(json_data.get("choices", [])) if json_data.get("choices") is not None else "[]"
+    pdf_file = request.files.get("pdf")
 
     from app.services.receipt_service import get_receipt_dir
     from app.models.vote_receipt import VoteReceipt
@@ -326,19 +327,6 @@ def upload_booth_receipt():
     pdf_path = os.path.abspath(os.path.join(storage_dir, pdf_filename))
     if not pdf_path.startswith(storage_dir):
         return jsonify({"error": "Invalid storage path"}), 400
-
-    pdf_file = request.files.get("pdf")
-    if pdf_file:
-        pdf_file.save(pdf_path)
-
-    if html_content:
-        html_path = os.path.abspath(os.path.join(storage_dir, f"{slip_id}.html"))
-        if html_path.startswith(storage_dir):
-            try:
-                with open(html_path, "w", encoding="utf-8") as f:
-                    f.write(html_content)
-            except Exception:
-                pass
 
     now = datetime.now(timezone.utc)
     is_printed_val = request.form.get("is_printed") if "is_printed" in request.form else json_data.get("is_printed", True)
@@ -388,6 +376,28 @@ def upload_booth_receipt():
         )
         db.session.add(receipt)
     else:
+        # Verify election ownership
+        if receipt.election_id != election_id:
+            db.session.add(AuditLog(
+                action="TAMPER_DETECTED",
+                details=f"Cross-election receipt tamper attempt! Slip {slip_id} belongs to election {receipt.election_id}, upload attempted for {election_id} (IP: {request.remote_addr}).",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+            return jsonify({"error": "Forbidden", "message": "Receipt belongs to another election."}), 403
+
+        # Verify booth ownership
+        if receipt.booth_name and receipt.booth_name not in ("Booth", "Ballot Box") and receipt.booth_name != booth_name:
+            db.session.add(AuditLog(
+                action="TAMPER_DETECTED",
+                details=f"Cross-booth receipt tamper attempt! Slip {slip_id} belongs to {receipt.booth_name}, upload attempted from {booth_name} (IP: {request.remote_addr}).",
+                ip_address=request.remote_addr or "",
+                user_agent=(request.user_agent.string or "")[:255],
+            ))
+            db.session.commit()
+            return jsonify({"error": "Forbidden", "message": "Receipt belongs to another booth."}), 403
+
         # Finalized receipt: choices and election are strictly immutable!
         # Only printer status, error, and physical PDF artifact can be updated idempotently.
         if not receipt.booth_name or receipt.booth_name in ("Booth", "Ballot Box"):
@@ -397,6 +407,20 @@ def upload_booth_receipt():
         receipt.is_printed = is_printed
         receipt.print_error = print_error
         receipt.reprinted_at = now
+
+    # Defer disk writes until after ownership and validity checks succeed
+    pdf_file = request.files.get("pdf")
+    if pdf_file:
+        pdf_file.save(pdf_path)
+
+    if html_content:
+        html_path = os.path.abspath(os.path.join(storage_dir, f"{slip_id}.html"))
+        if html_path.startswith(storage_dir):
+            try:
+                with open(html_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+            except Exception:
+                pass
 
     mode_str = "mock" if is_mock else "official"
     try:

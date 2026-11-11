@@ -354,24 +354,43 @@ def get_diagnostics():
         except Exception:
             uptime_seconds = 3600
 
+    # Determine if human staff is authenticated vs just an unprivileged kiosk device
+    is_staff_operator = False
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt()
+            if claims and claims.get("role") in ("staff_maintenance", "admin") and claims.get("type") != "temp_otp":
+                is_staff_operator = True
+        except Exception:
+            pass
+
+    # Kiosks only receive operational connectivity status; internal server topology,
+    # OS versions, network interfaces, and gateway IPs are staff-only.
+    safe_interfaces = interfaces if is_staff_operator else []
+    safe_os_info = platform.platform() if is_staff_operator else "Protected"
+    safe_gateway_ip = gateway_ip if is_staff_operator else "Protected"
+    safe_resolved_ips = resolved_ips if is_staff_operator else []
+
     return (
         jsonify({
             "booth_id": booth_id,
             "election_title": booth.election.title if booth and booth.election else None,
             "voting_open": bool(booth and booth.election and booth.election.is_ongoing),
             "session_ref": booth.ref if booth else None,
-            "os_info": platform.platform(),
-            "uptime_seconds": uptime_seconds,
-            "interfaces": interfaces,
+            "os_info": safe_os_info,
+            "uptime_seconds": uptime_seconds if is_staff_operator else 0,
+            "interfaces": safe_interfaces,
             "gateway": {
                 "status": gateway_status,
-                "ip": gateway_ip,
+                "ip": safe_gateway_ip,
             },
             "dns": {
                 "status": dns_status,
                 "target": target_host,
-                "resolved_ip": resolved_ips[0] if resolved_ips else None,
-                "resolved_ips": resolved_ips,
+                "resolved_ip": safe_resolved_ips[0] if safe_resolved_ips else None,
+                "resolved_ips": safe_resolved_ips,
             },
             "internet": {
                 "status": internet_status,

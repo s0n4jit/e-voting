@@ -56,8 +56,15 @@ Only the Election Officer can download a backup, reset the system or import a ba
 
 ## Other protections
 
+- **Strict 2FA Token Isolation**: Temporary pre-authentication OTP tokens (`temp_otp`) are strictly scoped for `/api/auth/verify-otp` and are rejected across all protected endpoints.
+- **TOTP Secret Protection**: Active TOTP secrets are permanently sealed once two-factor authentication is enabled, preventing re-exposure.
+- **Turnout Statistics Guarding**: Real-time turnout statistics follow the election results policy and are hidden from unauthenticated viewers while voting is ongoing unless explicitly published or accessed with an election public token.
+- **Receipt Integrity & Defense-in-Depth**: Receipt uploads are checked for election and booth ownership prior to saving physical PDF files to disk; cross-booth status modifications are rejected.
+- **Kiosk Diagnostic Masking**: Kiosk device tokens are restricted from internal server reconnaissance (host OS details, internal network interfaces, and gateway IPs are redacted).
+- **Chromium Sandbox Enforcement**: Booth applications enforce the Chromium process sandbox by default across all platforms.
 - Input is sanitised on the server; the interface escapes output; candidate photos are validated as real PNG/JPEG/WebP images and served with `nosniff`.
 - CSV exports neutralise spreadsheet formulas.
+- Rate limiting: In-memory counters are exact under the default single-process multi-threaded Gunicorn deployment; distributed multi-container deployments can bind `RATELIMIT_STORAGE_URL` to Redis.
 - Configuration (database URL, secrets) comes from environment variables. In production the application refuses to start with the development secrets.
 - All important actions are written to the audit log (Election Officer only).
 

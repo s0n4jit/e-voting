@@ -26,6 +26,18 @@ def _two_step_response():
     }), 403
 
 
+def _is_temp_otp(claims):
+    """Check if the presented token is a temporary OTP pre-MFA token."""
+    return claims.get("type") == "temp_otp"
+
+
+def _temp_otp_response():
+    return jsonify({
+        "error": "Unauthorized",
+        "message": "Two-factor authentication must be completed.",
+    }), 401
+
+
 def admin_required(fn=None):
     """
     Decorator that checks for valid JWT with admin role / privileges.
@@ -37,6 +49,8 @@ def admin_required(fn=None):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
+            if _is_temp_otp(claims):
+                return _temp_otp_response()
             role = claims.get("role")
             if role == "admin":
                 if _two_step_missing(claims):
@@ -75,6 +89,8 @@ def voter_required(fn=None):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
+            if _is_temp_otp(claims):
+                return _temp_otp_response()
             role = claims.get("role")
             if role != "voter":
                 return (
@@ -104,6 +120,8 @@ def desk_required(fn=None):
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
             claims = get_jwt()
+            if _is_temp_otp(claims):
+                return _temp_otp_response()
             role = claims.get("role")
             if role in ("admin", "polling_officer"):
                 if _two_step_missing(claims):

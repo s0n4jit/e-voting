@@ -192,8 +192,27 @@ def cast_multi_position_ballot(election_id):
 @voter_bp.post("/elections/<int:election_id>/vote")
 @voter_required
 def cast_ballot(election_id):
-    """Cast an anonymous vote in an election."""
-    booth, denied = require_booth(get_jwt(), election_id)
+    """
+    Legacy direct voting endpoint.
+    Restricted: blocked for booth-slip sessions and for any election configured with booth slips.
+    All campus elections using booth slips must cast multi-position ballots via /cast-ballot.
+    """
+    claims = get_jwt()
+    if claims.get("voting_mode") == "booth_slip":
+        return jsonify({
+            "error": "Invalid voting method",
+            "message": "Booth slip sessions must use the /cast-ballot endpoint.",
+        }), 400
+
+    # If election has booth slips configured, direct single-candidate voting is disallowed
+    from app.models.booth_slip import BoothSlip
+    if BoothSlip.query.filter_by(election_id=election_id, is_cancelled=False).first() is not None:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "Direct user voting is disabled for booth-slip elections. Please cast your ballot at the voting booth terminal.",
+        }), 403
+
+    booth, denied = require_booth(claims, election_id)
     if denied:
         return denied
     user_id = get_jwt_identity()

@@ -207,6 +207,11 @@ def _register_jwt_callbacks(app: Flask) -> None:
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
+        # Temporary OTP tokens are strictly single-purpose credentials for /auth/verify-otp body,
+        # never valid as authorization bearer tokens on protected endpoints.
+        if jwt_payload.get("type") == "temp_otp":
+            return True
+
         from app.models.revoked_token import RevokedToken
 
         if db.session.get(RevokedToken, jwt_payload.get("jti")):

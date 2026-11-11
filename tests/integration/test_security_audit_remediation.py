@@ -280,3 +280,213 @@ def test_finding13_obsolete_voter_import_endpoints_removed(client, app):
         res2 = client.post("/api/admin/voters/import", headers=auth_header(admin_jwt))
         assert res1.status_code in (404, 405)
         assert res2.status_code in (404, 405)
+
+
+def test_finding_a_temp_token_cannot_access_protected_endpoints(client, test_election, app):
+    """Temporary OTP JWTs must be strictly rejected on admin and desk routes (401 Unauthorized)."""
+    with app.app_context():
+        from flask_jwt_extended import create_access_token
+        admin = User(student_id="temp-admin", name="Temp Admin", email="tadmin@x.edu", role="admin", is_admin=True, otp_enabled=True)
+        admin.set_password("pass123")
+        _db.session.add(admin)
+        _db.session.commit()
+
+        temp_jwt = create_access_token(
+            identity=str(admin.id),
+            additional_claims={"type": "temp_otp", "role": "admin", "student_id": "temp-admin"}
+        )
+
+        res = client.get("/api/admin/elections", headers=auth_header(temp_jwt))
+        assert res.status_code == 401
+
+        res_desk = client.get("/api/desk/state", headers=auth_header(temp_jwt))
+        assert res_desk.status_code == 401
+
+
+def test_finding_c_totp_setup_reexposure_prevented(client, app):
+    """GET /api/auth/totp/setup must reject temp tokens (401) and active TOTP users (403)."""
+    with app.app_context():
+        import pyotp
+        from flask_jwt_extended import create_access_token
+        user = User(student_id="totp-user", name="TOTP User", email="totp@x.edu", role="admin", is_admin=True, otp_enabled=True, otp_secret=pyotp.random_base32())
+        user.set_password("pass123")
+        _db.session.add(user)
+        _db.session.commit()
+
+        # Temp token rejected
+        temp_jwt = create_access_token(
+            identity=str(user.id),
+            additional_claims={"type": "temp_otp", "role": "admin"}
+        )
+        res_temp = client.get("/api/auth/totp/setup", headers=auth_header(temp_jwt))
+        assert res_temp.status_code == 401
+
+        # Full token on already-enabled account returns 403
+        full_jwt = create_access_token(
+            identity=str(user.id),
+            additional_claims={"role": "admin"}
+        )
+        res_full = client.get("/api/auth/totp/setup", headers=auth_header(full_jwt))
+        assert res_full.status_code == 403
+        assert "already active" in res_full.get_json()["message"]
+
+
+def test_finding_f_live_election_statistics_guarded(client, test_election, app):
+    """GET /api/results/<id>/stats requires authentication, published results, or a public token."""
+    with app.app_context():
+        from flask_jwt_extended import create_access_token
+        el = _db.session.get(Election, test_election.id)
+        pub_token = el.ensure_public_token()
+        _db.session.commit()
+        eid = el.id
+
+        # 1. Unauthenticated request without token while voting is active returns 403
+        res_unauth = client.get(f"/api/results/{eid}/stats")
+        assert res_unauth.status_code == 403
+        assert res_unauth.get_json()["error"] == "Results hidden"
+
+        # 2. Public token allows access
+        res_token = client.get(f"/api/results/{eid}/stats?token={pub_token}")
+        assert res_token.status_code == 200
+        assert "turnout_percentage" in res_token.get_json()
+
+        # 3. Authenticated officer allows access during voting
+        admin = User(student_id="stats-admin", name="Stats Admin", email="sadmin@x.edu", role="admin", is_admin=True, otp_enabled=True)
+        admin.set_password("pass123")
+        _db.session.add(admin)
+        _db.session.commit()
+        admin_jwt = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+        res_admin = client.get(f"/api/results/{eid}/stats", headers=auth_header(admin_jwt))
+        assert res_admin.status_code == 200
+
+        # 4. Once results are published, public unauthenticated access succeeds
+        el = _db.session.get(Election, eid)
+        el.set_status("results_published")
+        _db.session.commit()
+        res_pub = client.get(f"/api/results/{eid}/stats")
+        assert res_pub.status_code == 200
+
+
+def test_finding_d_receipt_upload_ownership_and_deferral(client, test_election, app, tmp_path):
+    """Receipt upload must validate election/booth ownership and reject cross-booth tampering."""
+    with app.app_context():
+        _, booth1_tok = KioskDevice.activate("BOOTH-01", "127.0.0.1", test_election.id)
+        _, booth2_tok = KioskDevice.activate("BOOTH-02", "127.0.0.1", test_election.id)
+        _db.session.commit()
+
+        # Initial receipt creation for Booth 1
+        slip = BoothSlip(
+            election_id=test_election.id,
+            voting_id="VOTE-TEST01",
+            pin_hash="dummy",
+            pin_enc="dummy",
+            booth_id=1,
+            booth_number=1,
+            sequence_number=1001,
+            is_used=True,
+        )
+        _db.session.add(slip)
+        _db.session.commit()
+
+        # Upload receipt from Booth 1
+        res1 = client.post(
+            "/api/booth/receipt-upload",
+            headers={"X-Kiosk-Token": booth1_tok},
+            data={"slip_id": "VOTE-TEST01", "election_id": test_election.id, "is_printed": "true"},
+        )
+        assert res1.status_code == 200
+
+        # Attempt to tamper/overwrite status from Booth 2 must be rejected with 403
+        res2 = client.post(
+            "/api/booth/receipt-upload",
+            headers={"X-Kiosk-Token": booth2_tok},
+            data={"slip_id": "VOTE-TEST01", "election_id": test_election.id, "is_printed": "false"},
+        )
+        assert res2.status_code == 403
+        assert "belongs to another booth" in res2.get_json()["message"]
+
+
+def test_finding_b_legacy_vote_blocked_on_booth_slip_election(client, test_election, app):
+    """POST /api/voter/elections/<id>/vote is blocked (403) when an election uses booth slips."""
+    with app.app_context():
+        from flask_jwt_extended import create_access_token
+        slip = BoothSlip(
+            election_id=test_election.id,
+            voting_id="SUE26-E1-9999",
+            pin_hash="dummy",
+            pin_enc="dummy",
+            booth_number=1,
+            sequence_number=1002,
+            is_used=False,
+        )
+        _db.session.add(slip)
+        _db.session.commit()
+
+        voter = User(student_id="leg-voter", name="Leg Voter", email="lv@x.edu", role="voter")
+        voter.set_password("pass123")
+        _db.session.add(voter)
+        _db.session.commit()
+
+        voter_jwt = create_access_token(identity=str(voter.id), additional_claims={"role": "voter"})
+        res = client.post(
+            f"/api/voter/elections/{test_election.id}/vote",
+            headers=auth_header(voter_jwt),
+            json={"candidate_id": 1},
+        )
+        assert res.status_code == 403
+        assert "booth-slip" in res.get_json()["message"]
+
+
+def test_finding_g_maintenance_diagnostics_sanitized_for_kiosk(client, test_election, app):
+    """Kiosk device tokens receive sanitized diagnostics (no server OS/interface topography)."""
+    with app.app_context():
+        from flask_jwt_extended import create_access_token
+        _, kiosk_tok = KioskDevice.activate("BOOTH-DIAG", "127.0.0.1", test_election.id)
+        _db.session.commit()
+
+        # Kiosk token gets sanitized response
+        res_kiosk = client.get("/api/maintenance/diagnostics", headers={"X-Kiosk-Token": kiosk_tok})
+        assert res_kiosk.status_code == 200
+        data_kiosk = res_kiosk.get_json()
+        assert data_kiosk["os_info"] == "Protected"
+        assert data_kiosk["interfaces"] == []
+        assert data_kiosk["gateway"]["ip"] == "Protected"
+
+        # Staff maintenance JWT gets full diagnostics
+        staff_jwt = create_access_token(identity="maint-staff", additional_claims={"role": "staff_maintenance"})
+        res_staff = client.get("/api/maintenance/diagnostics", headers=auth_header(staff_jwt))
+        assert res_staff.status_code == 200
+        data_staff = res_staff.get_json()
+        assert data_staff["os_info"] != "Protected"
+
+
+def test_finding_j_election_current_prioritizes_official(client, app):
+    """Election.current() must strictly prioritize official ongoing elections over mock elections."""
+    with app.app_context():
+        now = datetime.now(timezone.utc)
+        official = Election(
+            title="Official Active Election",
+            status="voting_active",
+            is_active=True,
+            is_mock=False,
+            start_time=now - timedelta(hours=1),
+            end_time=now + timedelta(hours=8),
+            created_at=now - timedelta(hours=2),
+        )
+        mock = Election(
+            title="Mock Active Election",
+            status="setup",
+            mock_status="voting_active",
+            is_active=False,
+            is_mock=True,
+            start_time=now - timedelta(hours=1),
+            end_time=now + timedelta(hours=8),
+            created_at=now,  # newer than official
+        )
+        _db.session.add_all([official, mock])
+        _db.session.commit()
+
+        current_el = Election.current()
+        assert current_el.id == official.id
+        assert current_el.is_mock is False

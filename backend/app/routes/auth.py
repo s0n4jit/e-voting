@@ -374,10 +374,21 @@ def setup_totp():
     - Standard otpauth:// provisioning URI
     - Base64 data-URL QR code for instant scanning with Google/Microsoft Authenticator
     """
+    claims = get_jwt()
+    if claims.get("type") == "temp_otp":
+        return jsonify({"error": "Unauthorized", "message": "Two-factor authentication must be completed."}), 401
+
     user_id = get_jwt_identity()
     user = db.session.get(User, int(user_id)) if str(user_id).isdigit() else None
     if not user:
         return jsonify({"error": "User not found."}), 404
+
+    if user.otp_enabled:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "Two-factor authentication is already active on this account.",
+            "otp_enabled": True,
+        }), 403
 
     # Generate or reuse secret
     secret = user.otp_secret or pyotp.random_base32()

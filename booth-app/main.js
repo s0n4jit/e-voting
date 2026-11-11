@@ -60,9 +60,11 @@ let allowQuit = false;
 let apiBase = '';
 let resumeTimer = null;
 
-// Ubuntu 23.10+ blocks the browser sandbox for unprivileged users (AppImage, .deb): without this the app does not start.
-// The window only ever loads the portal, so the loss of the extra sandbox layer is accepted.
-if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
+// Preserve Chromium sandbox by default. Only append no-sandbox on Linux if explicitly
+// requested via environment flag (e.g. on legacy unprivileged user namespace systems).
+if (process.platform === 'linux' && (process.env.EVOTE_NO_SANDBOX === '1' || process.env.EVOTE_UNSAFE_NO_SANDBOX === '1')) {
+  app.commandLine.appendSwitch('no-sandbox');
+}
 app.commandLine.appendSwitch('disable-pinch');
 app.commandLine.appendSwitch('disable-features', 'TouchpadOverscrollHistoryNavigation');
 
@@ -86,7 +88,8 @@ function applyAutoStart() {
   const file = path.join(dir, 'evote-booth.desktop');
   if (!cfg.autoStart) return fs.rmSync(file, { force: true });
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, `[Desktop Entry]\nType=Application\nName=Campus E-Voting Booth\nExec="${process.env.APPIMAGE || process.execPath}" --no-sandbox\nX-GNOME-Autostart-enabled=true\n`);
+  const noSandboxArg = (process.env.EVOTE_NO_SANDBOX === '1' || process.env.EVOTE_UNSAFE_NO_SANDBOX === '1') ? ' --no-sandbox' : '';
+  fs.writeFileSync(file, `[Desktop Entry]\nType=Application\nName=Campus E-Voting Booth\nExec="${process.env.APPIMAGE || process.execPath}"${noSandboxArg}\nX-GNOME-Autostart-enabled=true\n`);
 }
 
 async function installedPrinters() {

@@ -575,6 +575,8 @@ class VoteService:
             raise VotingError("This voting slip has been cancelled and is no longer valid.")
         if booth_slip.is_used:
             raise VotingError("This voting slip has already been used.")
+        if booth and booth.election_id is not None and booth.election_id != election.id:
+            raise VotingError("Voting terminal is assigned to a different election.")
         if booth and booth.number != booth_slip.booth_number:
             raise VotingError(f"Voting slip belongs to Booth {booth_slip.booth_number}, not Booth {booth.number}.")
 

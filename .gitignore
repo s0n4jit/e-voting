@@ -39,6 +39,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Local audit artifacts
+security/
+
 # Testing & Coverage
 .tox/
 .nox/

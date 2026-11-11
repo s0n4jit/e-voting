@@ -229,6 +229,12 @@ class Handler(BaseHTTPRequestHandler):
                     with open(cand, "rb") as f:
                         return self._send(200, f.read(), "text/html")
             return self._send(404, "setup page missing", "text/plain")
+        if path.startswith("/api/"):
+            if not setup_on(conf):
+                return self._send(403, {"error": "Setup mode is off. Run: sudo evote setup"}, conf=conf)
+            origin = self.headers.get("Origin", "")
+            if origin and origin not in allowed_origins(conf):
+                return self._send(403, {"error": "origin not allowed"}, conf=conf)
         if path == "/api/config" and setup_on(conf):
             return self._send(200, {**{k: conf[k] for k in KEYS[:4]}, "printers": printers()}, conf=conf)
         if path == "/api/wifi" and setup_on(conf):

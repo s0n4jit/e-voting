@@ -92,14 +92,25 @@ class Election(db.Model):
 
     @classmethod
     def current(cls):
-        """The election desks and kiosks work against: ongoing, else newest non-archived."""
+        """The election desks and kiosks work against: official ongoing, then mock ongoing, else newest non-archived."""
         all_non_archived = cls.query.filter(cls.status != "archived").order_by(cls.created_at.desc()).all()
-        ongoing = [e for e in all_non_archived if e.is_ongoing]
-        if ongoing:
-            return ongoing[0]
-        active = [e for e in all_non_archived if e.is_active]
-        if active:
-            return active[0]
+        # 1. Official elections take strict priority when ongoing/active
+        official_ongoing = [e for e in all_non_archived if not e.is_mock and e.is_ongoing]
+        if official_ongoing:
+            return official_ongoing[0]
+        official_active = [e for e in all_non_archived if not e.is_mock and e.is_active]
+        if official_active:
+            return official_active[0]
+
+        # 2. Mock elections when ongoing/active
+        mock_ongoing = [e for e in all_non_archived if e.is_mock and e.is_ongoing]
+        if mock_ongoing:
+            return mock_ongoing[0]
+        mock_active = [e for e in all_non_archived if e.is_mock and e.is_active]
+        if mock_active:
+            return mock_active[0]
+
+        # 3. Newest non-mock election
         non_mock = [e for e in all_non_archived if not e.is_mock]
         if non_mock:
             return non_mock[0]

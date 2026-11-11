@@ -2,7 +2,7 @@
 app/routes/results.py — Public and authorized election results endpoints.
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from app.services.vote_service import (
     VoteService,
     VotingError,
@@ -68,7 +68,46 @@ def get_election_results(election_id):
 
 @results_bp.get("/<int:election_id>/stats")
 def get_election_statistics(election_id):
-    """Retrieve voter turnout statistics for an election."""
+    """
+    Retrieve voter turnout statistics for an election.
+    Follows election visibility policy: live stats are hidden unless published,
+    accessed with an election public token, or requested by an authenticated officer.
+    """
+    from flask_jwt_extended import verify_jwt_in_request, get_jwt
+    from app.extensions import db
+    from app.models.election import Election
+
+    election = db.session.get(Election, election_id)
+    if not election:
+        return jsonify({"error": "Not found", "message": "Election not found."}), 404
+
+    # 1. Allow authenticated staff (admin or polling officer)
+    is_staff = False
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt()
+            if claims and claims.get("role") in ("admin", "polling_officer") and claims.get("type") != "temp_otp":
+                is_staff = True
+        except Exception:
+            pass
+
+    # 2. Allow if election results are published/archived or accessed via public token
+    token = request.args.get("token")
+    has_valid_token = bool(token and election.public_token and token == election.public_token)
+    is_published = election.effective_status in ("results_published", "archived")
+
+    if not (is_staff or is_published or has_valid_token):
+        return (
+            jsonify({
+                "error": "Results hidden",
+                "message": "Live turnout statistics are not publicly accessible while voting is ongoing.",
+                "results_published": False,
+            }),
+            403,
+        )
+
     try:
         stats = VoteService.calculate_turnout(election_id=election_id)
         return jsonify(stats), 200
