@@ -10,7 +10,7 @@ import io
 from datetime import datetime, timezone
 from dateutil import parser as date_parser
 from PIL import Image
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, current_app
 from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db, commit_or_flush
@@ -299,22 +299,26 @@ def add_candidate(election_id):
     if allowed and position not in allowed:
         return jsonify({"error": "Choose one of the election's positions."}), 400
 
-    candidate = Candidate(
-        election_id=election.id,
-        name=name,
-        position=position,
-        department=department,
-        semester=semester or None,
-        bio=bio,
-    )
-    db.session.add(candidate)
-    db.session.flush()
-    save_photo(candidate.id, photo[0], photo[1])
-    candidate.photo_url = f"/api/photos/{candidate.id}"
-    _audit("CANDIDATE_ADDED", f"Added {name} as a candidate for {position} in \u201c{election.title}\u201d.")
-    commit_or_flush()
-
-    return jsonify(candidate.to_dict()), 201
+    try:
+        candidate = Candidate(
+            election_id=election.id,
+            name=name,
+            position=position,
+            department=department,
+            semester=semester or None,
+            bio=bio,
+        )
+        db.session.add(candidate)
+        db.session.flush()
+        save_photo(candidate.id, photo[0], photo[1])
+        candidate.photo_url = f"/api/photos/{candidate.id}"
+        _audit("CANDIDATE_ADDED", f"Added {name} as a candidate for {position} in \u201c{election.title}\u201d.")
+        commit_or_flush()
+        return jsonify(candidate.to_dict()), 201
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception("Failed to add candidate: %s", exc)
+        return jsonify({"error": f"Failed to add candidate: {str(exc)}"}), 500
 
 
 @admin_bp.route("/elections/<int:election_id>/candidates/<int:candidate_id>", methods=["PUT", "POST"])
@@ -346,22 +350,27 @@ def update_candidate(candidate_id, election_id=None):
     if allowed and position not in allowed:
         return jsonify({"error": "Choose one of the election's positions."}), 400
 
-    if upload and getattr(upload, "filename", None):
-        photo, photo_error = read_photo(upload)
-        if photo_error:
-            return jsonify({"error": photo_error}), 400
-        save_photo(candidate.id, photo[0], photo[1])
-        candidate.photo_url = f"/api/photos/{candidate.id}"
+    try:
+        if upload and getattr(upload, "filename", None):
+            photo, photo_error = read_photo(upload)
+            if photo_error:
+                return jsonify({"error": photo_error}), 400
+            save_photo(candidate.id, photo[0], photo[1])
+            candidate.photo_url = f"/api/photos/{candidate.id}"
 
-    candidate.name = name
-    candidate.position = position
-    candidate.department = department
-    candidate.semester = semester or None
-    candidate.bio = bio
+        candidate.name = name
+        candidate.position = position
+        candidate.department = department
+        candidate.semester = semester or None
+        candidate.bio = bio
 
-    _audit("CANDIDATE_UPDATED", f"Updated details for candidate {name} ({position}) in \u201c{candidate.election.title}\u201d.")
-    commit_or_flush()
-    return jsonify(candidate.to_dict()), 200
+        _audit("CANDIDATE_UPDATED", f"Updated details for candidate {name} ({position}) in \u201c{candidate.election.title}\u201d.")
+        commit_or_flush()
+        return jsonify(candidate.to_dict()), 200
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception("Failed to update candidate: %s", exc)
+        return jsonify({"error": f"Failed to update candidate: {str(exc)}"}), 500
 
 
 @admin_bp.route("/elections/<int:election_id>/candidates/<int:candidate_id>", methods=["DELETE"])

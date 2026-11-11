@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # Create unprivileged user for security
-RUN mkdir -p /app/data/receipts/live /app/data/receipts/mock && useradd -u 1000 evoting && chown -R evoting:evoting /app
+RUN mkdir -p /app/data/receipts/live /app/data/receipts/mock /app/data/photos /app/logs && useradd -u 1000 evoting && chown -R evoting:evoting /app
 USER evoting
 
 # Expose port
