@@ -369,7 +369,7 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     y -= 10.0
 
     # Badge pill
-    badge_w = 110.0 if is_mock else 125.0
+    badge_w = 125.0
     badge_h = 9.5
     c.setFillColor(badge_bg)
     c.setStrokeColor(badge_border)
@@ -408,9 +408,9 @@ def generate_receipt_pdf(data: Dict[str, Any], output_target) -> None:
     y -= 2.0
 
     # 3. Table of Choices
-    th_bg_color = colors.HexColor("#fef3c7") if is_mock else colors.HexColor("#f1f5f9")
-    th_border_color = colors.HexColor("#fde68a") if is_mock else colors.HexColor("#cbd5e1")
-    th_text_color = colors.HexColor("#92400e") if is_mock else colors.HexColor("#475569")
+    th_bg_color = colors.HexColor("#f1f5f9")
+    th_border_color = colors.HexColor("#cbd5e1")
+    th_text_color = colors.HexColor("#475569")
 
     th_pos = ParagraphStyle("ThP", fontName="Helvetica-Bold", fontSize=6.5, leading=7.5, textColor=th_text_color)
     th_ch = ParagraphStyle("ThC", fontName="Helvetica-Bold", fontSize=6.5, leading=7.5, textColor=th_text_color, alignment=2)
