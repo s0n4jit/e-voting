@@ -22,7 +22,6 @@ export const CandidateManager = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(null);
-  const [departments, setDepartments] = useState([]);
   const [photoError, setPhotoError] = useState('');
   const [preview, setPreview] = useState('');
   const [cropperOpen, setCropperOpen] = useState(false);
@@ -40,8 +39,6 @@ export const CandidateManager = () => {
   useEffect(() => {
     setElection(null);
     load();
-    // Programmes removed
-    setDepartments([]);
   }, [load]);
   usePolling(() => (electionId ? adminApi.getElection(electionId).then(setElection).catch(() => {}) : null), 4000);
 
@@ -237,7 +234,14 @@ export const CandidateManager = () => {
                 </select>
               </Field>
               <Field label="Department / Stream" htmlFor="c-dept" hint="Optional department or stream (e.g. Political Science, Arts, Science)">
-                <input id="c-dept" className="input" placeholder="e.g. Political Science (optional)" value={form.department} onChange={(e) => set('department', e.target.value)} maxLength={100} />
+                <input
+                  id="c-dept"
+                  className="input"
+                  placeholder="e.g. Political Science (optional)"
+                  value={form.department}
+                  onChange={(e) => set('department', e.target.value)}
+                  maxLength={100}
+                />
               </Field>
               <Field label="Semester / year" htmlFor="c-sem" hint="Shown on the voting card, e.g. Semester 3.">
                 <input id="c-sem" className="input" value={form.semester} onChange={(e) => set('semester', e.target.value)} maxLength={30} />

@@ -18,6 +18,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from shutil import which
 from urllib.parse import urlparse
+import urllib.request
 
 CONF = os.environ.get("EVOTE_CONF", "/etc/evote/booth.conf")
 PORT = int(os.environ.get("EVOTE_AGENT_PORT", "9631"))
@@ -127,6 +128,31 @@ def archive(r, text, conf):
     return path
 
 
+def report_print_status(body, conf, printed=True, error=None):
+    """Notify central server about physical print outcome (asynchronously)."""
+    origin = origin_of(conf.get("VOTING_URL", ""))
+    if not origin:
+        return
+    token = body.get("kiosk_token")
+    req_body = json.dumps({
+        "slip_id": clean(body.get("receipt_ref") or body.get("slip") or body.get("slip_id"), 40),
+        "election_id": body.get("election_id"),
+        "booth_name": clean(body.get("booth"), 20),
+        "is_mock": bool(body.get("is_mock")),
+        "is_printed": printed,
+        "print_error": str(error) if error else None,
+        "kiosk_token": token,
+    }).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-Kiosk-Token"] = str(token)
+    req = urllib.request.Request(f"{origin}/api/booth/receipt-upload", data=req_body, headers=headers, method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=3)
+    except Exception:
+        pass
+
+
 def send_to_printer(text, printer, copies):
     cmd = shlex.split(LP) + ["-n", str(copies)]
     if printer:
@@ -234,12 +260,15 @@ class Handler(BaseHTTPRequestHandler):
                 except OSError as e:
                     return self._send(500, {"archived": False, "printed": False, "error": f"could not save the copy: {e}"}, conf=conf)
                 if conf["PRINT_ENABLED"] == "0":
+                    threading.Thread(target=report_print_status, args=(body, conf, False, "printing is switched off"), daemon=True).start()
                     return self._send(200, {"archived": True, "printed": False, "error": "printing is switched off"}, conf=conf)
                 printer = clean(body.get("printer"), 100) or conf["PRINTER"]
                 try:
                     copies = min(max(int(body.get("copies") or conf["COPIES"]), 1), 3)
                     send_to_printer(text, printer, copies)
+                    threading.Thread(target=report_print_status, args=(body, conf, True, None), daemon=True).start()
                 except Exception as e:  # the saved copy exists; the booth tells the voter to ask the desk
+                    threading.Thread(target=report_print_status, args=(body, conf, False, str(e)), daemon=True).start()
                     return self._send(200, {"archived": True, "printed": False, "error": str(e)}, conf=conf)
             return self._send(200, {"archived": True, "printed": True, "file": os.path.basename(saved)}, conf=conf)
         if not setup_on(conf):

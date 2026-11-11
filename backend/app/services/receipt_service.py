@@ -525,9 +525,8 @@ class ReceiptService:
         try:
             with open(html_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
-            generate_receipt_pdf(data, pdf_path)
         except Exception as e:
-            logger.warning(f"Failed to write receipt files for slip {slip_id}: {e}")
+            logger.warning(f"Failed to write receipt html for slip {slip_id}: {e}")
 
         # 2. Database Record
         receipt = VoteReceipt.query.filter_by(slip_id=slip_id).first()

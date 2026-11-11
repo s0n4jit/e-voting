@@ -19,7 +19,6 @@ from app.models.election import Election
 from app.models.candidate import Candidate
 from app.services.photo_service import save_photo, delete_photo
 from app.models.election_position import ElectionPosition
-from app.models.programme import Programme
 from app.models.voter_record import VoterRecord
 from app.models.audit_log import AuditLog
 from app.models.voting_token import STATIC_PIN_MINUTES, VotingToken
@@ -286,15 +285,13 @@ def add_candidate(election_id):
     payload = request.form  # multipart: fields plus the photo file
     name = sanitize_input(payload.get("name"))
     position = sanitize_input(payload.get("position", "General Secretary"))
-    department = str(payload.get("department") or "").strip()
+    department = sanitize_input(payload.get("department", ""))[:100] or None
     semester = sanitize_input(payload.get("semester", ""))[:30]
     bio = sanitize_input(payload.get("bio", ""))
     upload = request.files.get("photo")
 
     if not name:
         return jsonify({"error": "Candidate name is required."}), 400
-    if not Programme.query.filter_by(name=department, is_active=True).first():
-        return jsonify({"error": "Choose the candidate's department from the list."}), 400
     photo, photo_error = read_photo(upload)
     if photo_error:
         return jsonify({"error": photo_error}), 400
@@ -339,7 +336,7 @@ def update_candidate(candidate_id, election_id=None):
     payload = request.get_json(silent=True) or request.form
     name = sanitize_input(payload.get("name"))
     position = sanitize_input(payload.get("position", candidate.position))
-    department = str(payload.get("department") or "").strip()
+    department = sanitize_input(payload.get("department", candidate.department or ""))[:100] or None
     semester = sanitize_input(payload.get("semester", ""))[:30]
     bio = sanitize_input(payload.get("bio", ""))
     upload = request.files.get("photo") if request.files else None

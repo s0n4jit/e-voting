@@ -117,15 +117,6 @@ export const adminApi = {
     (await apiClient.post(`/admin/elections/${electionId}/status`, { status })).data,
   setPositions: async (electionId, positions) =>
     (await apiClient.put(`/admin/elections/${electionId}/positions`, { positions })).data,
-  getProgrammes: async () => (await apiClient.get('/admin/programmes')).data,
-  createProgramme: async (data) => (await apiClient.post('/admin/programmes', data)).data,
-  updateProgramme: async (id, data) => (await apiClient.put(`/admin/programmes/${id}`, data)).data,
-  deleteProgramme: async (id) => (await apiClient.delete(`/admin/programmes/${id}`)).data,
-  importProgrammes: async (file) => {
-    const form = new FormData();
-    form.append('file', file);
-    return (await apiClient.post('/admin/programmes/import', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
-  },
   exportSystem: async () => (await apiClient.post('/admin/system/export', null, { responseType: 'blob', timeout: 120000 })).data,
   resetSystem: async (code, confirm) => (await apiClient.post('/admin/system/reset', { code, confirm }, { timeout: 120000 })).data,
   importSystem: async (file, code, confirm) => {

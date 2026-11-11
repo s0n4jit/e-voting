@@ -184,6 +184,26 @@ def test_finding5_receipt_spoofing_and_immutability(client, test_election, app):
         assert "Real Winner" in db_receipt.choices_json
         assert "Forged Choice" not in db_receipt.choices_json
 
+        # 3. Verify JSON payload updates print failure and on-demand PDF generation
+        res3 = client.post(
+            "/api/booth/receipt-upload",
+            headers={"X-Kiosk-Token": token},
+            json={
+                "slip_id": "FINALIZED-SLIP-01",
+                "election_id": test_election.id,
+                "is_printed": False,
+                "print_error": "Paper jam",
+            },
+        )
+        assert res3.status_code == 200
+        updated = VoteReceipt.query.filter_by(slip_id="FINALIZED-SLIP-01").first()
+        assert updated.is_printed is False
+        assert updated.print_error == "Paper jam"
+
+        from app.services.receipt_service import ReceiptService
+        pdf_bytes = ReceiptService.get_receipt_pdf_bytes(updated)
+        assert pdf_bytes.startswith(b"%PDF")
+
 
 def test_finding6_and_7_slip_batch_limits(client, test_election, app):
     """Slip generation rejects counts > 500 per batch to prevent worker starvation."""

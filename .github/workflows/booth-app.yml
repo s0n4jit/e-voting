@@ -14,18 +14,6 @@ permissions:
   contents: write
 
 jobs:
-  cleanup-legacy-release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clean up duplicate v1.4.0 release and update latest build title
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete v1.4.0 --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
-          if gh release view booth-app-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit booth-app-latest --repo "$GITHUB_REPOSITORY" --title "Booth app" --latest=true
-          fi
-
   build:
     strategy:
       matrix:
@@ -72,7 +60,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la files
-          gh release delete v1.4.0 --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release delete booth-app-latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
           gh release create booth-app-latest files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Booth app" --latest=true \

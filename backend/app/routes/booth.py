@@ -289,20 +289,30 @@ def upload_booth_receipt():
     """
     import os
     import re
-    raw_slip = (request.form.get("slip_id") or request.form.get("receipt_ref") or "").strip()
+    import json
+    json_data = request.get_json(silent=True) or {}
+    raw_slip = (
+        request.form.get("slip_id")
+        or request.form.get("receipt_ref")
+        or json_data.get("slip_id")
+        or json_data.get("receipt_ref")
+        or ""
+    ).strip()
     slip_id = re.sub(r"[^A-Za-z0-9_-]", "", raw_slip)
     if not slip_id:
         return jsonify({"error": "slip_id is required"}), 400
 
-    election_id = request.form.get("election_id", type=int)
+    election_id = request.form.get("election_id", type=int) or json_data.get("election_id")
     device, denied = require_booth(election_id=election_id)
     if denied:
         return denied
     booth_name = device.booth_id
 
-    is_mock = request.form.get("is_mock", "false").lower() in ("true", "1", "yes")
-    html_content = request.form.get("html") or ""
-    choices_raw = request.form.get("choices") or "[]"
+    is_mock = str(request.form.get("is_mock") if "is_mock" in request.form else json_data.get("is_mock", False)).lower() in ("true", "1", "yes")
+    html_content = request.form.get("html") or json_data.get("html") or ""
+    choices_raw = request.form.get("choices")
+    if choices_raw is None:
+        choices_raw = json.dumps(json_data.get("choices", [])) if json_data.get("choices") is not None else "[]"
 
     from app.services.receipt_service import get_receipt_dir
     from app.models.vote_receipt import VoteReceipt
@@ -331,8 +341,9 @@ def upload_booth_receipt():
                 pass
 
     now = datetime.now(timezone.utc)
-    is_printed = request.form.get("is_printed", "true").lower() in ("true", "1", "yes")
-    print_error = (request.form.get("print_error") or "").strip() or None
+    is_printed_val = request.form.get("is_printed") if "is_printed" in request.form else json_data.get("is_printed", True)
+    is_printed = str(is_printed_val).lower() in ("true", "1", "yes")
+    print_error = (request.form.get("print_error") or json_data.get("print_error") or "").strip() or None
 
     # Verify that the receipt corresponds to an actual cast ballot or valid session
     from app.models.booth_slip import BoothSlip

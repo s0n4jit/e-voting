@@ -759,7 +759,13 @@ export const KioskVoting = () => {
         logo: activeLogo,
         institution_name: activeInst,
         is_mock: Boolean(isMock || election?.is_mock),
-        lines: positions.map((p) => ({ position: p.position, choice: (choices[p.position] === 'NOTA' || !choices[p.position]) ? 'None of the above (NOTA)' : choices[p.position].name })),
+        lines: positions.map((p) => {
+          const ch = choicesRef.current[p.position] || choices[p.position];
+          return {
+            position: p.position,
+            choice: (ch === 'NOTA' || !ch) ? 'None of the above (NOTA)' : ch.name,
+          };
+        }),
       });
       setChoices({});
       setStage('done');

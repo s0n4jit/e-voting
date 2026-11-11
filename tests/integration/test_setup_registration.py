@@ -455,13 +455,15 @@ def test_programme_csv_import(client, installed):
     assert client.post("/api/admin/programmes/import", headers=H(installed)).status_code == 400
 
 
-def test_candidate_needs_department_from_programmes(client, installed):
+def test_candidate_department_free_text_optional(client, installed):
     eid = client.get("/api/admin/elections", headers=H(installed)).get_json()[0]["id"]
     url = f"/api/admin/elections/{eid}/candidates"
-    assert cpost(client, url, headers=H(installed), json={"name": "A", "position": "President"}).status_code == 400
-    assert cpost(client, url, headers=H(installed), json={"name": "A", "position": "President", "department": "Nowhere"}).status_code == 400
-    ok = cpost(client, url, headers=H(installed), json={"name": "A", "position": "President", "department": DEPT, "party": "X"})
-    assert ok.status_code == 201 and ok.get_json()["department"] == DEPT and "party" not in ok.get_json()
+    # Empty department succeeds and is stored as None
+    ok_empty = cpost(client, url, headers=H(installed), json={"name": "Candidate A", "position": "President"})
+    assert ok_empty.status_code == 201 and ok_empty.get_json()["department"] is None
+    # Free-text department succeeds
+    ok_text = cpost(client, url, headers=H(installed), json={"name": "Candidate B", "position": "Secretary", "department": "Political Science", "party": "X"})
+    assert ok_text.status_code == 201 and ok_text.get_json()["department"] == "Political Science" and "party" not in ok_text.get_json()
 
 
 # ── candidate photos and single election ───────────────────────────────────
@@ -475,8 +477,8 @@ def test_candidate_photo_is_required_validated_served_and_deleted(client, instal
     assert cpost(client, url, H(installed), body, photo=PNG + b"0" * (2 * 1024 * 1024)).status_code == 400
     from app.models.candidate_photo import CandidatePhoto
     assert CandidatePhoto.query.count() == 0                       # nothing stored for rejected uploads
-    bad_dept = cpost(client, url, H(installed), {**body, "department": "Nowhere"})
-    assert bad_dept.status_code == 400 and CandidatePhoto.query.count() == 0
+    bad_name = cpost(client, url, H(installed), {**body, "name": ""})
+    assert bad_name.status_code == 400 and CandidatePhoto.query.count() == 0
     ok = cpost(client, url, H(installed), body)
     cand = ok.get_json()
     assert ok.status_code == 201 and cand["photo_url"] == f"/api/photos/{cand['id']}"
