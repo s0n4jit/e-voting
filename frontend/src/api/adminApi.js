@@ -31,9 +31,7 @@ export const adminApi = {
     Object.entries(candidateData).forEach(([k, v]) => {
       if (v !== null && v !== undefined) form.append(k, v);
     });
-    const response = await apiClient.post(`/admin/elections/${electionId}/candidates`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.post(`/admin/elections/${electionId}/candidates`, form);
     return response.data;
   },
 
@@ -45,9 +43,7 @@ export const adminApi = {
     const url = electionId
       ? `/admin/elections/${electionId}/candidates/${candidateId}`
       : `/admin/candidates/${candidateId}`;
-    const response = await apiClient.put(url, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.put(url, form);
     return response.data;
   },
 

@@ -4,7 +4,7 @@ and the photos are shown on the ballot anyway).
 """
 
 import os
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 from app.extensions import db, limiter
 from app.services.photo_service import find_photo, save_photo
 
@@ -41,6 +41,13 @@ def get_photo(candidate_id, ext=None):
     file_ext = os.path.splitext(path)[1].lower()
     mimetype = "image/png" if file_ext == ".png" else ("image/webp" if file_ext == ".webp" else "image/jpeg")
 
+    stat = os.stat(path) if os.path.exists(path) else None
+    etag = f'"{candidate_id}-{stat.st_mtime_ns}-{stat.st_size}"' if stat else f'"{candidate_id}-0"'
+    cache_control = "public, max-age=86400" if request.args.get("v") else "no-cache, must-revalidate"
+
+    if request.headers.get("If-None-Match") == etag:
+        return Response(status=304, headers={"ETag": etag, "Cache-Control": cache_control})
+
     with open(path, "rb") as f:
         data = f.read()
 
@@ -49,7 +56,8 @@ def get_photo(candidate_id, ext=None):
         mimetype=mimetype,
         headers={
             "Content-Type": mimetype,
-            "Cache-Control": "public, max-age=86400",
+            "Cache-Control": cache_control,
+            "ETag": etag,
             "X-Content-Type-Options": "nosniff",
         },
     )

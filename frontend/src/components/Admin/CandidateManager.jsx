@@ -58,11 +58,25 @@ export const CandidateManager = () => {
     setError('');
     try {
       if (form.id) {
-        await adminApi.updateCandidate(form.id, electionId || election?.id, form);
+        const updated = await adminApi.updateCandidate(form.id, electionId || election?.id, form);
         toast.success('Candidate updated');
+        setElection((prev) => {
+          if (!prev || !prev.candidates) return prev;
+          return {
+            ...prev,
+            candidates: prev.candidates.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+          };
+        });
       } else {
-        await adminApi.addCandidate(electionId || election?.id, form);
+        const added = await adminApi.addCandidate(electionId || election?.id, form);
         toast.success('Candidate added');
+        setElection((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            candidates: [...(prev.candidates || []), added],
+          };
+        });
       }
       setForm(null);
       load();
@@ -254,7 +268,7 @@ export const CandidateManager = () => {
                 </div>
                 <label className="btn-secondary btn-sm cursor-pointer">
                   {form.photo ? 'Change photo' : 'Upload photo'}
-                  <input id="c-photo" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => pickPhoto(e.target.files?.[0])} />
+                  <input id="c-photo" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onClick={(e) => { e.target.value = null; }} onChange={(e) => pickPhoto(e.target.files?.[0])} />
                 </label>
               </div>
             </Field>

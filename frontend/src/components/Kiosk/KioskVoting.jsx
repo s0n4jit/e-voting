@@ -293,20 +293,21 @@ const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('')
 
 const Avatar = ({ candidate, size = 'w-16 h-16', text = '', rounded = 'rounded-xl' }) => {
   const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [candidate?.photo_url]);
   return candidate.photo_url && !failed ? (
     <img
       src={photoSrc(candidate.photo_url)}
       alt=""
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      className={`${size} ${rounded} object-cover bg-recessed shrink-0 select-none pointer-events-none`}
+      className={`${size} ${rounded} aspect-square object-cover bg-recessed shrink-0 select-none pointer-events-none`}
       onError={() => setFailed(true)}
     />
   ) : (
     <div
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      className={`${size} ${rounded} bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0 select-none ${text}`}
+      className={`${size} ${rounded} aspect-square bg-brand-soft text-brand-fg font-semibold flex items-center justify-center shrink-0 select-none ${text}`}
     >
       {initials(candidate.name)}
     </div>
@@ -909,7 +910,7 @@ export const KioskVoting = () => {
     <>
       {chrome(
         stage === 'review' || stage === 'submitting' ? (
-          <div key="review" className={`${animation} max-w-5xl mx-auto w-full space-y-3`}>
+          <div key="review" className={`${animation} ${positions.length > 4 ? 'max-w-5xl' : 'max-w-2xl'} mx-auto w-full space-y-3`}>
             <div className="flex items-center justify-between pb-1 border-b border-line">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand">Final step</p>
@@ -922,7 +923,7 @@ export const KioskVoting = () => {
 
             {/* Clean list layout just like the old design, arranged in 2 columns if > 4 positions to fit in one screen */}
             {positions.length > 4 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-start w-full">
                 <ul className="card divide-y divide-line">
                   {positions.slice(0, Math.ceil(positions.length / 2)).map((p, i) => {
                     const c = choices[p.position];
@@ -999,20 +1000,20 @@ export const KioskVoting = () => {
                 </ul>
               </div>
             ) : (
-              <ul className="card divide-y divide-line max-w-2xl mx-auto w-full">
+              <ul className="card divide-y divide-line w-full">
                 {positions.map((p, i) => {
                   const c = choices[p.position];
                   const isNota = c === 'NOTA';
                   return (
                     <li key={p.position} className="flex items-center gap-4 px-5 py-3.5">
                       {isNota ? (
-                        <div className="w-13 h-13 rounded-xl bg-recessed border border-line flex items-center justify-center font-black text-sm text-muted shrink-0">
+                        <div className="w-12 h-12 rounded-xl bg-recessed border border-line flex items-center justify-center font-black text-xs text-muted shrink-0">
                           NOTA
                         </div>
                       ) : c ? (
-                        <Avatar candidate={c} size="w-13 h-13" rounded="rounded-xl" text="text-base font-bold" />
+                        <Avatar candidate={c} size="w-12 h-12" rounded="rounded-xl" text="text-base font-bold" />
                       ) : (
-                        <div className="w-13 h-13 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-base shrink-0">
+                        <div className="w-12 h-12 rounded-xl bg-bad-soft text-bad font-black flex items-center justify-center text-base shrink-0">
                           ?
                         </div>
                       )}
@@ -1084,7 +1085,13 @@ export const KioskVoting = () => {
             <div
               role="radiogroup"
               aria-label={current.position}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3 max-w-5xl mx-auto w-full select-none"
+              className={`grid ${
+                current.candidates.length === 1
+                  ? 'grid-cols-1 sm:grid-cols-2 max-w-2xl'
+                  : current.candidates.length === 3
+                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl'
+                  : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl'
+              } gap-4 mt-3 mx-auto w-full select-none`}
             >
               {current.candidates.map((c) => {
                 const on = choices[current.position]?.id === c.id;
@@ -1120,13 +1127,11 @@ export const KioskVoting = () => {
                     >
                       {on && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                     </span>
-                    <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${on ? 'bg-brand-soft/60' : ''}`}>
-                      <p className="text-lg sm:text-xl font-black leading-tight break-words text-fg">{c.name}</p>
-                      {formatCandidateClass(c.department, c.semester) && (
-                        <p className="text-xs sm:text-sm text-muted font-medium mt-1">
-                          {formatCandidateClass(c.department, c.semester)}
-                        </p>
-                      )}
+                    <div className={`px-4 py-3.5 text-center flex-1 flex flex-col justify-start items-center ${on ? 'bg-brand-soft/60' : ''}`}>
+                      <p className="text-lg sm:text-xl font-black leading-tight break-words text-fg line-clamp-2">{c.name}</p>
+                      <p className="text-xs sm:text-sm text-muted font-medium mt-1 min-h-[1.25rem]">
+                        {formatCandidateClass(c.department, c.semester) || '\u00A0'}
+                      </p>
                     </div>
                   </div>
                 );
@@ -1154,14 +1159,20 @@ export const KioskVoting = () => {
                 <span className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full border-2 flex items-center justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand border-brand' : 'bg-surface/90 border-line'}`}>
                   {choices[current.position] === 'NOTA' && <CheckIcon className="w-5 h-5 text-white animate-pop-in" strokeWidth={3} />}
                 </span>
-                <div className={`px-4 py-3 text-center flex-1 flex flex-col justify-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
-                  <p className="text-base sm:text-lg font-black leading-tight text-fg">None of the above (NOTA)</p>
-                  <p className="text-xs sm:text-sm text-muted font-medium mt-1">I do not choose anyone</p>
+                <div className={`px-4 py-3.5 text-center flex-1 flex flex-col justify-start items-center ${choices[current.position] === 'NOTA' ? 'bg-brand-soft/60' : ''}`}>
+                  <p className="text-lg sm:text-xl font-black leading-tight text-fg">None of the above (NOTA)</p>
+                  <p className="text-xs sm:text-sm text-muted font-medium mt-1 min-h-[1.25rem]">I do not choose anyone</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-4 sm:mt-5 max-w-6xl mx-auto w-full">
+            <div className={`flex items-center justify-between mt-4 sm:mt-5 ${
+              current.candidates.length === 1
+                ? 'max-w-2xl'
+                : current.candidates.length === 3
+                ? 'max-w-6xl'
+                : 'max-w-5xl'
+            } mx-auto w-full`}>
               <button
                 className="btn-secondary py-2 px-5"
                 onClick={() => {

@@ -22,6 +22,14 @@ const apiClient = axios.create({
 // Request interceptor: attach Authorization header if access token exists
 apiClient.interceptors.request.use(
   (config) => {
+    // Let browser set multipart/form-data boundary automatically when sending FormData
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers?.delete) {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    }
     const token = localStorage.getItem('access_token');
     if (token && !config.headers.Authorization) {  // a call may carry its own (the refresh token)
       config.headers.Authorization = `Bearer ${token}`;

@@ -56,6 +56,11 @@ PHOTO_TYPES = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
 
 def read_photo(upload):
     """Validate an uploaded candidate photo. Returns ((content_type, bytes), None) or (None, error)."""
+    if upload and hasattr(upload.stream, "seek"):
+        try:
+            upload.stream.seek(0)
+        except Exception:
+            pass
     data = upload.stream.read(MAX_PHOTO_BYTES + 1) if upload else b""
     if not data:
         return None, "A candidate photo is required."
@@ -356,7 +361,8 @@ def update_candidate(candidate_id, election_id=None):
             if photo_error:
                 return jsonify({"error": photo_error}), 400
             save_photo(candidate.id, photo[0], photo[1])
-            candidate.photo_url = f"/api/photos/{candidate.id}"
+            now_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+            candidate.photo_url = f"/api/photos/{candidate.id}?v={now_ts}"
 
         candidate.name = name
         candidate.position = position
